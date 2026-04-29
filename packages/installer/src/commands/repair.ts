@@ -1,12 +1,16 @@
 import kleur from "kleur";
-import { existsSync, readFileSync } from "node:fs";
-import { install, stageAssets } from "./install.js";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { platform } from "node:os";
+import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { install, readCodexVersion, stageAssets } from "./install.js";
 import { ensureUserPaths } from "../paths.js";
 import { readState, writeState } from "../state.js";
 import { locateCodex } from "../platform.js";
 import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
+import { clearUpdateMode, readUpdateMode } from "../update-mode.js";
 
 interface Opts {
   app?: string;
@@ -33,8 +37,24 @@ export async function repair(opts: Opts = {}): Promise<void> {
     }
   }
 
+  let settledBeforeHashCheck = false;
   if (state && !opts.force) {
+    await waitForMacAppUpdateToSettle(opts.app ?? state.appRoot, opts.quiet);
+    settledBeforeHashCheck = true;
     const codex = locateCodex(opts.app ?? state.appRoot);
+    const updateMode = readUpdateMode(paths.updateModeFile);
+    if (updateMode) {
+      const codexVersion = readCodexVersion(codex.metaPath);
+      if (codexVersion === updateMode.codexVersion) {
+        const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
+        writeState(paths.stateFile, { ...state, watcher });
+        if (!opts.quiet) {
+          console.log(kleur.yellow("Codex update mode is active; leaving signed app unpatched."));
+        }
+        return;
+      }
+      clearUpdateMode(paths.updateModeFile);
+    }
     const { headerHash } = readHeaderHash(codex.asarPath);
     if (headerHash === state.patchedAsarHash) {
       const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
@@ -63,6 +83,9 @@ export async function repair(opts: Opts = {}): Promise<void> {
     }
   }
 
+  if (!settledBeforeHashCheck) {
+    await waitForMacAppUpdateToSettle(opts.app ?? state?.appRoot, opts.quiet);
+  }
   await install({
     app: opts.app ?? state?.appRoot,
     fuse: state?.fuseFlipped ?? true,
@@ -84,6 +107,63 @@ function isAutoUpdateEnabled(configFile: string): boolean {
   } catch {
     return true;
   }
+}
+
+async function waitForMacAppUpdateToSettle(appRoot: string | undefined, quiet?: boolean): Promise<void> {
+  if (platform() !== "darwin" || !appRoot) return;
+
+  const paths = [
+    join(appRoot, "Contents", "Info.plist"),
+    join(appRoot, "Contents", "Resources", "app.asar"),
+    join(
+      appRoot,
+      "Contents",
+      "Frameworks",
+      "Electron Framework.framework",
+      "Versions",
+      "A",
+      "Electron Framework",
+    ),
+  ];
+
+  let previous = bundleSnapshot(paths);
+  let stableSamples = 0;
+  let announced = previous.includes(":missing:");
+  const started = Date.now();
+  const timeoutMs = 120_000;
+  if (announced && !quiet) {
+    console.log(kleur.dim("Waiting for Codex.app update files to appear..."));
+  }
+
+  while (Date.now() - started < timeoutMs) {
+    await delay(2_000);
+    const snapshot = bundleSnapshot(paths);
+    if (!snapshot.includes(":missing:") && snapshot === previous) {
+      stableSamples += 1;
+      if (stableSamples >= 3) return;
+    } else {
+      stableSamples = 0;
+      previous = snapshot;
+      if (!quiet && !announced) {
+        console.log(kleur.dim("Waiting for Codex.app update files to settle..."));
+        announced = true;
+      }
+    }
+  }
+  throw new Error("Codex.app still appears to be updating; retry repair after the update finishes.");
+}
+
+function bundleSnapshot(paths: string[]): string {
+  return paths
+    .map((p) => {
+      try {
+        const st = statSync(p);
+        return `${p}:${st.size}:${st.mtimeMs}`;
+      } catch {
+        return `${p}:missing:0`;
+      }
+    })
+    .join("|");
 }
 
 function refreshWatcher(

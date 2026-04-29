@@ -14,6 +14,7 @@ import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
 import { CODEX_PLUSPLUS_VERSION } from "../version.js";
 import { installDefaultTweaks } from "../default-tweaks.js";
+import { formatCliShimResult, installCliShims } from "../cli-shim.js";
 
 interface Opts {
   app?: string;
@@ -50,6 +51,7 @@ export async function install(opts: Opts = {}): Promise<void> {
 
   const paths = ensureUserPaths();
   step(`User dir: ${kleur.cyan(paths.root)}`);
+  step(formatCliShimResult(installCliShims(paths.binDir)));
 
   // 1. Backup originals.
   const pristineAppBackup = codex.platform === "darwin" ? join(paths.backup, "Codex.app") : null;

@@ -5,31 +5,32 @@ REPO="${CODEX_PLUSPLUS_REPO:-b-nnett/codex-plusplus}"
 REF="${CODEX_PLUSPLUS_REF:-main}"
 INSTALL_DIR="${CODEX_PLUSPLUS_SOURCE_DIR:-$HOME/.codex-plusplus/source}"
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "codex-plusplus install failed: Node.js 20+ is required." >&2
+fail() {
+  echo "[!] $1" >&2
+  echo "    Paste this error into Codex if you need help." >&2
   exit 1
+}
+
+require_command() {
+  local cmd="$1"
+  local message="$2"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    fail "$message"
+  fi
+}
+
+if ! command -v node >/dev/null 2>&1; then
+  fail "Node.js 20+ is required but node was not found."
 fi
 
 NODE_MAJOR="$(node -p "Number(process.versions.node.split('.')[0])")"
 if [ "$NODE_MAJOR" -lt 20 ]; then
-  echo "codex-plusplus install failed: Node.js 20+ is required; found $(node -v)." >&2
-  exit 1
+  fail "Node.js 20+ is required; found $(node -v)."
 fi
 
-if ! command -v npm >/dev/null 2>&1; then
-  echo "codex-plusplus install failed: npm is required to build from GitHub source." >&2
-  exit 1
-fi
-
-if ! command -v curl >/dev/null 2>&1; then
-  echo "codex-plusplus install failed: curl is required." >&2
-  exit 1
-fi
-
-if ! command -v tar >/dev/null 2>&1; then
-  echo "codex-plusplus install failed: tar is required." >&2
-  exit 1
-fi
+require_command npm "npm is required to build codex-plusplus from GitHub source."
+require_command curl "curl is required to download codex-plusplus from GitHub."
+require_command tar "tar is required to unpack the codex-plusplus download."
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/codex-plusplus.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
@@ -39,20 +40,34 @@ EXTRACT="$WORK/extract"
 NEXT="$WORK/source"
 
 echo "Downloading codex-plusplus from https://github.com/$REPO ($REF)..."
-curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$REF" -o "$ARCHIVE"
+curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$REF" -o "$ARCHIVE" ||
+  fail "Download failed from https://github.com/$REPO ($REF). Check the repo, branch, and network connection."
 mkdir -p "$EXTRACT"
-tar -xzf "$ARCHIVE" -C "$EXTRACT" --strip-components 1
+tar -xzf "$ARCHIVE" -C "$EXTRACT" --strip-components 1 ||
+  fail "Could not unpack the codex-plusplus download."
 mv "$EXTRACT" "$NEXT"
 
 echo "Installing dependencies..."
-if [ -f "$NEXT/package-lock.json" ]; then
-  npm ci --prefix "$NEXT"
-else
-  npm install --prefix "$NEXT"
-fi
+(
+  cd "$NEXT"
+  if [ -f package-lock.json ]; then
+    if ! npm ci --workspaces --include-workspace-root --ignore-scripts; then
+      echo "npm ci failed; regenerating the downloaded lockfile and installing workspace dependencies." >&2
+      rm -f package-lock.json
+      npm install --workspaces --include-workspace-root --ignore-scripts ||
+        fail "npm install failed while installing codex-plusplus dependencies."
+    fi
+  else
+    npm install --workspaces --include-workspace-root --ignore-scripts ||
+      fail "npm install failed while installing codex-plusplus dependencies."
+  fi
+)
 
 echo "Building codex-plusplus..."
-npm run build --prefix "$NEXT"
+(
+  cd "$NEXT"
+  npm run build || fail "codex-plusplus build failed."
+)
 
 mkdir -p "$(dirname "$INSTALL_DIR")"
 rm -rf "$INSTALL_DIR.previous"
@@ -62,7 +77,8 @@ fi
 mv "$NEXT" "$INSTALL_DIR"
 
 echo "Running installer..."
-node "$INSTALL_DIR/packages/installer/dist/cli.js" install "$@"
+node "$INSTALL_DIR/packages/installer/dist/cli.js" install "$@" ||
+  fail "codex-plusplus installer failed."
 
 echo
 echo "codex-plusplus source installed at: $INSTALL_DIR"

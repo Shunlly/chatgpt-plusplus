@@ -20,6 +20,8 @@ export interface UserPaths {
   backup: string;
   configFile: string;
   stateFile: string;
+  updateModeFile: string;
+  binDir: string;
   logDir: string;
 }
 
@@ -32,6 +34,8 @@ export function userPaths(): UserPaths {
     backup: join(root, "backup"),
     configFile: join(root, "config.json"),
     stateFile: join(root, "state.json"),
+    updateModeFile: join(root, "update-mode.json"),
+    binDir: join(root, "bin"),
     logDir: join(root, "log"),
   };
   return paths;
@@ -39,7 +43,7 @@ export function userPaths(): UserPaths {
 
 export function ensureUserPaths(): UserPaths {
   const p = userPaths();
-  for (const dir of [p.root, p.runtime, p.tweaks, p.backup, p.logDir]) {
+  for (const dir of [p.root, p.runtime, p.tweaks, p.backup, p.binDir, p.logDir]) {
     mkdirSync(dir, { recursive: true });
   }
   return p;

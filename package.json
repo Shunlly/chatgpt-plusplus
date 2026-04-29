@@ -1,7 +1,7 @@
 {
   "name": "codex-plusplus",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "description": "Tweak system for the OpenAI Codex desktop app",
   "type": "module",
@@ -19,7 +19,8 @@
   "scripts": {
     "build": "npm run build --workspace @codex-plusplus/sdk && npm run build --workspace @codex-plusplus/runtime && npm run build --workspace @codex-plusplus/loader && npm run build --workspace codex-plusplus",
     "clean": "rm -rf packages/*/dist packages/installer/assets/runtime",
-    "audit": "npm audit --workspaces --include-workspace-root"
+    "audit": "npm audit --workspaces --include-workspace-root",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -28,5 +29,17 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "bin": {
+    "codexplusplus": "packages/installer/dist/cli.js",
+    "codex-plusplus": "packages/installer/dist/cli.js"
+  },
+  "dependencies": {
+    "@electron/asar": "^3.4.0",
+    "kleur": "^4.1.5",
+    "plist": "^3.1.0",
+    "prompts": "^2.4.2",
+    "sade": "^1.8.1",
+    "tar": "^7.5.2"
   }
 }

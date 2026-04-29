@@ -12,7 +12,7 @@
  * `app.asar.unpacked` ourselves and re-signing every Mach-O file ad-hoc
  * before signing the main bundle.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { platform } from "node:os";
@@ -106,6 +106,39 @@ export function verifySignature(appRoot: string): { ok: boolean; output: string 
     const err = e as { stderr?: Buffer | string };
     return { ok: false, output: String(err.stderr ?? e) };
   }
+}
+
+export interface SignatureInfo {
+  ok: boolean;
+  adHoc: boolean;
+  teamIdentifier: string | null;
+  authority: string[];
+  output: string;
+}
+
+export function signatureInfo(appRoot: string): SignatureInfo {
+  if (platform() !== "darwin") {
+    return { ok: true, adHoc: false, teamIdentifier: null, authority: [], output: "(not macOS)" };
+  }
+  const result = spawnSync("codesign", ["-dv", "--verbose=4", appRoot], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  const info = parseSignatureInfo(output);
+  return { ...info, ok: result.status === 0, output };
+}
+
+function parseSignatureInfo(output: string): SignatureInfo {
+  const team = /^TeamIdentifier=(.*)$/m.exec(output)?.[1]?.trim() ?? null;
+  const authority = [...output.matchAll(/^Authority=(.*)$/gm)].map((m) => m[1].trim());
+  return {
+    ok: true,
+    adHoc: /Signature=adhoc/.test(output) || team === "not set",
+    teamIdentifier: team === "not set" ? null : team,
+    authority,
+    output,
+  };
 }
 
 /** Remove the macOS quarantine xattr so the modified app launches without prompt. */

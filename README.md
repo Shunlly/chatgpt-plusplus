@@ -1,5 +1,7 @@
 # codex-plusplus
 
+[Join the Discord](https://discord.gg/6bY6gGX36H)
+
 A tweak system for the [Codex](https://chatgpt.com/codex) desktop app. Inject custom features, fix UI bugs, and add a tweak manager — without rebuilding the app.
 
 > **Status:** alpha. The architecture is designed but the installer needs real-device testing on each platform before declaring victory. PRs welcome.
@@ -14,8 +16,30 @@ Everything beyond the one-time install patch lives **outside** the app bundle, s
 
 ## Install
 
+Homebrew:
+
+```sh
+brew install b-nnett/codex-plusplus/codexplusplus
+codexplusplus install
+```
+
+Bun:
+
+```sh
+bun install -g github:b-nnett/codex-plusplus
+codexplusplus install
+```
+
+Source bootstrap (macOS / Linux):
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/b-nnett/codex-plusplus/main/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/b-nnett/codex-plusplus/main/install.ps1 | iex
 ```
 
 That's it. The installer:
@@ -31,13 +55,37 @@ That's it. The installer:
 
 The watcher also runs daily through the GitHub-installed local CLI. If Codex is already patched but a newer Codex++ CLI/runtime has been installed, `repair` refreshes the runtime in your user directory without replacing tweak code. You can turn this off from Settings → Codex Plus Plus → Config.
 
+After source-bootstrap install, the installer adds `codexplusplus` and `codex-plusplus`
+to a writable PATH directory when possible. Use `codexplusplus` for day-to-day commands:
+
+```sh
+codexplusplus status
+codexplusplus repair
+codexplusplus update
+```
+
+`codexplusplus update` downloads the latest Codex++ source, rebuilds it, and runs
+`repair`. If the command is not on PATH yet, rerun the source bootstrap once.
+
 To revert:
 
 ```sh
-node ~/.codex-plusplus/source/packages/installer/dist/cli.js uninstall
+codexplusplus uninstall
 ```
 
 Other commands: `status`, `doctor`, `repair`, `tweaks list`, `tweaks open` (opens user tweaks dir).
+
+### Updating Codex on macOS
+
+Codex++ modifies and ad-hoc signs `Codex.app`, so Sparkle cannot safely install an
+official Codex update while the app is patched. Use:
+
+```sh
+codexplusplus update-codex
+```
+
+This restores a Developer ID signed Codex.app for the official updater. After
+Codex updates and restarts, the watcher re-applies Codex++ to the new app.
 
 Default tweaks currently installed on first run:
 

@@ -4,6 +4,8 @@ import kleur from "kleur";
 import { install } from "./commands/install.js";
 import { uninstall } from "./commands/uninstall.js";
 import { repair } from "./commands/repair.js";
+import { updateCodex } from "./commands/update-codex.js";
+import { selfUpdate } from "./commands/self-update.js";
 import { status } from "./commands/status.js";
 import { doctor } from "./commands/doctor.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
@@ -48,6 +50,28 @@ prog
   .option("--quiet", "Suppress non-error output")
   .option("--force", "Re-apply even if the patch appears intact")
   .action(wrap(repair));
+
+prog
+  .command("update-codex")
+  .describe("Restore signed Codex.app so the official updater can run, then reapply Codex++ after restart")
+  .option("--app", "Path to Codex.app / install dir")
+  .action(wrap(updateCodex));
+
+prog
+  .command("update")
+  .describe("Update Codex++ from GitHub, rebuild, then repair the app patch")
+  .option("--repo", "GitHub repo to download (default: b-nnett/codex-plusplus)")
+  .option("--ref", "Git ref to download (default: main)")
+  .option("--no-repair", "Update source without running repair")
+  .action(wrap(selfUpdate));
+
+prog
+  .command("self-update")
+  .describe("Alias for update")
+  .option("--repo", "GitHub repo to download (default: b-nnett/codex-plusplus)")
+  .option("--ref", "Git ref to download (default: main)")
+  .option("--no-repair", "Update source without running repair")
+  .action(wrap(selfUpdate));
 
 prog
   .command("status")

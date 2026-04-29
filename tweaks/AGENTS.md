@@ -49,6 +49,7 @@ module.exports = defineTweak({
 | `id`          | `string` (reverse-DNS)          | yes      | `"com.you.my-tweak"` |
 | `name`        | `string`                        | yes      | Shown in the Tweaks list. |
 | `version`     | `string` (semver)               | yes      | `"1.0.0"` |
+| `githubRepo`  | `string` (`owner/repo`)         | yes      | GitHub repository slug for the tweak, e.g. `"you/my-tweak"`. |
 | `description` | `string`                        | no       | Renders below the name. |
 | `author`      | `string \| { name, url?, email? }` | no    | If a string, treated as display name. If structured with `url`, name becomes a link. |
 | `homepage`    | `string` (URL)                  | no       | Linked next to the author. |
@@ -65,6 +66,7 @@ Full manifest example:
   "id": "com.example.hello-world",
   "name": "Hello World",
   "version": "0.1.0",
+  "githubRepo": "example/hello-world",
   "description": "Minimal example tweak. Adds a section to the Tweaks tab.",
   "author": {
     "name": "codex-plusplus",

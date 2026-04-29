@@ -283,6 +283,23 @@ interface CodexWindowLike {
   id: number;
   webContents: Electron.WebContents;
   on(event: "closed", listener: () => void): unknown;
+  once?(event: string, listener: (...args: unknown[]) => void): unknown;
+  off?(event: string, listener: (...args: unknown[]) => void): unknown;
+  removeListener?(event: string, listener: (...args: unknown[]) => void): unknown;
+  isDestroyed?(): boolean;
+  isFocused?(): boolean;
+  focus?(): void;
+  show?(): void;
+  hide?(): void;
+  getBounds?(): Electron.Rectangle;
+  getContentBounds?(): Electron.Rectangle;
+  getSize?(): [number, number];
+  getContentSize?(): [number, number];
+  setTitle?(title: string): void;
+  getTitle?(): string;
+  setRepresentedFilename?(filename: string): void;
+  setDocumentEdited?(edited: boolean): void;
+  setWindowButtonVisibility?(visible: boolean): void;
 }
 
 interface CodexCreateWindowOptions {
@@ -919,15 +936,50 @@ function makeCodexApi() {
 }
 
 function makeWindowLikeForView(view: Electron.BrowserView): CodexWindowLike {
+  const viewBounds = () => view.getBounds();
   return {
     id: view.webContents.id,
     webContents: view.webContents,
     on: (event: "closed", listener: () => void) => {
       if (event === "closed") {
         view.webContents.once("destroyed", listener);
+      } else {
+        view.webContents.on(event, listener);
       }
       return view;
     },
+    once: (event: string, listener: (...args: unknown[]) => void) => {
+      view.webContents.once(event as "destroyed", listener);
+      return view;
+    },
+    off: (event: string, listener: (...args: unknown[]) => void) => {
+      view.webContents.off(event as "destroyed", listener);
+      return view;
+    },
+    removeListener: (event: string, listener: (...args: unknown[]) => void) => {
+      view.webContents.removeListener(event as "destroyed", listener);
+      return view;
+    },
+    isDestroyed: () => view.webContents.isDestroyed(),
+    isFocused: () => view.webContents.isFocused(),
+    focus: () => view.webContents.focus(),
+    show: () => {},
+    hide: () => {},
+    getBounds: viewBounds,
+    getContentBounds: viewBounds,
+    getSize: () => {
+      const b = viewBounds();
+      return [b.width, b.height];
+    },
+    getContentSize: () => {
+      const b = viewBounds();
+      return [b.width, b.height];
+    },
+    setTitle: () => {},
+    getTitle: () => "",
+    setRepresentedFilename: () => {},
+    setDocumentEdited: () => {},
+    setWindowButtonVisibility: () => {},
   };
 }
 

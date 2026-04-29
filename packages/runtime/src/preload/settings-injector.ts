@@ -107,6 +107,8 @@ interface InjectorState {
   activePage: ActivePage | null;
   sidebarRoot: HTMLElement | null;
   sidebarRestoreHandler: ((e: Event) => void) | null;
+  settingsSurfaceVisible: boolean;
+  settingsSurfaceHideTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const state: InjectorState = {
@@ -125,6 +127,8 @@ const state: InjectorState = {
   activePage: null,
   sidebarRoot: null,
   sidebarRestoreHandler: null,
+  settingsSurfaceVisible: false,
+  settingsSurfaceHideTimer: null,
 };
 
 function plog(msg: string, extra?: unknown): void {
@@ -156,6 +160,7 @@ export function startSettingsInjector(): void {
 
   window.addEventListener("popstate", onNav);
   window.addEventListener("hashchange", onNav);
+  document.addEventListener("click", onDocumentClick, true);
   for (const m of ["pushState", "replaceState"] as const) {
     const orig = history[m];
     history[m] = function (this: History, ...args: Parameters<typeof orig>) {
@@ -181,6 +186,16 @@ function onNav(): void {
   state.fingerprint = null;
   tryInject();
   maybeDumpDom();
+}
+
+function onDocumentClick(e: MouseEvent): void {
+  const target = e.target instanceof Element ? e.target : null;
+  const control = target?.closest("[role='link'],button,a");
+  if (!(control instanceof HTMLElement)) return;
+  if (compactSettingsText(control.textContent || "") !== "Back to app") return;
+  setTimeout(() => {
+    setSettingsSurfaceVisible(false, "back-to-app");
+  }, 0);
 }
 
 export function registerSection(section: SettingsSection): SettingsHandle {
@@ -265,9 +280,15 @@ export function setListedTweaks(list: ListedTweak[]): void {
 function tryInject(): void {
   const itemsGroup = findSidebarItemsGroup();
   if (!itemsGroup) {
+    scheduleSettingsSurfaceHidden();
     plog("sidebar not found");
     return;
   }
+  if (state.settingsSurfaceHideTimer) {
+    clearTimeout(state.settingsSurfaceHideTimer);
+    state.settingsSurfaceHideTimer = null;
+  }
+  setSettingsSurfaceVisible(true, "sidebar-found");
   // Codex's items group lives inside an outer wrapper that's already styled
   // to hold multiple groups (`flex flex-col gap-1 gap-0`). We inject our
   // group as a sibling so the natural gap-1 acts as our visual separator.
@@ -337,6 +358,45 @@ function tryInject(): void {
   state.navButtons = { config: configBtn, tweaks: tweaksBtn };
   plog("nav group injected", { outerTag: outer.tagName });
   syncPagesGroup();
+}
+
+function scheduleSettingsSurfaceHidden(): void {
+  if (!state.settingsSurfaceVisible || state.settingsSurfaceHideTimer) return;
+  state.settingsSurfaceHideTimer = setTimeout(() => {
+    state.settingsSurfaceHideTimer = null;
+    if (findSidebarItemsGroup()) return;
+    if (isSettingsTextVisible()) return;
+    setSettingsSurfaceVisible(false, "sidebar-not-found");
+  }, 1500);
+}
+
+function isSettingsTextVisible(): boolean {
+  const text = compactSettingsText(document.body?.textContent || "").toLowerCase();
+  return (
+    text.includes("back to app") &&
+    text.includes("general") &&
+    text.includes("appearance") &&
+    (text.includes("configuration") || text.includes("default permissions"))
+  );
+}
+
+function compactSettingsText(value: string): string {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function setSettingsSurfaceVisible(visible: boolean, reason: string): void {
+  if (state.settingsSurfaceVisible === visible) return;
+  state.settingsSurfaceVisible = visible;
+  try {
+    (window as Window & { __codexppSettingsSurfaceVisible?: boolean }).__codexppSettingsSurfaceVisible = visible;
+    document.documentElement.dataset.codexppSettingsSurface = visible ? "true" : "false";
+    window.dispatchEvent(
+      new CustomEvent("codexpp:settings-surface", {
+        detail: { visible, reason },
+      }),
+    );
+  } catch {}
+  plog("settings surface", { visible, reason, url: location.href });
 }
 
 /**
