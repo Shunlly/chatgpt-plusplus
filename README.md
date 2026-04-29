@@ -4,6 +4,8 @@ A tweak system for the [Codex](https://chatgpt.com/codex) desktop app. Inject cu
 
 > **Status:** alpha. The architecture is designed but the installer needs real-device testing on each platform before declaring victory. PRs welcome.
 
+<img width="1413" height="1016" alt="Screenshot 2026-04-28 at 19 42 56" src="https://github.com/user-attachments/assets/ea0b2ffc-c30d-4f68-ae12-dd8d6a997b2f" />
+
 ## What it does
 
 `codex-plusplus` patches your local Codex.app installation so a small **loader** runs on startup. The loader pulls a **runtime** from your user directory, which discovers and loads **tweaks** (small ESM modules with a manifest + `start/stop` lifecycle). The runtime injects a "Tweaks" tab into Codex's settings UI so you can enable, disable, and configure tweaks in-app.
