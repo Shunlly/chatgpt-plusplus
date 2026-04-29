@@ -2,13 +2,15 @@ class Codexplusplus < Formula
   desc "Tweak system for the OpenAI Codex desktop app"
   homepage "https://github.com/b-nnett/codex-plusplus"
   url "https://github.com/b-nnett/codex-plusplus.git",
-      tag: "v0.1.1"
+      tag:      "v0.1.1",
+      revision: "a7e7c756230d484a33b21cb17d5dd9f7843c7c58"
   license "MIT"
 
   depends_on "node"
 
   def install
-    system "npm", "install", "--workspaces", "--include-workspace-root", "--ignore-scripts"
+    system "npm", "install", *std_npm_args(prefix: false),
+           "--workspaces", "--include-workspace-root", "--ignore-scripts"
     system "npm", "run", "build"
 
     libexec.install Dir["*"]
@@ -25,5 +27,6 @@ class Codexplusplus < Formula
 
   test do
     assert_match version.to_s, shell_output("#{bin}/codexplusplus --version")
+    assert_match version.to_s, shell_output("#{bin}/codex-plusplus --version")
   end
 end
