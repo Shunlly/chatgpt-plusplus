@@ -70,6 +70,13 @@ export async function startTweakHost(): Promise<void> {
       await loadTweak(t, paths);
     } catch (e) {
       console.error("[codex-plusplus] tweak load failed:", t.manifest.id, e);
+      try {
+        ipcRenderer.send(
+          "codexpp:preload-log",
+          "error",
+          "tweak load failed: " + t.manifest.id + ": " + String((e as Error)?.stack ?? e),
+        );
+      } catch {}
     }
   }
 

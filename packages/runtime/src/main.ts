@@ -10,7 +10,7 @@
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir } from "node:os";
 import chokidar from "chokidar";
 import { discoverTweaks, type DiscoveredTweak } from "./tweak-discovery";
@@ -202,6 +202,11 @@ function cleanOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function isPathInside(parent: string, target: string): boolean {
+  const rel = relative(resolve(parent), resolve(target));
+  return rel === "" || (!!rel && !rel.startsWith("..") && !isAbsolute(rel));
 }
 
 function log(level: "info" | "warn" | "error", ...args: unknown[]): void {
@@ -560,7 +565,7 @@ ipcMain.handle("codexpp:get-watcher-health", () => getWatcherHealth(userRoot!));
 // security — we refuse anything else.
 ipcMain.handle("codexpp:read-tweak-source", (_e, entryPath: string) => {
   const resolved = resolve(entryPath);
-  if (!resolved.startsWith(TWEAKS_DIR + "/") && resolved !== TWEAKS_DIR) {
+  if (!isPathInside(TWEAKS_DIR, resolved)) {
     throw new Error("path outside tweaks dir");
   }
   return require("node:fs").readFileSync(resolved, "utf8");
@@ -590,11 +595,11 @@ ipcMain.handle(
   (_e, tweakDir: string, relPath: string) => {
     const fs = require("node:fs") as typeof import("node:fs");
     const dir = resolve(tweakDir);
-    if (!dir.startsWith(TWEAKS_DIR + "/")) {
+    if (!isPathInside(TWEAKS_DIR, dir)) {
       throw new Error("tweakDir outside tweaks dir");
     }
     const full = resolve(dir, relPath);
-    if (!full.startsWith(dir + "/")) {
+    if (!isPathInside(dir, full) || full === dir) {
       throw new Error("path traversal");
     }
     const stat = fs.statSync(full);
@@ -621,10 +626,10 @@ ipcMain.on("codexpp:preload-log", (_e, level: "info" | "warn" | "error", msg: st
 // over IPC instead of using Node fs directly.
 ipcMain.handle("codexpp:tweak-fs", (_e, op: string, id: string, p: string, c?: string) => {
   if (!/^[a-zA-Z0-9._-]+$/.test(id)) throw new Error("bad tweak id");
-  if (p.includes("..")) throw new Error("path traversal");
   const dir = join(userRoot!, "tweak-data", id);
   mkdirSync(dir, { recursive: true });
-  const full = join(dir, p);
+  const full = resolve(dir, p);
+  if (!isPathInside(dir, full) || full === dir) throw new Error("path traversal");
   const fs = require("node:fs") as typeof import("node:fs");
   switch (op) {
     case "read": return fs.readFileSync(full, "utf8");
@@ -782,11 +787,9 @@ function stopAllMainTweaks(): void {
 
 function clearTweakModuleCache(): void {
   // Drop any cached require() entries that live inside the tweaks dir so a
-  // re-require on next load picks up fresh code. We do prefix matching on
-  // the resolved tweaks dir.
-  const prefix = TWEAKS_DIR + (TWEAKS_DIR.endsWith("/") ? "" : "/");
+  // re-require on next load picks up fresh code.
   for (const key of Object.keys(require.cache)) {
-    if (key.startsWith(prefix)) delete require.cache[key];
+    if (isPathInside(TWEAKS_DIR, key)) delete require.cache[key];
   }
 }
 

@@ -1349,19 +1349,35 @@ function renderTweaksPage(sectionsWrap: HTMLElement): void {
     sectionsByTweak.get(tweakId)!.push(s);
   }
 
+  const pagesByTweak = new Map<string, RegisteredPage[]>();
+  for (const p of state.pages.values()) {
+    if (!pagesByTweak.has(p.tweakId)) pagesByTweak.set(p.tweakId, []);
+    pagesByTweak.get(p.tweakId)!.push(p);
+  }
+
   const wrap = document.createElement("section");
   wrap.className = "flex flex-col gap-2";
   wrap.appendChild(sectionTitle("Installed Tweaks", trailing));
 
   const card = roundedCard();
   for (const t of state.listedTweaks) {
-    card.appendChild(tweakRow(t, sectionsByTweak.get(t.manifest.id) ?? []));
+    card.appendChild(
+      tweakRow(
+        t,
+        sectionsByTweak.get(t.manifest.id) ?? [],
+        pagesByTweak.get(t.manifest.id) ?? [],
+      ),
+    );
   }
   wrap.appendChild(card);
   sectionsWrap.appendChild(wrap);
 }
 
-function tweakRow(t: ListedTweak, sections: SettingsSection[]): HTMLElement {
+function tweakRow(
+  t: ListedTweak,
+  sections: SettingsSection[],
+  pages: RegisteredPage[],
+): HTMLElement {
   const m = t.manifest;
 
   // Outer cell wraps the header row + (optional) nested sections so the
@@ -1498,6 +1514,15 @@ function tweakRow(t: ListedTweak, sections: SettingsSection[]): HTMLElement {
   // ── Toggle ────────────────────────────────────────────────────────────
   const right = document.createElement("div");
   right.className = "flex shrink-0 items-center gap-2 pt-0.5";
+  if (t.enabled && pages.length > 0) {
+    const configureBtn = compactButton("Configure", () => {
+      activatePage({ kind: "registered", id: pages[0]!.id });
+    });
+    configureBtn.title = pages.length === 1
+      ? `Open ${pages[0]!.page.title}`
+      : `Open ${pages.map((p) => p.page.title).join(", ")}`;
+    right.appendChild(configureBtn);
+  }
   if (t.update?.updateAvailable && t.update.releaseUrl) {
     right.appendChild(
       compactButton("Review Release", () => {
