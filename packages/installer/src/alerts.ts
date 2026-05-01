@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
+import { join } from "node:path";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
 const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
@@ -32,7 +33,7 @@ export function promptRestartCodexAfterPatch(appRoot: string): void {
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
     timeoutSeconds: 120,
-    appBundleId: CODEX_BUNDLE_ID,
+    iconPath: codexIconPath(appRoot),
   });
 
   if (button !== "Quit and Restart Codex") return;
@@ -50,7 +51,7 @@ export function promptRestartCodexAfterRuntimeUpdate(appRoot: string, version: s
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
     timeoutSeconds: 120,
-    appBundleId: CODEX_BUNDLE_ID,
+    iconPath: codexIconPath(appRoot),
   });
 
   if (button !== "Quit and Restart Codex") return;
@@ -68,7 +69,7 @@ export function promptRestartCodexToRepatch(appRoot: string): boolean {
     buttons: ["Later", "Restart and Re-Patch"],
     defaultButton: "Restart and Re-Patch",
     timeoutSeconds: 120,
-    appBundleId: CODEX_BUNDLE_ID,
+    iconPath: codexIconPath(appRoot),
   });
 
   if (button !== "Restart and Re-Patch") return false;
@@ -108,39 +109,31 @@ interface AlertOptions {
   defaultButton?: string;
   critical?: boolean;
   timeoutSeconds?: number;
-  appBundleId?: string;
+  iconPath?: string;
 }
 
 function showAlert(opts: AlertOptions): string | null {
   if (platform() !== "darwin") return null;
 
-  if (opts.appBundleId) {
-    const appButton = runAlertScript(alertScript(opts, opts.appBundleId), opts);
-    if (appButton) return appButton;
-  }
-
   return runAlertScript(alertScript(opts), opts);
 }
 
-function alertScript(opts: AlertOptions, appBundleId?: string): string {
+function alertScript(opts: AlertOptions): string {
   const buttons = opts.buttons ?? ["OK"];
   const defaultButton = opts.defaultButton ?? buttons.at(-1) ?? "OK";
-  const displayAlert =
-    `display alert alertTitle message alertMessage buttons alertButtons default button ${appleScriptString(defaultButton)}${opts.critical ? " as critical" : ""}${opts.timeoutSeconds ? ` giving up after ${opts.timeoutSeconds}` : ""}`;
   const lines = [
     `set alertTitle to system attribute "CODEXPP_ALERT_TITLE"`,
     `set alertMessage to system attribute "CODEXPP_ALERT_MESSAGE"`,
     `set alertButtons to {${buttons.map(appleScriptString).join(", ")}}`,
   ];
-  if (appBundleId) {
+  if (opts.iconPath) {
     lines.push(
-      `tell application id ${appleScriptString(appBundleId)}`,
-      `activate`,
-      displayAlert,
-      `end tell`,
+      `display dialog alertMessage with title alertTitle buttons alertButtons default button ${appleScriptString(defaultButton)} with icon POSIX file ${appleScriptString(opts.iconPath)}${opts.timeoutSeconds ? ` giving up after ${opts.timeoutSeconds}` : ""}`,
     );
   } else {
-    lines.push(displayAlert);
+    lines.push(
+      `display alert alertTitle message alertMessage buttons alertButtons default button ${appleScriptString(defaultButton)}${opts.critical ? " as critical" : ""}${opts.timeoutSeconds ? ` giving up after ${opts.timeoutSeconds}` : ""}`,
+    );
   }
   return lines.join("\n");
 }
@@ -165,6 +158,10 @@ function runAlertScript(script: string, opts: AlertOptions): string | null {
 function parseAlertButton(output: string): string | null {
   if (/gave up:true/.test(output)) return null;
   return output.match(/button returned:([^,\n]+)/)?.[1]?.trim() ?? null;
+}
+
+function codexIconPath(appRoot: string): string {
+  return join(appRoot, "Contents", "Resources", "electron.icns");
 }
 
 function quitAndRestartCodex(appRoot: string): void {
