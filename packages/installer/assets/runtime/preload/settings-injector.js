@@ -11,9 +11,9 @@
  *
  * Layout we inject:
  *
+ *   GENERAL                       (uppercase group label)
  *   [Codex's existing items group]
- *   ───────────────────────────── (border-t-token-border)
- *   CODEX PLUS PLUS               (uppercase subtitle, text-token-text-tertiary)
+ *   CODEX++                       (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
  *
@@ -33,6 +33,7 @@ const state = {
     pages: new Map(),
     listedTweaks: [],
     outerWrapper: null,
+    nativeNavHeader: null,
     navGroup: null,
     navButtons: null,
     pagesGroup: null,
@@ -199,6 +200,7 @@ function tryInject() {
     // group as a sibling so the natural gap-1 acts as our visual separator.
     const outer = itemsGroup.parentElement ?? itemsGroup;
     state.sidebarRoot = outer;
+    syncNativeSettingsHeader(itemsGroup, outer);
     if (state.navGroup && outer.contains(state.navGroup)) {
         syncPagesGroup();
         // Codex re-renders its native sidebar buttons on its own state changes.
@@ -227,15 +229,7 @@ function tryInject() {
     const group = document.createElement("div");
     group.dataset.codexpp = "nav-group";
     group.className = "flex flex-col gap-px";
-    // ── Section header / subtitle ────────────────────────────────────────
-    // Codex doesn't (currently) ship a sidebar group header, so we mirror the
-    // visual weight of `text-token-description-foreground` uppercase labels
-    // used elsewhere in their UI. Padding matches the `px-row-x` of items.
-    const header = document.createElement("div");
-    header.className =
-        "px-row-x pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none";
-    header.textContent = "Codex Plus Plus";
-    group.appendChild(header);
+    group.appendChild(sidebarGroupHeader("Codex++"));
     // ── Two sidebar items ────────────────────────────────────────────────
     const configBtn = makeSidebarItem("Config", configIconSvg());
     const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
@@ -256,6 +250,23 @@ function tryInject() {
     state.navButtons = { config: configBtn, tweaks: tweaksBtn };
     plog("nav group injected", { outerTag: outer.tagName });
     syncPagesGroup();
+}
+function syncNativeSettingsHeader(itemsGroup, outer) {
+    if (state.nativeNavHeader && outer.contains(state.nativeNavHeader))
+        return;
+    if (outer === itemsGroup)
+        return;
+    const header = sidebarGroupHeader("General");
+    header.dataset.codexpp = "native-nav-header";
+    outer.insertBefore(header, itemsGroup);
+    state.nativeNavHeader = header;
+}
+function sidebarGroupHeader(text) {
+    const header = document.createElement("div");
+    header.className =
+        "px-row-x pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none";
+    header.textContent = text;
+    return header;
 }
 function scheduleSettingsSurfaceHidden() {
     if (!state.settingsSurfaceVisible || state.settingsSurfaceHideTimer)

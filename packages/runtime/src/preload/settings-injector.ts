@@ -10,9 +10,9 @@
  *
  * Layout we inject:
  *
+ *   GENERAL                       (uppercase group label)
  *   [Codex's existing items group]
- *   ───────────────────────────── (border-t-token-border)
- *   CODEX PLUS PLUS               (uppercase subtitle, text-token-text-tertiary)
+ *   CODEX++                       (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
  *
@@ -109,7 +109,9 @@ interface InjectorState {
   listedTweaks: ListedTweak[];
   /** Outer wrapper that holds Codex's items group + our injected groups. */
   outerWrapper: HTMLElement | null;
-  /** Our "Codex Plus Plus" nav group (Config/Tweaks). */
+  /** Our "General" label for Codex's native settings group. */
+  nativeNavHeader: HTMLElement | null;
+  /** Our "Codex++" nav group (Config/Tweaks). */
   navGroup: HTMLElement | null;
   navButtons: { config: HTMLButtonElement; tweaks: HTMLButtonElement } | null;
   /** Our "Tweaks" nav group (per-tweak pages). Created lazily. */
@@ -131,6 +133,7 @@ const state: InjectorState = {
   pages: new Map(),
   listedTweaks: [],
   outerWrapper: null,
+  nativeNavHeader: null,
   navGroup: null,
   navButtons: null,
   pagesGroup: null,
@@ -309,6 +312,7 @@ function tryInject(): void {
   // group as a sibling so the natural gap-1 acts as our visual separator.
   const outer = itemsGroup.parentElement ?? itemsGroup;
   state.sidebarRoot = outer;
+  syncNativeSettingsHeader(itemsGroup, outer);
 
   if (state.navGroup && outer.contains(state.navGroup)) {
     syncPagesGroup();
@@ -340,15 +344,7 @@ function tryInject(): void {
   group.dataset.codexpp = "nav-group";
   group.className = "flex flex-col gap-px";
 
-  // ── Section header / subtitle ────────────────────────────────────────
-  // Codex doesn't (currently) ship a sidebar group header, so we mirror the
-  // visual weight of `text-token-description-foreground` uppercase labels
-  // used elsewhere in their UI. Padding matches the `px-row-x` of items.
-  const header = document.createElement("div");
-  header.className =
-    "px-row-x pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none";
-  header.textContent = "Codex Plus Plus";
-  group.appendChild(header);
+  group.appendChild(sidebarGroupHeader("Codex++"));
 
   // ── Two sidebar items ────────────────────────────────────────────────
   const configBtn = makeSidebarItem("Config", configIconSvg());
@@ -373,6 +369,24 @@ function tryInject(): void {
   state.navButtons = { config: configBtn, tweaks: tweaksBtn };
   plog("nav group injected", { outerTag: outer.tagName });
   syncPagesGroup();
+}
+
+function syncNativeSettingsHeader(itemsGroup: HTMLElement, outer: HTMLElement): void {
+  if (state.nativeNavHeader && outer.contains(state.nativeNavHeader)) return;
+  if (outer === itemsGroup) return;
+
+  const header = sidebarGroupHeader("General");
+  header.dataset.codexpp = "native-nav-header";
+  outer.insertBefore(header, itemsGroup);
+  state.nativeNavHeader = header;
+}
+
+function sidebarGroupHeader(text: string): HTMLElement {
+  const header = document.createElement("div");
+  header.className =
+    "px-row-x pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none";
+  header.textContent = text;
+  return header;
 }
 
 function scheduleSettingsSurfaceHidden(): void {

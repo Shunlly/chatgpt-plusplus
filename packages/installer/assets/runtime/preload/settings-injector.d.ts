@@ -10,9 +10,9 @@
  *
  * Layout we inject:
  *
+ *   GENERAL                       (uppercase group label)
  *   [Codex's existing items group]
- *   ───────────────────────────── (border-t-token-border)
- *   CODEX PLUS PLUS               (uppercase subtitle, text-token-text-tertiary)
+ *   CODEX++                       (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
  *
