@@ -51,14 +51,16 @@ function locateMac(override?: string): CodexInstall {
     MAC_BETA_DEFAULT,
     join(homedir(), "Applications", "Codex.app"),
     join(homedir(), "Applications", "Codex (Beta).app"),
+    ...findMacCodexApps("/Applications"),
+    ...findMacCodexApps(join(homedir(), "Applications")),
   ].filter(Boolean) as string[];
 
-  const appRoot = candidates.find((p) => existsSync(join(p, "Contents", "Info.plist")));
+  const appRoot = unique(candidates).find((p) => isMacCodexApp(p));
   if (!appRoot) {
     throw new Error(
       `[!] Codex App Not Found\n\n` +
-        `Ensure Codex.app is installed in /Applications or ~/Applications.\n` +
-        `Tried:\n  ${candidates.join("\n  ")}\n\n` +
+        `Ensure Codex.app or Codex (Beta).app is installed in /Applications or ~/Applications.\n` +
+        `Tried:\n  ${unique(candidates).join("\n  ")}\n\n` +
         `If Codex is somewhere else, rerun with:\n` +
         `  codex-plusplus install --app /path/to/Codex.app`,
     );
@@ -85,6 +87,28 @@ function locateMac(override?: string): CodexInstall {
     channel: inferCodexChannel(info.bundleId, info.name),
     platform: "darwin",
   };
+}
+
+function findMacCodexApps(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir)
+      .filter((name) => /\.app$/i.test(name) && /\bcodex\b/i.test(name))
+      .map((name) => join(dir, name));
+  } catch {
+    return [];
+  }
+}
+
+function isMacCodexApp(appRoot: string): boolean {
+  const infoPath = join(appRoot, "Contents", "Info.plist");
+  if (!existsSync(infoPath)) return false;
+  const info = readMacAppInfo(appRoot);
+  return inferCodexChannel(info.bundleId, info.name) !== "unknown";
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function readMacAppInfo(appRoot: string): { name: string; executable: string; bundleId: string | null } {
