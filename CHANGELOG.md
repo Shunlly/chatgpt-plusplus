@@ -4,6 +4,25 @@ All notable changes to codex-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 0.1.2
+
+### Fixed
+
+- Fixed enabling a previously disabled `scope: "main"` or `scope: "both"` tweak from Settings so the main-process half starts immediately instead of requiring Force Reload or an app restart.
+- Fixed disabling a main-process tweak from Settings so loaded main-side tweak state is stopped before renderer hosts reload.
+- Fixed macOS update self-repair after Codex changed its minified window-services startup shape in version `26.429.20946`, and moved that patcher to a more resilient fingerprint-based hook.
+- Fixed the launchd watcher writing unusable TypeScript source paths such as `src/cli.js`, and refreshed it with modern `launchctl bootstrap` registration.
+
+### Added
+
+- Added `create-tweak`, `dev`, `validate-tweak`, and `safe-mode` installer commands for local tweak development and recovery.
+- Added manifest validation helpers, permissions metadata, and optional tweak-provided MCP server declarations to the SDK.
+- Added automatic Codex MCP config sync for enabled tweaks with `manifest.mcp`.
+- Added an Auto-Repair Watcher health card to the Codex++ Config page.
+- Added regression tests for tweak enable/disable reload behavior, tweak discovery, and tweak storage.
+- Added CI coverage for tests and builds.
+- Added macOS system alerts when update repair fails, a GitHub issue report action, and a post-update restart prompt when Codex is already open without Codex++ loaded.
+
 ## 0.1.1
 
 ### Added
