@@ -11,7 +11,13 @@ import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
 import { clearUpdateMode, readUpdateMode } from "../update-mode.js";
-import { isCodexRunning, promptRestartCodexAfterPatch } from "../alerts.js";
+import {
+  isCodexRunning,
+  openCodex,
+  promptRestartCodexAfterPatch,
+  promptRestartCodexAfterRuntimeUpdate,
+  promptRestartCodexToRepatch,
+} from "../alerts.js";
 
 interface Opts {
   app?: string;
@@ -76,6 +82,9 @@ export async function repair(opts: Opts = {}): Promise<void> {
             kleur.green(`Updated Codex++ runtime ${state.version} → ${CODEX_PLUSPLUS_VERSION}.`),
           );
         }
+        if (isCodexRunning(codex.appRoot)) {
+          promptRestartCodexAfterRuntimeUpdate(codex.appRoot, CODEX_PLUSPLUS_VERSION);
+        }
         return;
       }
       writeState(paths.stateFile, { ...state, watcher });
@@ -90,10 +99,20 @@ export async function repair(opts: Opts = {}): Promise<void> {
 
   let codexWasRunning = false;
   let repairedAppRoot: string | null = null;
+  let reopenAfterRepair = false;
   try {
     const codex = locateCodex(opts.app ?? state?.appRoot);
     repairedAppRoot = codex.appRoot;
     codexWasRunning = isCodexRunning(codex.appRoot);
+    if (codexWasRunning && process.platform === "darwin" && promptRestartCodexToRepatch(codex.appRoot)) {
+      reopenAfterRepair = true;
+      codexWasRunning = false;
+    } else if (codexWasRunning && process.platform === "darwin") {
+      if (!opts.quiet) {
+        console.log(kleur.yellow("Repair postponed. Codex is still running without the updated Codex++ patch."));
+      }
+      return;
+    }
   } catch {
     // install() will surface the real locate/preflight error below.
   }
@@ -106,7 +125,9 @@ export async function repair(opts: Opts = {}): Promise<void> {
     watcherKind: state?.watcher,
     quiet: opts.quiet,
   });
-  if (codexWasRunning && repairedAppRoot) {
+  if (reopenAfterRepair && repairedAppRoot) {
+    openCodex(repairedAppRoot);
+  } else if (codexWasRunning && repairedAppRoot) {
     promptRestartCodexAfterPatch(repairedAppRoot);
   }
   if (!opts.quiet) console.log(kleur.green("✓ Repair complete."));

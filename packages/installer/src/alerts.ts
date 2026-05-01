@@ -25,16 +25,59 @@ export function promptRestartCodexAfterPatch(appRoot: string): void {
   if (platform() !== "darwin") return;
 
   const button = showAlert({
-    title: "Restart Codex to load Codex++",
+    title: "Codex++ needs to restart Codex",
     message:
-      "Codex is open without Codex++ because it was updated before the patch was reapplied.\n\n" +
-      "Codex++ has patched the app on disk. Restart Codex now to load it.",
+      "Codex++ re-patched Codex on disk, but the open Codex window is still running the old app code.\n\n" +
+      "Restart Codex now to finish loading Codex++.",
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
+    timeoutSeconds: 120,
   });
 
   if (button !== "Quit and Restart Codex") return;
   quitAndRestartCodex(appRoot);
+}
+
+export function promptRestartCodexAfterRuntimeUpdate(appRoot: string, version: string): void {
+  if (platform() !== "darwin") return;
+
+  const button = showAlert({
+    title: "Codex++ needs to restart Codex",
+    message:
+      `Codex++ updated its runtime to v${version}, but the open Codex window is still running the previous Codex++ code.\n\n` +
+      "Restart Codex now to load the updated Codex++ runtime.",
+    buttons: ["Later", "Quit and Restart Codex"],
+    defaultButton: "Quit and Restart Codex",
+    timeoutSeconds: 120,
+  });
+
+  if (button !== "Quit and Restart Codex") return;
+  quitAndRestartCodex(appRoot);
+}
+
+export function promptRestartCodexToRepatch(appRoot: string): boolean {
+  if (platform() !== "darwin") return true;
+
+  const button = showAlert({
+    title: "Codex++ needs to restart Codex",
+    message:
+      "Codex is running without the latest Codex++ patch.\n\n" +
+      "Codex++ needs to quit Codex, re-patch the app, then reopen it. Choose Later to keep using Codex without the updated Codex++ runtime for now.",
+    buttons: ["Later", "Restart and Re-Patch"],
+    defaultButton: "Restart and Re-Patch",
+    timeoutSeconds: 120,
+  });
+
+  if (button !== "Restart and Re-Patch") return false;
+  quitCodex(appRoot);
+  return true;
+}
+
+export function openCodex(appRoot: string): void {
+  if (platform() !== "darwin") return;
+  try {
+    execFileSync("open", [appRoot], { stdio: "ignore" });
+  } catch {}
 }
 
 export function isCodexRunning(appRoot: string): boolean {
@@ -52,6 +95,7 @@ interface AlertOptions {
   buttons?: string[];
   defaultButton?: string;
   critical?: boolean;
+  timeoutSeconds?: number;
 }
 
 function showAlert(opts: AlertOptions): string | null {
@@ -63,7 +107,7 @@ function showAlert(opts: AlertOptions): string | null {
     `set alertTitle to system attribute "CODEXPP_ALERT_TITLE"`,
     `set alertMessage to system attribute "CODEXPP_ALERT_MESSAGE"`,
     `set alertButtons to {${buttons.map(appleScriptString).join(", ")}}`,
-    `display alert alertTitle message alertMessage buttons alertButtons default button ${appleScriptString(defaultButton)}${opts.critical ? " as critical" : ""}`,
+    `display alert alertTitle message alertMessage buttons alertButtons default button ${appleScriptString(defaultButton)}${opts.critical ? " as critical" : ""}${opts.timeoutSeconds ? ` giving up after ${opts.timeoutSeconds}` : ""}`,
   ].join("\n");
 
   try {
@@ -83,6 +127,11 @@ function showAlert(opts: AlertOptions): string | null {
 }
 
 function quitAndRestartCodex(appRoot: string): void {
+  quitCodex(appRoot);
+  openCodex(appRoot);
+}
+
+function quitCodex(appRoot: string): void {
   try {
     execFileSync("osascript", ["-e", `tell application id ${appleScriptString(CODEX_BUNDLE_ID)} to quit`], {
       stdio: "ignore",
@@ -97,10 +146,6 @@ function quitAndRestartCodex(appRoot: string): void {
       break;
     }
   }
-
-  try {
-    execFileSync("open", [appRoot], { stdio: "ignore" });
-  } catch {}
 }
 
 export function buildPatchFailureIssueUrl(errorMessage: string): string {
