@@ -229,7 +229,7 @@ function tryInject() {
     const group = document.createElement("div");
     group.dataset.codexpp = "nav-group";
     group.className = "flex flex-col gap-px";
-    group.appendChild(sidebarGroupHeader("Codex++"));
+    group.appendChild(sidebarGroupHeader("Codex++", "pt-3"));
     // ── Two sidebar items ────────────────────────────────────────────────
     const configBtn = makeSidebarItem("Config", configIconSvg());
     const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
@@ -261,10 +261,10 @@ function syncNativeSettingsHeader(itemsGroup, outer) {
     outer.insertBefore(header, itemsGroup);
     state.nativeNavHeader = header;
 }
-function sidebarGroupHeader(text) {
+function sidebarGroupHeader(text, topPadding = "pt-2") {
     const header = document.createElement("div");
     header.className =
-        "px-row-x pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none";
+        `px-row-x ${topPadding} pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none`;
     header.textContent = text;
     return header;
 }
@@ -340,11 +340,7 @@ function syncPagesGroup() {
         group = document.createElement("div");
         group.dataset.codexpp = "pages-group";
         group.className = "flex flex-col gap-px";
-        const header = document.createElement("div");
-        header.className =
-            "px-row-x pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none";
-        header.textContent = "Tweaks";
-        group.appendChild(header);
+        group.appendChild(sidebarGroupHeader("Tweaks", "pt-3"));
         outer.appendChild(group);
         state.pagesGroup = group;
     }
