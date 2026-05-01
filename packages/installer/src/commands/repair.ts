@@ -17,6 +17,7 @@ import {
   promptRestartCodexAfterPatch,
   promptRestartCodexAfterRuntimeUpdate,
   promptRestartCodexToRepatch,
+  showCodexUpdateDetectedNotification,
   showUpdateModePausedAlert,
 } from "../alerts.js";
 
@@ -47,6 +48,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
 
   let settledBeforeHashCheck = false;
   if (state && !opts.force) {
+    announceCodexUpdateDetected(paths.updateModeFile, opts.app ?? state.appRoot);
     await waitForMacAppUpdateToSettle(opts.app ?? state.appRoot, opts.quiet);
     settledBeforeHashCheck = true;
     const codex = locateCodex(opts.app ?? state.appRoot);
@@ -142,6 +144,24 @@ export async function repair(opts: Opts = {}): Promise<void> {
     promptRestartCodexAfterPatch(repairedAppRoot);
   }
   if (!opts.quiet) console.log(kleur.green("✓ Repair complete."));
+}
+
+function announceCodexUpdateDetected(updateModeFile: string, appRoot: string): void {
+  const updateMode = readUpdateMode(updateModeFile);
+  if (!updateMode || updateMode.patchingNotifiedAt) return;
+
+  try {
+    const codex = locateCodex(appRoot);
+    const codexVersion = readCodexVersion(codex.metaPath);
+    if (!codexVersion || codexVersion === updateMode.codexVersion) return;
+    showCodexUpdateDetectedNotification();
+    writeUpdateMode(updateModeFile, {
+      ...updateMode,
+      patchingNotifiedAt: new Date().toISOString(),
+    });
+  } catch {
+    // The app bundle may be mid-update. The settle wait below handles that path.
+  }
 }
 
 function isAutoUpdateEnabled(configFile: string): boolean {

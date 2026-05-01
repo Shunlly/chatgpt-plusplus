@@ -7,6 +7,7 @@ export interface UpdateMode {
   appRoot: string;
   codexVersion: string | null;
   notifiedAt?: string;
+  patchingNotifiedAt?: string;
 }
 
 export function readUpdateMode(path: string): UpdateMode | null {

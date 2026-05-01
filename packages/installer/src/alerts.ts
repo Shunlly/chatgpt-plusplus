@@ -38,6 +38,15 @@ export function showUpdateModePausedAlert(appRoot: string, codexVersion: string 
   });
 }
 
+export function showCodexUpdateDetectedNotification(): void {
+  if (platform() !== "darwin") return;
+
+  showNotification({
+    title: "Codex update detected",
+    message: "Codex++ is checking the app, then it will patch itself.",
+  });
+}
+
 export function promptRestartCodexAfterPatch(appRoot: string): void {
   if (platform() !== "darwin") return;
 
@@ -132,6 +141,19 @@ function showAlert(opts: AlertOptions): string | null {
   if (platform() !== "darwin") return null;
 
   return runAlertScript(alertScript(opts), opts);
+}
+
+function showNotification(opts: Pick<AlertOptions, "title" | "message">): void {
+  try {
+    execFileSync(
+      "osascript",
+      [
+        "-e",
+        `display notification ${appleScriptString(opts.message)} with title ${appleScriptString(opts.title)}`,
+      ],
+      { stdio: "ignore" },
+    );
+  } catch {}
 }
 
 function alertScript(opts: AlertOptions): string {

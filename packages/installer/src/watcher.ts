@@ -60,7 +60,7 @@ function installLaunchd(appRoot: string): WatcherKind {
   // Trigger on login + when Codex.app's asar changes. Run this installed CLI
   // directly so auto-repair does not depend on npm availability.
   const repair = xmlEscape(
-    `sleep 5; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
+    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
   );
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -144,7 +144,7 @@ function installSystemd(appRoot: string): WatcherKind {
   const dir = join(homedir(), ".config", "systemd", "user");
   mkdirSync(dir, { recursive: true });
   const repair = shellSingleQuote(
-    `sleep 5; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
+    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
   );
   const unit = `[Unit]
 Description=codex-plusplus repair watcher
