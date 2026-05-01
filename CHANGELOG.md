@@ -6,6 +6,8 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 
 ## 0.1.2
 
+Release notes: [docs/releases/0.1.2.md](docs/releases/0.1.2.md)
+
 ### Fixed
 
 - Fixed enabling a previously disabled `scope: "main"` or `scope: "both"` tweak from Settings so the main-process half starts immediately instead of requiring Force Reload or an app restart.
