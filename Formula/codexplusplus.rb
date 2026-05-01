@@ -2,8 +2,7 @@ class Codexplusplus < Formula
   desc "Tweak system for the OpenAI Codex desktop app"
   homepage "https://github.com/b-nnett/codex-plusplus"
   url "https://github.com/b-nnett/codex-plusplus.git",
-      tag:      "v0.1.2",
-      revision: "56fe4f2c55d1aeea49fb99873524246e27362a1f"
+      tag: "v0.1.3"
   license "MIT"
 
   depends_on "node"

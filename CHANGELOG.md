@@ -4,6 +4,34 @@ All notable changes to codex-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 0.1.3
+
+Release notes: [docs/releases/0.1.3.md](docs/releases/0.1.3.md)
+
+### Added
+
+- Added hourly Codex++ self-update checks through the watcher.
+- Added automatic Codex++ runtime download/build/repair when a newer Codex++ release is available.
+- Added restart prompts when Codex is open and needs to reload a freshly updated Codex++ runtime.
+- Added visible Codex update mode status while the official Codex updater is running.
+- Added Codex beta app metadata support for watcher health checks and repair state.
+- Added Markdown rendering for latest Codex++ release notes in Settings.
+- Added GitHub issue links to unexpected CLI failure output.
+
+### Changed
+
+- Made Codex update repair alerts faster, clearer, and Codex-branded on macOS.
+- Capped Codex++ runtime, loader, and watcher logs at 10 MB.
+- Removed bundled example tweak sources from the Codex++ release package. Default tweaks now come from their own release channels.
+- Updated the Codex++ Config subtitle to show the installed Codex++ version.
+- Fixed Homebrew install instructions.
+
+### Fixed
+
+- Fixed negated installer flags such as `--no-default-tweaks`.
+- Fixed the repair flow to avoid unnecessary re-signing when the patch is already intact.
+- Fixed Codex beta metadata detection so beta installs report watcher health correctly.
+
 ## 0.1.2
 
 Release notes: [docs/releases/0.1.2.md](docs/releases/0.1.2.md)
