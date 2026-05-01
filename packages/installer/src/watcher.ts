@@ -75,7 +75,7 @@ function installLaunchd(appRoot: string): WatcherKind {
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>86400</integer>
+  <integer>3600</integer>
   <key>WatchPaths</key>
   <array>
     <string>${appRoot}/Contents/Resources/app.asar</string>
@@ -154,11 +154,11 @@ WantedBy=default.target
 `;
   writeFileSync(join(dir, "codex-plusplus-watcher.service"), unit);
   writeFileSync(join(dir, "codex-plusplus-watcher.timer"), `[Unit]
-Description=codex-plusplus daily self-update check
+Description=codex-plusplus hourly self-update check
 
 [Timer]
 OnBootSec=5m
-OnUnitActiveSec=1d
+OnUnitActiveSec=1h
 Persistent=true
 
 [Install]
@@ -217,6 +217,7 @@ function installScheduledTask(_appRoot: string): WatcherKind {
   // schtasks.exe creates a logon-trigger task. We pass the repair command via /TR.
   const repair = windowsRepairTaskCommand();
   try {
+    deleteScheduledTask("codex-plusplus-watcher-daily");
     execFileSync("schtasks.exe", [
       "/Create",
       "/F",
@@ -231,9 +232,11 @@ function installScheduledTask(_appRoot: string): WatcherKind {
       "/Create",
       "/F",
       "/SC",
-      "DAILY",
+      "HOURLY",
+      "/MO",
+      "1",
       "/TN",
-      "codex-plusplus-watcher-daily",
+      "codex-plusplus-watcher-hourly",
       "/TR",
       repair,
     ]);
@@ -295,13 +298,14 @@ function windowsQuote(value: string): string {
 }
 
 function uninstallScheduledTask(): void {
+  deleteScheduledTask("codex-plusplus-watcher");
+  deleteScheduledTask("codex-plusplus-watcher-hourly");
+  deleteScheduledTask("codex-plusplus-watcher-daily");
+}
+
+function deleteScheduledTask(name: string): void {
   try {
-    execFileSync("schtasks.exe", ["/Delete", "/F", "/TN", "codex-plusplus-watcher"], {
-      stdio: "ignore",
-    });
-  } catch {}
-  try {
-    execFileSync("schtasks.exe", ["/Delete", "/F", "/TN", "codex-plusplus-watcher-daily"], {
+    execFileSync("schtasks.exe", ["/Delete", "/F", "/TN", name], {
       stdio: "ignore",
     });
   } catch {}

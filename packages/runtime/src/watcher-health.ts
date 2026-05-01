@@ -186,9 +186,9 @@ function checkScheduledTaskWatcher(): WatcherHealthCheck[] {
       detail: "codex-plusplus-watcher",
     },
     {
-      name: "daily task",
-      status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "codex-plusplus-watcher-daily"]) ? "ok" : "warn",
-      detail: "codex-plusplus-watcher-daily",
+      name: "hourly task",
+      status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "codex-plusplus-watcher-hourly"]) ? "ok" : "warn",
+      detail: "codex-plusplus-watcher-hourly",
     },
   ];
 }
