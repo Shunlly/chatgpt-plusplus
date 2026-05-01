@@ -688,16 +688,16 @@ function rerender(): void {
   const title = ap.kind === "tweaks" ? "Tweaks" : "Config";
   const subtitle = ap.kind === "tweaks"
     ? "Manage your installed Codex++ tweaks."
-    : "Configure Codex++ itself.";
+    : "Checking installed Codex++ version.";
   const root = panelShell(title, subtitle);
   host.appendChild(root.outer);
   if (ap.kind === "tweaks") renderTweaksPage(root.sectionsWrap);
-  else renderConfigPage(root.sectionsWrap);
+  else renderConfigPage(root.sectionsWrap, root.subtitle);
 }
 
 // ───────────────────────────────────────────────────────────── pages ──
 
-function renderConfigPage(sectionsWrap: HTMLElement): void {
+function renderConfigPage(sectionsWrap: HTMLElement, subtitle?: HTMLElement): void {
   const section = document.createElement("section");
   section.className = "flex flex-col gap-2";
   section.appendChild(sectionTitle("Codex++ Updates"));
@@ -710,10 +710,14 @@ function renderConfigPage(sectionsWrap: HTMLElement): void {
   void ipcRenderer
     .invoke("codexpp:get-config")
     .then((config) => {
+      if (subtitle) {
+        subtitle.textContent = `You have Codex++ ${(config as CodexPlusPlusConfig).version} installed.`;
+      }
       card.textContent = "";
       renderCodexPlusPlusConfig(card, config as CodexPlusPlusConfig);
     })
     .catch((e) => {
+      if (subtitle) subtitle.textContent = "Could not load installed Codex++ version.";
       card.textContent = "";
       card.appendChild(rowSimple("Could not load update settings", String(e)));
     });
@@ -1403,7 +1407,7 @@ function renderAuthor(author: TweakManifest["author"]): HTMLElement | null {
 function panelShell(
   title: string,
   subtitle?: string,
-): { outer: HTMLElement; sectionsWrap: HTMLElement } {
+): { outer: HTMLElement; sectionsWrap: HTMLElement; subtitle?: HTMLElement } {
   const outer = document.createElement("div");
   outer.className = "main-surface flex h-full min-h-0 flex-col";
 
@@ -1429,11 +1433,13 @@ function panelShell(
   heading.className = "electron:heading-lg heading-base truncate";
   heading.textContent = title;
   headerInner.appendChild(heading);
+  let subtitleElement: HTMLElement | undefined;
   if (subtitle) {
     const sub = document.createElement("div");
     sub.className = "text-token-text-secondary text-sm";
     sub.textContent = subtitle;
     headerInner.appendChild(sub);
+    subtitleElement = sub;
   }
   headerWrap.appendChild(headerInner);
   inner.appendChild(headerWrap);
@@ -1442,7 +1448,7 @@ function panelShell(
   sectionsWrap.className = "flex flex-col gap-[var(--padding-panel)]";
   inner.appendChild(sectionsWrap);
 
-  return { outer, sectionsWrap };
+  return { outer, sectionsWrap, subtitle: subtitleElement };
 }
 
 function sectionTitle(text: string, trailing?: HTMLElement): HTMLElement {

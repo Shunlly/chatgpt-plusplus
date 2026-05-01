@@ -566,16 +566,16 @@ function rerender() {
     const title = ap.kind === "tweaks" ? "Tweaks" : "Config";
     const subtitle = ap.kind === "tweaks"
         ? "Manage your installed Codex++ tweaks."
-        : "Configure Codex++ itself.";
+        : "Checking installed Codex++ version.";
     const root = panelShell(title, subtitle);
     host.appendChild(root.outer);
     if (ap.kind === "tweaks")
         renderTweaksPage(root.sectionsWrap);
     else
-        renderConfigPage(root.sectionsWrap);
+        renderConfigPage(root.sectionsWrap, root.subtitle);
 }
 // ───────────────────────────────────────────────────────────── pages ──
-function renderConfigPage(sectionsWrap) {
+function renderConfigPage(sectionsWrap, subtitle) {
     const section = document.createElement("section");
     section.className = "flex flex-col gap-2";
     section.appendChild(sectionTitle("Codex++ Updates"));
@@ -587,10 +587,15 @@ function renderConfigPage(sectionsWrap) {
     void electron_1.ipcRenderer
         .invoke("codexpp:get-config")
         .then((config) => {
+        if (subtitle) {
+            subtitle.textContent = `You have Codex++ ${config.version} installed.`;
+        }
         card.textContent = "";
         renderCodexPlusPlusConfig(card, config);
     })
         .catch((e) => {
+        if (subtitle)
+            subtitle.textContent = "Could not load installed Codex++ version.";
         card.textContent = "";
         card.appendChild(rowSimple("Could not load update settings", String(e)));
     });
@@ -1242,18 +1247,20 @@ function panelShell(title, subtitle) {
     heading.className = "electron:heading-lg heading-base truncate";
     heading.textContent = title;
     headerInner.appendChild(heading);
+    let subtitleElement;
     if (subtitle) {
         const sub = document.createElement("div");
         sub.className = "text-token-text-secondary text-sm";
         sub.textContent = subtitle;
         headerInner.appendChild(sub);
+        subtitleElement = sub;
     }
     headerWrap.appendChild(headerInner);
     inner.appendChild(headerWrap);
     const sectionsWrap = document.createElement("div");
     sectionsWrap.className = "flex flex-col gap-[var(--padding-panel)]";
     inner.appendChild(sectionsWrap);
-    return { outer, sectionsWrap };
+    return { outer, sectionsWrap, subtitle: subtitleElement };
 }
 function sectionTitle(text, trailing) {
     const titleRow = document.createElement("div");
