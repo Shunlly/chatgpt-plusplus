@@ -688,12 +688,153 @@ function releaseNotesRow(check) {
     title.className = "text-sm text-token-text-primary";
     title.textContent = "Latest release notes";
     row.appendChild(title);
-    const body = document.createElement("pre");
+    const body = document.createElement("div");
     body.className =
-        "max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-token-border bg-token-foreground/5 p-3 text-xs text-token-text-secondary";
-    body.textContent = check.releaseNotes?.trim() || check.error || "No release notes available.";
+        "max-h-60 overflow-auto rounded-md border border-token-border bg-token-foreground/5 p-3 text-sm text-token-text-secondary";
+    body.appendChild(renderReleaseNotesMarkdown(check.releaseNotes?.trim() || check.error || "No release notes available."));
     row.appendChild(body);
     return row;
+}
+function renderReleaseNotesMarkdown(markdown) {
+    const root = document.createElement("div");
+    root.className = "flex flex-col gap-2";
+    const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+    let paragraph = [];
+    let list = null;
+    let codeLines = null;
+    const flushParagraph = () => {
+        if (paragraph.length === 0)
+            return;
+        const p = document.createElement("p");
+        p.className = "m-0 leading-5";
+        appendInlineMarkdown(p, paragraph.join(" ").trim());
+        root.appendChild(p);
+        paragraph = [];
+    };
+    const flushList = () => {
+        if (!list)
+            return;
+        root.appendChild(list);
+        list = null;
+    };
+    const flushCode = () => {
+        if (!codeLines)
+            return;
+        const pre = document.createElement("pre");
+        pre.className =
+            "m-0 overflow-auto rounded-md border border-token-border bg-token-foreground/10 p-2 text-xs text-token-text-primary";
+        const code = document.createElement("code");
+        code.textContent = codeLines.join("\n");
+        pre.appendChild(code);
+        root.appendChild(pre);
+        codeLines = null;
+    };
+    for (const line of lines) {
+        if (line.trim().startsWith("```")) {
+            if (codeLines)
+                flushCode();
+            else {
+                flushParagraph();
+                flushList();
+                codeLines = [];
+            }
+            continue;
+        }
+        if (codeLines) {
+            codeLines.push(line);
+            continue;
+        }
+        const trimmed = line.trim();
+        if (!trimmed) {
+            flushParagraph();
+            flushList();
+            continue;
+        }
+        const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+        if (heading) {
+            flushParagraph();
+            flushList();
+            const h = document.createElement(heading[1].length === 1 ? "h3" : "h4");
+            h.className = "m-0 text-sm font-medium text-token-text-primary";
+            appendInlineMarkdown(h, heading[2]);
+            root.appendChild(h);
+            continue;
+        }
+        const unordered = /^[-*]\s+(.+)$/.exec(trimmed);
+        const ordered = /^\d+[.)]\s+(.+)$/.exec(trimmed);
+        if (unordered || ordered) {
+            flushParagraph();
+            const wantOrdered = Boolean(ordered);
+            if (!list || (wantOrdered && list.tagName !== "OL") || (!wantOrdered && list.tagName !== "UL")) {
+                flushList();
+                list = document.createElement(wantOrdered ? "ol" : "ul");
+                list.className = wantOrdered
+                    ? "m-0 list-decimal space-y-1 pl-5 leading-5"
+                    : "m-0 list-disc space-y-1 pl-5 leading-5";
+            }
+            const li = document.createElement("li");
+            appendInlineMarkdown(li, (unordered ?? ordered)?.[1] ?? "");
+            list.appendChild(li);
+            continue;
+        }
+        const quote = /^>\s?(.+)$/.exec(trimmed);
+        if (quote) {
+            flushParagraph();
+            flushList();
+            const blockquote = document.createElement("blockquote");
+            blockquote.className = "m-0 border-l-2 border-token-border pl-3 leading-5";
+            appendInlineMarkdown(blockquote, quote[1]);
+            root.appendChild(blockquote);
+            continue;
+        }
+        paragraph.push(trimmed);
+    }
+    flushParagraph();
+    flushList();
+    flushCode();
+    return root;
+}
+function appendInlineMarkdown(parent, text) {
+    const pattern = /(`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*)/g;
+    let lastIndex = 0;
+    for (const match of text.matchAll(pattern)) {
+        if (match.index === undefined)
+            continue;
+        appendText(parent, text.slice(lastIndex, match.index));
+        if (match[2] !== undefined) {
+            const code = document.createElement("code");
+            code.className =
+                "rounded border border-token-border bg-token-foreground/10 px-1 py-0.5 text-xs text-token-text-primary";
+            code.textContent = match[2];
+            parent.appendChild(code);
+        }
+        else if (match[3] !== undefined && match[4] !== undefined) {
+            const a = document.createElement("a");
+            a.className = "text-token-text-primary underline underline-offset-2";
+            a.href = match[4];
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = match[3];
+            parent.appendChild(a);
+        }
+        else if (match[5] !== undefined) {
+            const strong = document.createElement("strong");
+            strong.className = "font-medium text-token-text-primary";
+            strong.textContent = match[5];
+            parent.appendChild(strong);
+        }
+        else if (match[6] !== undefined) {
+            const em = document.createElement("em");
+            em.textContent = match[6];
+            parent.appendChild(em);
+        }
+        lastIndex = match.index + match[0].length;
+    }
+    appendText(parent, text.slice(lastIndex));
+}
+function appendText(parent, text) {
+    if (text)
+        parent.appendChild(document.createTextNode(text));
 }
 function renderWatcherHealthCard(card) {
     void electron_1.ipcRenderer
