@@ -15,6 +15,7 @@ import { installWatcher, type WatcherKind } from "../watcher.js";
 import { CODEX_PLUSPLUS_VERSION } from "../version.js";
 import { installDefaultTweaks } from "../default-tweaks.js";
 import { formatCliShimResult, installCliShims } from "../cli-shim.js";
+import { findSourceRoot } from "../source-root.js";
 import {
   CODEX_WINDOW_SERVICES_KEY,
   patchCodexWindowServicesSource,
@@ -32,6 +33,7 @@ interface Opts {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const assetsDir = resolve(here, "..", "..", "assets");
+const sourceRoot = findSourceRoot(here);
 
 export async function install(opts: Opts = {}): Promise<void> {
   const fuseFlip = opts.fuse !== false;
@@ -145,6 +147,7 @@ export async function install(opts: Opts = {}): Promise<void> {
     resigned,
     originalEntryPoint: originalEntry,
     watcher,
+    sourceRoot,
   });
 
   if (!opts.quiet) {

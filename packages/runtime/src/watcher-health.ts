@@ -32,6 +32,14 @@ interface RuntimeConfig {
   };
 }
 
+interface SelfUpdateState {
+  status?: "checking" | "up-to-date" | "updated" | "failed" | "disabled";
+  completedAt?: string;
+  checkedAt?: string;
+  latestVersion?: string | null;
+  error?: string;
+}
+
 const LAUNCHD_LABEL = "com.codexplusplus.watcher";
 const WATCHER_LOG = join(homedir(), "Library", "Logs", "codex-plusplus-watcher.log");
 
@@ -39,6 +47,7 @@ export function getWatcherHealth(userRoot: string): WatcherHealth {
   const checks: WatcherHealthCheck[] = [];
   const state = readJson<InstallerState>(join(userRoot, "state.json"));
   const config = readJson<RuntimeConfig>(join(userRoot, "config.json")) ?? {};
+  const selfUpdate = readJson<SelfUpdateState>(join(userRoot, "self-update-state.json"));
 
   checks.push({
     name: "Install state",
@@ -60,6 +69,10 @@ export function getWatcherHealth(userRoot: string): WatcherHealth {
     status: state.watcher && state.watcher !== "none" ? "ok" : "error",
     detail: state.watcher ?? "none",
   });
+
+  if (selfUpdate) {
+    checks.push(selfUpdateCheck(selfUpdate));
+  }
 
   const appRoot = state.appRoot ?? "";
   checks.push({
@@ -87,6 +100,27 @@ export function getWatcherHealth(userRoot: string): WatcherHealth {
   }
 
   return summarize(state.watcher ?? "none", checks);
+}
+
+function selfUpdateCheck(state: SelfUpdateState): WatcherHealthCheck {
+  const at = state.completedAt ?? state.checkedAt ?? "unknown time";
+  if (state.status === "failed") {
+    return {
+      name: "last Codex++ update",
+      status: "warn",
+      detail: state.error ? `failed ${at}: ${state.error}` : `failed ${at}`,
+    };
+  }
+  if (state.status === "disabled") {
+    return { name: "last Codex++ update", status: "warn", detail: `skipped ${at}: automatic refresh disabled` };
+  }
+  if (state.status === "updated") {
+    return { name: "last Codex++ update", status: "ok", detail: `updated ${at} to ${state.latestVersion ?? "new release"}` };
+  }
+  if (state.status === "up-to-date") {
+    return { name: "last Codex++ update", status: "ok", detail: `up to date ${at}` };
+  }
+  return { name: "last Codex++ update", status: "warn", detail: `checking since ${at}` };
 }
 
 function checkLaunchdWatcher(appRoot: string): WatcherHealthCheck[] {

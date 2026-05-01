@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -22,6 +23,8 @@ import {
   CODEX_WINDOW_SERVICES_KEY,
   patchCodexWindowServicesSource,
 } from "../src/codex-window-services";
+import { readSelfUpdateState, writeSelfUpdateState } from "../src/self-update-state";
+import { describeInstallationSource } from "../src/source-root";
 
 test("createTweak scaffolds a both-scope tweak", () => {
   withTempDir((root) => {
@@ -294,6 +297,41 @@ test("self-update release tags only download newer semver releases", () => {
   assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.1"), false);
   assert.equal(shouldDownloadSelfUpdate("0.1.2", "main"), true);
   assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.2", true), true);
+});
+
+test("self-update state persists human-readable diagnostics", () => {
+  withTempDir((root) => {
+    const file = join(root, "self-update-state.json");
+    writeSelfUpdateState(file, {
+      checkedAt: "2026-05-01T00:00:00.000Z",
+      completedAt: "2026-05-01T00:00:01.000Z",
+      status: "failed",
+      currentVersion: "0.1.3",
+      latestVersion: "0.1.4",
+      targetRef: "v0.1.4",
+      releaseUrl: "https://github.com/b-nnett/codex-plusplus/releases/tag/v0.1.4",
+      repo: "b-nnett/codex-plusplus",
+      channel: "stable",
+      sourceRoot: root,
+      error: "download failed",
+    });
+
+    const state = readSelfUpdateState(file);
+    assert.equal(state?.status, "failed");
+    assert.equal(state?.latestVersion, "0.1.4");
+    assert.equal(state?.error, "download failed");
+  });
+});
+
+test("installation source labels local checkouts", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, ".git"));
+    assert.equal(describeInstallationSource(root).kind, "local-dev");
+  });
+  assert.equal(
+    describeInstallationSource("/opt/homebrew/Cellar/codexplusplus/0.1.4").kind,
+    "homebrew",
+  );
 });
 
 function withTempDir(fn: (root: string) => void): void {

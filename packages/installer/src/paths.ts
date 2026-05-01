@@ -12,6 +12,7 @@ import { mkdirSync } from "node:fs";
  *     config.json     — installer state + per-tweak enable flags
  *     log/            — runtime + installer logs
  *     state.json      — installer state (paths, hashes, version installed against)
+ *     self-update-state.json — last Codex++ self-update result
  */
 export interface UserPaths {
   root: string;
@@ -21,6 +22,7 @@ export interface UserPaths {
   configFile: string;
   stateFile: string;
   updateModeFile: string;
+  selfUpdateStateFile: string;
   binDir: string;
   logDir: string;
 }
@@ -35,6 +37,7 @@ export function userPaths(): UserPaths {
     configFile: join(root, "config.json"),
     stateFile: join(root, "state.json"),
     updateModeFile: join(root, "update-mode.json"),
+    selfUpdateStateFile: join(root, "self-update-state.json"),
     binDir: join(root, "bin"),
     logDir: join(root, "log"),
   };

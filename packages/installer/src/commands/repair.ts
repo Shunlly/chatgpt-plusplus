@@ -1,7 +1,7 @@
 import kleur from "kleur";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { platform } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { install, readCodexVersion, stageAssets } from "./install.js";
 import { ensureUserPaths } from "../paths.js";
@@ -11,6 +11,7 @@ import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
 import { clearUpdateMode, isUpdateModeFresh, readUpdateMode, writeUpdateMode } from "../update-mode.js";
+import { findSourceRoot } from "../source-root.js";
 import {
   isCodexRunning,
   openCodex,
@@ -20,12 +21,16 @@ import {
   showCodexUpdateDetectedNotification,
   showUpdateModePausedAlert,
 } from "../alerts.js";
+import { fileURLToPath } from "node:url";
 
 interface Opts {
   app?: string;
   quiet?: boolean;
   force?: boolean;
 }
+
+const here = dirname(fileURLToPath(import.meta.url));
+const sourceRoot = findSourceRoot(here);
 
 /**
  * `repair` is essentially `install` rerun, but it preserves the user's
@@ -57,7 +62,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
       const codexVersion = readCodexVersion(codex.metaPath);
       if (codexVersion === updateMode.codexVersion && isUpdateModeFresh(updateMode)) {
         const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
-        writeState(paths.stateFile, { ...state, watcher });
+        writeState(paths.stateFile, { ...state, watcher, sourceRoot });
         if (!updateMode.notifiedAt) {
           showUpdateModePausedAlert(codex.appRoot, codexVersion);
           writeUpdateMode(paths.updateModeFile, {
@@ -88,6 +93,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
           ...state,
           watcher,
           version: CODEX_PLUSPLUS_VERSION,
+          sourceRoot,
           runtimeUpdatedAt: new Date().toISOString(),
         });
         if (!opts.quiet) {
@@ -100,7 +106,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
         }
         return;
       }
-      writeState(paths.stateFile, { ...state, watcher });
+      writeState(paths.stateFile, { ...state, watcher, sourceRoot });
       if (!opts.quiet) console.log(kleur.green("Patch already intact."));
       return;
     }

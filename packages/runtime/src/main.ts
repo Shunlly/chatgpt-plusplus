@@ -9,8 +9,8 @@
  */
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { execFileSync, spawnSync } from "node:child_process";
-import { join, resolve } from "node:path";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import chokidar from "chokidar";
 import { discoverTweaks, type DiscoveredTweak } from "./tweak-discovery";
@@ -41,8 +41,9 @@ const CONFIG_FILE = join(userRoot, "config.json");
 const CODEX_CONFIG_FILE = join(homedir(), ".codex", "config.toml");
 const INSTALLER_STATE_FILE = join(userRoot, "state.json");
 const UPDATE_MODE_FILE = join(userRoot, "update-mode.json");
+const SELF_UPDATE_STATE_FILE = join(userRoot, "self-update-state.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
-const CODEX_PLUSPLUS_VERSION = "0.1.3";
+const CODEX_PLUSPLUS_VERSION = "0.1.4";
 const CODEX_PLUSPLUS_REPO = "b-nnett/codex-plusplus";
 const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 
@@ -69,6 +70,9 @@ interface PersistedState {
   codexPlusPlus?: {
     autoUpdate?: boolean;
     safeMode?: boolean;
+    updateChannel?: SelfUpdateChannel;
+    updateRepo?: string;
+    updateRef?: string;
     updateCheck?: CodexPlusPlusUpdateCheck;
   };
   /** Per-tweak enable flags. Missing entries default to enabled. */
@@ -85,6 +89,30 @@ interface CodexPlusPlusUpdateCheck {
   releaseNotes: string | null;
   updateAvailable: boolean;
   error?: string;
+}
+
+type SelfUpdateChannel = "stable" | "prerelease" | "custom";
+type SelfUpdateStatus = "checking" | "up-to-date" | "updated" | "failed" | "disabled";
+
+interface SelfUpdateState {
+  checkedAt: string;
+  completedAt?: string;
+  status: SelfUpdateStatus;
+  currentVersion: string;
+  latestVersion: string | null;
+  targetRef: string | null;
+  releaseUrl: string | null;
+  repo: string;
+  channel: SelfUpdateChannel;
+  sourceRoot: string;
+  installationSource?: InstallationSource;
+  error?: string;
+}
+
+interface InstallationSource {
+  kind: "github-source" | "homebrew" | "local-dev" | "source-archive" | "unknown";
+  label: string;
+  detail: string;
 }
 
 interface TweakUpdateCheck {
@@ -121,6 +149,18 @@ function setCodexPlusPlusAutoUpdate(enabled: boolean): void {
   s.codexPlusPlus.autoUpdate = enabled;
   writeState(s);
 }
+function setCodexPlusPlusUpdateConfig(config: {
+  updateChannel?: SelfUpdateChannel;
+  updateRepo?: string;
+  updateRef?: string;
+}): void {
+  const s = readState();
+  s.codexPlusPlus ??= {};
+  if (config.updateChannel) s.codexPlusPlus.updateChannel = config.updateChannel;
+  if ("updateRepo" in config) s.codexPlusPlus.updateRepo = cleanOptionalString(config.updateRepo);
+  if ("updateRef" in config) s.codexPlusPlus.updateRef = cleanOptionalString(config.updateRef);
+  writeState(s);
+}
 function isCodexPlusPlusSafeModeEnabled(): boolean {
   return readState().codexPlusPlus?.safeMode === true;
 }
@@ -139,6 +179,7 @@ function setTweakEnabled(id: string, enabled: boolean): void {
 interface InstallerState {
   appRoot: string;
   codexVersion: string | null;
+  sourceRoot?: string;
 }
 
 function readInstallerState(): InstallerState | null {
@@ -147,6 +188,20 @@ function readInstallerState(): InstallerState | null {
   } catch {
     return null;
   }
+}
+
+function readSelfUpdateState(): SelfUpdateState | null {
+  try {
+    return JSON.parse(readFileSync(SELF_UPDATE_STATE_FILE, "utf8")) as SelfUpdateState;
+  } catch {
+    return null;
+  }
+}
+
+function cleanOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function log(level: "info" | "warn" | "error", ...args: unknown[]): void {
@@ -450,11 +505,18 @@ ipcMain.handle("codexpp:set-tweak-enabled", (_e, id: string, enabled: boolean) =
 
 ipcMain.handle("codexpp:get-config", () => {
   const s = readState();
+  const installerState = readInstallerState();
+  const sourceRoot = installerState?.sourceRoot ?? fallbackSourceRoot();
   return {
     version: CODEX_PLUSPLUS_VERSION,
     autoUpdate: s.codexPlusPlus?.autoUpdate !== false,
     safeMode: s.codexPlusPlus?.safeMode === true,
+    updateChannel: s.codexPlusPlus?.updateChannel ?? "stable",
+    updateRepo: s.codexPlusPlus?.updateRepo ?? CODEX_PLUSPLUS_REPO,
+    updateRef: s.codexPlusPlus?.updateRef ?? "",
     updateCheck: s.codexPlusPlus?.updateCheck ?? null,
+    selfUpdate: readSelfUpdateState(),
+    installationSource: describeInstallationSource(sourceRoot),
   };
 });
 
@@ -463,8 +525,32 @@ ipcMain.handle("codexpp:set-auto-update", (_e, enabled: boolean) => {
   return { autoUpdate: isCodexPlusPlusAutoUpdateEnabled() };
 });
 
+ipcMain.handle("codexpp:set-update-config", (_e, config: {
+  updateChannel?: SelfUpdateChannel;
+  updateRepo?: string;
+  updateRef?: string;
+}) => {
+  setCodexPlusPlusUpdateConfig(config);
+  const s = readState();
+  return {
+    updateChannel: s.codexPlusPlus?.updateChannel ?? "stable",
+    updateRepo: s.codexPlusPlus?.updateRepo ?? CODEX_PLUSPLUS_REPO,
+    updateRef: s.codexPlusPlus?.updateRef ?? "",
+  };
+});
+
 ipcMain.handle("codexpp:check-codexpp-update", async (_e, force?: boolean) => {
   return ensureCodexPlusPlusUpdateCheck(force === true);
+});
+
+ipcMain.handle("codexpp:run-codexpp-update", async () => {
+  const sourceRoot = readInstallerState()?.sourceRoot ?? fallbackSourceRoot();
+  const cli = sourceRoot ? join(sourceRoot, "packages", "installer", "dist", "cli.js") : null;
+  if (!cli || !existsSync(cli)) {
+    throw new Error("Codex++ source CLI was not found. Run the installer once, then try again.");
+  }
+  await runInstalledCli(cli, ["update", "--watcher"]);
+  return readSelfUpdateState();
 });
 
 ipcMain.handle("codexpp:get-watcher-health", () => getWatcherHealth(userRoot!));
@@ -710,6 +796,8 @@ const VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 async function ensureCodexPlusPlusUpdateCheck(force = false): Promise<CodexPlusPlusUpdateCheck> {
   const state = readState();
   const cached = state.codexPlusPlus?.updateCheck;
+  const channel = state.codexPlusPlus?.updateChannel ?? "stable";
+  const repo = state.codexPlusPlus?.updateRepo ?? CODEX_PLUSPLUS_REPO;
   if (
     !force &&
     cached &&
@@ -719,13 +807,13 @@ async function ensureCodexPlusPlusUpdateCheck(force = false): Promise<CodexPlusP
     return cached;
   }
 
-  const release = await fetchLatestRelease(CODEX_PLUSPLUS_REPO, CODEX_PLUSPLUS_VERSION);
+  const release = await fetchLatestRelease(repo, CODEX_PLUSPLUS_VERSION, channel === "prerelease");
   const latestVersion = release.latestTag ? normalizeVersion(release.latestTag) : null;
   const check: CodexPlusPlusUpdateCheck = {
     checkedAt: new Date().toISOString(),
     currentVersion: CODEX_PLUSPLUS_VERSION,
     latestVersion,
-    releaseUrl: release.releaseUrl ?? `https://github.com/${CODEX_PLUSPLUS_REPO}/releases`,
+    releaseUrl: release.releaseUrl ?? `https://github.com/${repo}/releases`,
     releaseNotes: release.releaseNotes,
     updateAvailable: latestVersion
       ? compareVersions(normalizeVersion(latestVersion), CODEX_PLUSPLUS_VERSION) > 0
@@ -774,12 +862,14 @@ async function ensureTweakUpdateCheck(t: DiscoveredTweak): Promise<void> {
 async function fetchLatestRelease(
   repo: string,
   currentVersion: string,
+  includePrerelease = false,
 ): Promise<{ latestTag: string | null; releaseUrl: string | null; releaseNotes: string | null; error?: string }> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      const endpoint = includePrerelease ? "releases?per_page=20" : "releases/latest";
+      const res = await fetch(`https://api.github.com/repos/${repo}/${endpoint}`, {
         headers: {
           "Accept": "application/vnd.github+json",
           "User-Agent": `codex-plusplus/${currentVersion}`,
@@ -792,7 +882,11 @@ async function fetchLatestRelease(
       if (!res.ok) {
         return { latestTag: null, releaseUrl: null, releaseNotes: null, error: `GitHub returned ${res.status}` };
       }
-      const body = await res.json() as { tag_name?: string; html_url?: string; body?: string };
+      const json = await res.json() as { tag_name?: string; html_url?: string; body?: string; draft?: boolean } | Array<{ tag_name?: string; html_url?: string; body?: string; draft?: boolean }>;
+      const body = Array.isArray(json) ? json.find((release) => !release.draft) : json;
+      if (!body) {
+        return { latestTag: null, releaseUrl: null, releaseNotes: null, error: "no GitHub release found" };
+      }
       return {
         latestTag: body.tag_name ?? null,
         releaseUrl: body.html_url ?? `https://github.com/${repo}/releases`,
@@ -824,6 +918,67 @@ function compareVersions(a: string, b: string): number {
     if (diff !== 0) return diff;
   }
   return 0;
+}
+
+function fallbackSourceRoot(): string | null {
+  const candidates = [
+    join(homedir(), ".codex-plusplus", "source"),
+    join(userRoot!, "source"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, "packages", "installer", "dist", "cli.js"))) return candidate;
+  }
+  return null;
+}
+
+function describeInstallationSource(sourceRoot: string | null): InstallationSource {
+  if (!sourceRoot) {
+    return {
+      kind: "unknown",
+      label: "Unknown",
+      detail: "Codex++ source location is not recorded yet.",
+    };
+  }
+  const normalized = sourceRoot.replace(/\\/g, "/");
+  if (/\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(normalized)) {
+    return { kind: "homebrew", label: "Homebrew", detail: sourceRoot };
+  }
+  if (existsSync(join(sourceRoot, ".git"))) {
+    return { kind: "local-dev", label: "Local development checkout", detail: sourceRoot };
+  }
+  if (normalized.endsWith("/.codex-plusplus/source") || normalized.includes("/.codex-plusplus/source/")) {
+    return { kind: "github-source", label: "GitHub source installer", detail: sourceRoot };
+  }
+  if (existsSync(join(sourceRoot, "package.json"))) {
+    return { kind: "source-archive", label: "Source archive", detail: sourceRoot };
+  }
+  return { kind: "unknown", label: "Unknown", detail: sourceRoot };
+}
+
+function runInstalledCli(cli: string, args: string[]): Promise<void> {
+  return new Promise((resolveRun, rejectRun) => {
+    const child = spawn(process.execPath, [cli, ...args], {
+      cwd: resolve(dirname(cli), "..", "..", ".."),
+      env: { ...process.env, CODEX_PLUSPLUS_MANUAL_UPDATE: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    child.stdout?.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.on("error", rejectRun);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolveRun();
+        return;
+      }
+      const tail = output.trim().split(/\r?\n/).slice(-12).join("\n");
+      rejectRun(new Error(tail || `codexplusplus ${args.join(" ")} failed with exit code ${code}`));
+    });
+  });
 }
 
 function broadcastReload(): void {

@@ -11,6 +11,7 @@ function getWatcherHealth(userRoot) {
     const checks = [];
     const state = readJson((0, node_path_1.join)(userRoot, "state.json"));
     const config = readJson((0, node_path_1.join)(userRoot, "config.json")) ?? {};
+    const selfUpdate = readJson((0, node_path_1.join)(userRoot, "self-update-state.json"));
     checks.push({
         name: "Install state",
         status: state ? "ok" : "error",
@@ -29,6 +30,9 @@ function getWatcherHealth(userRoot) {
         status: state.watcher && state.watcher !== "none" ? "ok" : "error",
         detail: state.watcher ?? "none",
     });
+    if (selfUpdate) {
+        checks.push(selfUpdateCheck(selfUpdate));
+    }
     const appRoot = state.appRoot ?? "";
     checks.push({
         name: "Codex app",
@@ -53,6 +57,26 @@ function getWatcherHealth(userRoot) {
             });
     }
     return summarize(state.watcher ?? "none", checks);
+}
+function selfUpdateCheck(state) {
+    const at = state.completedAt ?? state.checkedAt ?? "unknown time";
+    if (state.status === "failed") {
+        return {
+            name: "last Codex++ update",
+            status: "warn",
+            detail: state.error ? `failed ${at}: ${state.error}` : `failed ${at}`,
+        };
+    }
+    if (state.status === "disabled") {
+        return { name: "last Codex++ update", status: "warn", detail: `skipped ${at}: automatic refresh disabled` };
+    }
+    if (state.status === "updated") {
+        return { name: "last Codex++ update", status: "ok", detail: `updated ${at} to ${state.latestVersion ?? "new release"}` };
+    }
+    if (state.status === "up-to-date") {
+        return { name: "last Codex++ update", status: "ok", detail: `up to date ${at}` };
+    }
+    return { name: "last Codex++ update", status: "warn", detail: `checking since ${at}` };
 }
 function checkLaunchdWatcher(appRoot) {
     const checks = [];

@@ -589,6 +589,7 @@ function renderConfigPage(sectionsWrap, subtitle) {
     section.className = "flex flex-col gap-2";
     section.appendChild(sectionTitle("Codex++ Updates"));
     const card = roundedCard();
+    card.dataset.codexppConfigCard = "true";
     const loading = rowSimple("Loading update settings", "Checking current Codex++ configuration.");
     card.appendChild(loading);
     section.appendChild(card);
@@ -627,7 +628,10 @@ function renderConfigPage(sectionsWrap, subtitle) {
 }
 function renderCodexPlusPlusConfig(card, config) {
     card.appendChild(autoUpdateRow(config));
-    card.appendChild(checkForUpdatesRow(config.updateCheck));
+    card.appendChild(updateChannelRow(config));
+    card.appendChild(installationSourceRow(config.installationSource));
+    card.appendChild(selfUpdateStatusRow(config.selfUpdate));
+    card.appendChild(checkForUpdatesRow(config));
     if (config.updateCheck)
         card.appendChild(releaseNotesRow(config.updateCheck));
 }
@@ -641,7 +645,7 @@ function autoUpdateRow(config) {
     title.textContent = "Automatically refresh Codex++";
     const desc = document.createElement("div");
     desc.className = "text-token-text-secondary min-w-0 text-sm";
-    desc.textContent = `Installed version v${config.version}. The watcher can refresh the Codex++ runtime after you rerun the GitHub installer.`;
+    desc.textContent = `Installed version v${config.version}. The watcher checks hourly and can refresh the Codex++ runtime automatically.`;
     left.appendChild(title);
     left.appendChild(desc);
     row.appendChild(left);
@@ -650,14 +654,69 @@ function autoUpdateRow(config) {
     }));
     return row;
 }
-function checkForUpdatesRow(check) {
+function updateChannelRow(config) {
+    const row = actionRow("Release channel", updateChannelSummary(config));
+    const action = row.querySelector("[data-codexpp-row-actions]");
+    const select = document.createElement("select");
+    select.className =
+        "h-8 rounded-lg border border-token-border bg-transparent px-2 text-sm text-token-text-primary focus:outline-none";
+    for (const [value, label] of [
+        ["stable", "Stable"],
+        ["prerelease", "Prerelease"],
+        ["custom", "Custom"],
+    ]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.selected = config.updateChannel === value;
+        select.appendChild(option);
+    }
+    select.addEventListener("change", () => {
+        void electron_1.ipcRenderer
+            .invoke("codexpp:set-update-config", { updateChannel: select.value })
+            .then(() => refreshConfigCard(row))
+            .catch((e) => plog("set update channel failed", String(e)));
+    });
+    action?.appendChild(select);
+    if (config.updateChannel === "custom") {
+        action?.appendChild(compactButton("Edit", () => {
+            const repo = window.prompt("GitHub repo", config.updateRepo || "b-nnett/codex-plusplus");
+            if (repo === null)
+                return;
+            const ref = window.prompt("Git ref", config.updateRef || "main");
+            if (ref === null)
+                return;
+            void electron_1.ipcRenderer
+                .invoke("codexpp:set-update-config", {
+                updateChannel: "custom",
+                updateRepo: repo,
+                updateRef: ref,
+            })
+                .then(() => refreshConfigCard(row))
+                .catch((e) => plog("set custom update source failed", String(e)));
+        }));
+    }
+    return row;
+}
+function installationSourceRow(source) {
+    return rowSimple("Installation source", `${source.label}: ${source.detail}`);
+}
+function selfUpdateStatusRow(state) {
+    const row = rowSimple("Last Codex++ update", selfUpdateSummary(state));
+    const left = row.firstElementChild;
+    if (left && state)
+        left.prepend(statusBadge(selfUpdateStatusTone(state.status), selfUpdateStatusLabel(state.status)));
+    return row;
+}
+function checkForUpdatesRow(config) {
+    const check = config.updateCheck;
     const row = document.createElement("div");
     row.className = "flex items-center justify-between gap-4 p-3";
     const left = document.createElement("div");
     left.className = "flex min-w-0 flex-col gap-1";
     const title = document.createElement("div");
     title.className = "min-w-0 text-sm text-token-text-primary";
-    title.textContent = check?.updateAvailable ? "Codex++ update available" : "Codex++ is up to date";
+    title.textContent = check?.updateAvailable ? "Codex++ update available" : "Check for Codex++ updates";
     const desc = document.createElement("div");
     desc.className = "text-token-text-secondary min-w-0 text-sm";
     desc.textContent = updateSummary(check);
@@ -675,21 +734,26 @@ function checkForUpdatesRow(check) {
         row.style.opacity = "0.65";
         void electron_1.ipcRenderer
             .invoke("codexpp:check-codexpp-update", true)
-            .then((next) => {
-            const card = row.parentElement;
-            if (!card)
-                return;
-            card.textContent = "";
-            void electron_1.ipcRenderer.invoke("codexpp:get-config").then((config) => {
-                renderCodexPlusPlusConfig(card, {
-                    ...config,
-                    updateCheck: next,
-                });
-            });
-        })
-            .catch((e) => plog("Codex++ update check failed", String(e)))
+            .then(() => refreshConfigCard(row))
+            .catch((e) => plog("Codex++ release check failed", String(e)))
             .finally(() => {
             row.style.opacity = "";
+        });
+    }));
+    actions.appendChild(compactButton("Download Update", () => {
+        row.style.opacity = "0.65";
+        const buttons = actions.querySelectorAll("button");
+        buttons.forEach((button) => (button.disabled = true));
+        void electron_1.ipcRenderer
+            .invoke("codexpp:run-codexpp-update")
+            .then(() => refreshConfigCard(row))
+            .catch((e) => {
+            plog("Codex++ self-update failed", String(e));
+            void refreshConfigCard(row);
+        })
+            .finally(() => {
+            row.style.opacity = "";
+            buttons.forEach((button) => (button.disabled = false));
         });
     }));
     row.appendChild(actions);
@@ -927,6 +991,66 @@ function updateSummary(check) {
     if (check.error)
         return `${latest}${checked} ${check.error}`;
     return `${latest}${checked}`;
+}
+function updateChannelSummary(config) {
+    if (config.updateChannel === "custom") {
+        return `${config.updateRepo || "b-nnett/codex-plusplus"} ${config.updateRef || "(no ref set)"}`;
+    }
+    if (config.updateChannel === "prerelease") {
+        return "Use the newest published GitHub release, including prereleases.";
+    }
+    return "Use the latest stable GitHub release.";
+}
+function selfUpdateSummary(state) {
+    if (!state)
+        return "No automatic Codex++ update has run yet.";
+    const checked = new Date(state.completedAt ?? state.checkedAt).toLocaleString();
+    const target = state.latestVersion ? ` Target v${state.latestVersion}.` : state.targetRef ? ` Target ${state.targetRef}.` : "";
+    const source = state.installationSource?.label ?? "unknown source";
+    if (state.status === "failed")
+        return `Failed ${checked}.${target} ${state.error ?? "Unknown error"}`;
+    if (state.status === "updated")
+        return `Updated ${checked}.${target} Source: ${source}.`;
+    if (state.status === "up-to-date")
+        return `Up to date ${checked}.${target} Source: ${source}.`;
+    if (state.status === "disabled")
+        return `Skipped ${checked}; automatic refresh is disabled.`;
+    return `Checking for updates. Source: ${source}.`;
+}
+function selfUpdateStatusTone(status) {
+    if (status === "failed")
+        return "error";
+    if (status === "disabled" || status === "checking")
+        return "warn";
+    return "ok";
+}
+function selfUpdateStatusLabel(status) {
+    if (status === "up-to-date")
+        return "Up to date";
+    if (status === "updated")
+        return "Updated";
+    if (status === "failed")
+        return "Failed";
+    if (status === "disabled")
+        return "Disabled";
+    return "Checking";
+}
+function refreshConfigCard(row) {
+    const card = row.closest("[data-codexpp-config-card]");
+    if (!card)
+        return;
+    card.textContent = "";
+    card.appendChild(rowSimple("Refreshing", "Loading current Codex++ update status."));
+    void electron_1.ipcRenderer
+        .invoke("codexpp:get-config")
+        .then((config) => {
+        card.textContent = "";
+        renderCodexPlusPlusConfig(card, config);
+    })
+        .catch((e) => {
+        card.textContent = "";
+        card.appendChild(rowSimple("Could not refresh update settings", String(e)));
+    });
 }
 function uninstallRow() {
     const row = actionRow("Uninstall Codex++", "Copies the uninstall command. Run it from a terminal after quitting Codex.");
