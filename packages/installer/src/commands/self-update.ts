@@ -113,7 +113,7 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
 
       verifyDownloadedVersion(next, target);
       installDependencies(next);
-      run("npm", ["run", "build"], next);
+      run(npmCommand(), ["run", "build"], next);
 
       rmSync(previous, { recursive: true, force: true });
       if (existsSync(sourceRoot)) renameSync(sourceRoot, previous);
@@ -281,12 +281,16 @@ function selfUpdateState(opts: {
 
 function installDependencies(cwd: string): void {
   if (existsSync(join(cwd, "package-lock.json"))) {
-    const ci = runMaybe("npm", ["ci", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+    const ci = runMaybe(npmCommand(), ["ci", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
     if (ci === 0) return;
     console.warn(kleur.yellow("npm ci failed; regenerating lockfile for downloaded source."));
     rmSync(join(cwd, "package-lock.json"), { force: true });
   }
-  run("npm", ["install", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+  run(npmCommand(), ["install", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+}
+
+function npmCommand(): string {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function runRepairIfRequested(opts: Opts, sourceRoot: string, cwd: string): void {
