@@ -12,7 +12,8 @@
  *  • show-usage-in-sidebar (experimental) Renders a single usage box where
  *                          the upgrade pill was. Click toggles between
  *                          5h and Weekly; hover replaces content with
- *                          "Resets: HH:MM". Red when <15% remaining.
+ *                          "Resets: HH:MM" or "Resets: Wed, HH:MM".
+ *                          Red when <15% remaining.
  *                          Sources data from Codex's authenticated
  *                          /wham/usage app-server endpoint.
  *  • square-sidebar        Flatten the rounded seam between sidebar and
@@ -408,7 +409,8 @@ const FEATURES = {
      *     weekly:  {label,pct,resetAt} | null,
      *     at:number }
      * `pct` is REMAINING (Codex displays remaining %, e.g. "100%").
-     * `resetAt` is whatever Codex shows verbatim (typically "HH:MM").
+     * `resetAt` is whatever Codex shows verbatim (typically "HH:MM",
+     * or "Wed, HH:MM" for weekly API data).
      */
     let snapshot = readSnapshot(api);
     let mounted = null; // HTMLElement currently rendered in the sidebar
@@ -627,12 +629,13 @@ const FEATURES = {
       return Math.round(Math.min(Math.max(100 - used, 0), 100));
     };
 
-    const formatResetAt = (epochSeconds) => {
+    const formatResetAt = (epochSeconds, includeDay = false) => {
       const seconds = Number(epochSeconds);
       if (!Number.isFinite(seconds)) return null;
       const date = new Date(seconds * 1000);
       if (!Number.isFinite(date.getTime())) return null;
       return date.toLocaleTimeString(undefined, {
+        ...(includeDay ? { weekday: "short" } : {}),
         hour: "numeric",
         minute: "2-digit",
       });
@@ -642,10 +645,12 @@ const FEATURES = {
       if (!window || typeof window !== "object") return null;
       const pct = remainingPercent(window.used_percent);
       if (pct == null) return null;
+      const minutes = Number(window.limit_window_seconds) / 60;
+      const includeResetDay = Number.isFinite(minutes) && minutes >= 1440;
       return {
         label,
         pct,
-        resetAt: formatResetAt(window.reset_at),
+        resetAt: formatResetAt(window.reset_at, includeResetDay),
       };
     };
 
@@ -3382,8 +3387,9 @@ function writeSnapshot(api, snap) {
 
 /**
  * Render a single rotating usage box. Click toggles between 5h and Weekly;
- * hover replaces the content with "Resets: HH:MM". The currently-selected
- * kind is persisted to storage so it survives reloads.
+ * hover replaces the content with "Resets: HH:MM" for 5h or
+ * "Resets: Wed, HH:MM" for weekly. The currently-selected kind is persisted
+ * to storage so it survives reloads.
  *
  * The returned element exposes `_refresh(snapshot)` so callers can update
  * values in place without unmount/remount.
@@ -3447,7 +3453,7 @@ function renderUsageBox(api, snapshot) {
     setClass(pctEl, lowEnergy ? "font-medium" : "text-token-text-secondary");
   };
 
-  /** Replace the entire box content with "Resets: HH:MM". */
+  /** Replace the entire box content with the reset label. */
   const applyHoverState = (snap) => {
     const entry = entryFor(snap, kind);
     setText(left, "Resets:");
