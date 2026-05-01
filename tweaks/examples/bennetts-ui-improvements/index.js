@@ -17,6 +17,7 @@
  *                          /wham/usage app-server endpoint.
  *  • square-sidebar        Flatten the rounded seam between sidebar and
  *                          main content panel.
+ *  • settings-search       Adds a small search field to Codex Settings.
  *  • match-sidebar-width   Force the settings page sidebar to match the
  *                          main UI sidebar's width, eliminating the
  *                          layout jump when opening/closing Settings.
@@ -52,6 +53,7 @@ module.exports = {
         "show-usage-in-sidebar": false,
         "show-message-metrics-on-hover": true,
         "square-sidebar": false,
+        "settings-search": true,
         "match-sidebar-width": true,
         "sidebar-action-grid": true,
         "sidebar-project-backgrounds": true,
@@ -137,6 +139,12 @@ function renderSettings(root, state) {
       title: "Square sidebar corners",
       description:
         "Remove the rounded inner corners on the main content panel so it sits flush against the sidebar.",
+    },
+    {
+      id: "settings-search",
+      title: "Settings search",
+      description:
+        "Add a search field above the Settings tabs so sections can be filtered quickly.",
     },
     {
       id: "match-sidebar-width",
@@ -1011,6 +1019,658 @@ const FEATURES = {
     document.head.appendChild(style);
 
     return () => {
+      style.remove();
+    };
+  },
+
+  /**
+   * Add a compact search field to the Settings sidebar and filter the
+   * visible settings tabs in place. This is deliberately a tweak, not core
+   * Codex++, because it is a reversible UI convenience layer.
+   */
+  "settings-search"(api) {
+    const STYLE_ID = "codexpp-settings-search-style";
+    const ROOT_ATTR = "data-codexpp-settings-search";
+    const HIDDEN_ATTR = "data-codexpp-settings-search-hidden";
+    const PREV_DISPLAY_ATTR = "codexppSettingsSearchPrevDisplay";
+    const SIDEBAR_SELECTOR = ".window-fx-sidebar-surface.w-token-sidebar";
+
+    document.getElementById(STYLE_ID)?.remove();
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      [${ROOT_ATTR}] {
+        padding: 0.75rem 0 0.5rem;
+      }
+
+      [${ROOT_ATTR}] .codexpp-settings-search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+
+      [${ROOT_ATTR}] svg {
+        position: absolute;
+        left: 0.625rem;
+        height: 1rem;
+        width: 1rem;
+        color: var(--color-token-text-secondary);
+        pointer-events: none;
+      }
+
+      [${ROOT_ATTR}] input {
+        width: 100%;
+        height: 2rem;
+        min-width: 0;
+        border-radius: var(--radius-md, 0.375rem);
+        border: 1px solid color-mix(in srgb, currentColor 13%, transparent);
+        background: color-mix(in srgb, currentColor 4%, transparent);
+        color: var(--color-token-text-primary);
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        padding: 0 0.625rem 0 2rem;
+        outline: none;
+      }
+
+      [${ROOT_ATTR}] input::placeholder {
+        color: var(--color-token-text-secondary);
+      }
+
+      [${ROOT_ATTR}] input:focus {
+        border-color: color-mix(in srgb, currentColor 18%, transparent);
+        box-shadow: none;
+      }
+
+      [${ROOT_ATTR}] .codexpp-settings-search-empty {
+        display: none;
+        padding-top: 1.25rem;
+        color: var(--color-token-text-secondary);
+        font-size: 0.75rem;
+        line-height: 1rem;
+        text-align: center;
+      }
+
+      [${ROOT_ATTR}][data-empty="true"] .codexpp-settings-search-empty {
+        display: block;
+      }
+
+      [${ROOT_ATTR}] .codexpp-settings-search-results {
+        display: none;
+        flex-direction: column;
+        gap: 0.125rem;
+        padding-top: 0.375rem;
+      }
+
+      [${ROOT_ATTR}][data-has-results="true"] .codexpp-settings-search-results {
+        display: flex;
+      }
+
+      [${ROOT_ATTR}] .codexpp-settings-search-result {
+        display: flex;
+        min-width: 0;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.375rem;
+        border-radius: var(--radius-md, 0.375rem);
+        padding: 0.25rem 0.5rem;
+        color: var(--color-token-text-secondary);
+        font-size: 0.75rem;
+        line-height: 1rem;
+        text-align: left;
+      }
+
+      [${ROOT_ATTR}] .codexpp-settings-search-result:hover,
+      [${ROOT_ATTR}] .codexpp-settings-search-result:focus-visible {
+        background: color-mix(in srgb, currentColor 8%, transparent);
+        color: var(--color-token-text-primary);
+        outline: none;
+      }
+
+      [${ROOT_ATTR}] .codexpp-settings-search-result span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      [data-codexpp-settings-search-highlight="true"] {
+        outline: 2px solid var(--color-token-focus-border, var(--color-token-border));
+        outline-offset: 5px;
+        border-radius: var(--radius-md, 0.375rem);
+        transition:
+          outline-color 220ms ease,
+          outline-offset 220ms ease;
+      }
+
+      [data-codexpp-settings-search-highlight="fading"] {
+        outline: 2px solid transparent;
+        outline-offset: 9px;
+        border-radius: var(--radius-md, 0.375rem);
+        transition:
+          outline-color 420ms ease,
+          outline-offset 420ms ease;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const root = document.createElement("div");
+    root.setAttribute(ROOT_ATTR, "true");
+
+    const box = document.createElement("div");
+    box.className = "codexpp-settings-search-box";
+    box.innerHTML =
+      '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true">' +
+      '<path d="m14.5 14.5 3 3M8.5 15a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>' +
+      "</svg>";
+
+    const input = document.createElement("input");
+    input.type = "search";
+    input.placeholder = "Search settings";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.setAttribute("aria-label", "Search settings");
+    box.appendChild(input);
+    root.appendChild(box);
+
+    const empty = document.createElement("div");
+    empty.className = "codexpp-settings-search-empty";
+    empty.textContent = "No matching settings";
+    root.appendChild(empty);
+
+    const results = document.createElement("div");
+    results.className = "codexpp-settings-search-results";
+    root.appendChild(results);
+
+    let scheduled = false;
+    let disposed = false;
+    let lastSidebar = null;
+    let highlightTimer = null;
+    const revealTimers = new Set();
+    const pageIndex = new Map();
+
+    const compact = (value) =>
+      String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+    const knownContent = [
+      {
+        page: "General",
+        title: "Work mode",
+        text: "work mode coding everyday technical detail",
+      },
+      {
+        page: "General",
+        title: "Permissions",
+        text: "permissions default permissions auto-review full access",
+      },
+      {
+        page: "General",
+        title: "General",
+        text: "general default open destination language show in menu bar prevent sleep follow-up behavior import other agent setup",
+      },
+      {
+        page: "General",
+        title: "Dictation",
+        text: "dictation hold-to-dictate hotkey toggle dictation hotkey dictation dictionary recent dictations",
+      },
+      {
+        page: "General",
+        title: "Dictation dictionary",
+        text: "dictation dictionary words phrases dictation should recognize",
+      },
+      {
+        page: "General",
+        title: "Notifications",
+        text: "notifications turn completion notifications permission notifications alerts",
+      },
+    ].map((item) => ({
+      ...item,
+      text: compact(`${item.title} ${item.text}`),
+      node: null,
+    }));
+
+    const labelFor = (node) =>
+      compact(
+        [
+          node.getAttribute?.("aria-label"),
+          node.getAttribute?.("title"),
+          node.textContent,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+
+    const visibleLabelFor = (node) => compact(node?.textContent || "");
+    const displayLabelFor = (node) =>
+      String(node?.textContent || "").replace(/\s+/g, " ").trim();
+
+    const findSettingsSidebar = () => {
+      const exact = document.querySelector(SIDEBAR_SELECTOR);
+      if (exact instanceof HTMLElement) return exact;
+      const candidates = Array.from(document.querySelectorAll("div")).filter(
+        (node) => {
+          if (!(node instanceof HTMLElement)) return false;
+          const rect = node.getBoundingClientRect();
+          if (rect.width < 180 || rect.width > 420 || rect.height < 240) return false;
+          const text = compact(node.textContent);
+          return (
+            text.includes("general") &&
+            text.includes("appearance") &&
+            (text.includes("configuration") || text.includes("account"))
+          );
+        },
+      );
+      return candidates[0] instanceof HTMLElement ? candidates[0] : null;
+    };
+
+    const findMount = (sidebar) => {
+      const groups = Array.from(sidebar.querySelectorAll("div")).filter(
+        (node) =>
+          node instanceof HTMLElement &&
+          node.classList.contains("flex") &&
+          node.classList.contains("flex-col") &&
+          node.classList.contains("gap-px") &&
+          Array.from(node.children).some(
+            (child) =>
+              child instanceof HTMLElement &&
+              child.matches("button, a") &&
+              visibleLabelFor(child) === "general",
+          ),
+      );
+      const itemsGroup = groups[0];
+      const outer = itemsGroup?.parentElement;
+      if (itemsGroup instanceof HTMLElement && outer instanceof HTMLElement) {
+        const header = Array.from(outer.children).find(
+          (child) =>
+            child instanceof HTMLElement &&
+            child !== root &&
+            !child.querySelector("button, a") &&
+            visibleLabelFor(child) === "general",
+        );
+        return {
+          parent: outer,
+          before: header instanceof HTMLElement ? header : itemsGroup,
+        };
+      }
+      const nav = sidebar.querySelector("nav");
+      return {
+        parent: nav instanceof HTMLElement ? nav : sidebar,
+        before: nav instanceof HTMLElement ? nav.firstElementChild : sidebar.firstElementChild,
+      };
+    };
+
+    const hide = (node, hidden) => {
+      if (!(node instanceof HTMLElement) || root.contains(node)) return;
+      if (hidden) {
+        if (node.getAttribute(HIDDEN_ATTR) === "true") return;
+        node.dataset[PREV_DISPLAY_ATTR] = node.style.display || "";
+        node.style.display = "none";
+        node.setAttribute(HIDDEN_ATTR, "true");
+      } else if (node.getAttribute(HIDDEN_ATTR) === "true") {
+        node.style.display = node.dataset[PREV_DISPLAY_ATTR] || "";
+        delete node.dataset[PREV_DISPLAY_ATTR];
+        node.removeAttribute(HIDDEN_ATTR);
+      }
+    };
+
+    const navigateToPage = (sidebar, page) => {
+      const nav = navForPage(sidebar, page);
+      if (!(nav instanceof HTMLElement)) return false;
+      hide(nav, false);
+      nav.click();
+      return true;
+    };
+
+    const restoreHidden = (scope = document) => {
+      scope.querySelectorAll(`[${HIDDEN_ATTR}="true"]`).forEach((node) => {
+        hide(node, false);
+      });
+    };
+
+    const visibleControlsIn = (node) =>
+      Array.from(node.querySelectorAll("button, a")).filter(
+        (control) =>
+          control instanceof HTMLElement &&
+          !root.contains(control) &&
+          control.getAttribute(HIDDEN_ATTR) !== "true",
+      );
+
+    const navControls = (sidebar) =>
+      Array.from(sidebar.querySelectorAll("button, a")).filter(
+        (node) => node instanceof HTMLElement && !root.contains(node),
+      );
+
+    const activePageLabel = (sidebar) => {
+      const active = navControls(sidebar).find((node) => {
+        const className = String(node.className || "");
+        return (
+          node.getAttribute("aria-current") === "page" ||
+          node.getAttribute("data-state") === "active" ||
+          className.includes("active") ||
+          className.includes("selection")
+        );
+      });
+      const activeLabel = displayLabelFor(active);
+      if (activeLabel) return titleCaseLabel(activeLabel);
+
+      const heading = document.querySelector(
+        ".main-surface .heading-base, .main-surface .electron\\:heading-lg, .main-surface [role='heading']",
+      );
+      const headingLabel = displayLabelFor(heading);
+      return headingLabel ? titleCaseLabel(headingLabel) : "Settings";
+    };
+
+    const titleCaseLabel = (value) => {
+      const raw = String(value || "").replace(/\s+/g, " ").trim();
+      return raw || "Settings";
+    };
+
+    const mainSurface = () => {
+      const surface = document.querySelector(".main-surface");
+      return surface instanceof HTMLElement ? surface : null;
+    };
+
+    const shortText = (node) =>
+      String(node?.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const sectionTitleFor = (node) => {
+      const candidates = [
+        ":scope > div:first-child .text-base",
+        ":scope > div:first-child [class*='heading']",
+        ":scope > div:first-child [role='heading']",
+        ".text-base.font-medium",
+        ".min-w-0.text-sm.text-token-text-primary",
+        ".text-sm.text-token-text-primary",
+        "button .text-sm",
+        "button span",
+      ];
+      for (const selector of candidates) {
+        const found = node.querySelector(selector);
+        const text = shortText(found);
+        if (text && text.length <= 80) return text;
+      }
+      const text = shortText(node);
+      return text.slice(0, 80);
+    };
+
+    const contentCandidates = () => {
+      const surface = mainSurface();
+      if (!surface) return [];
+      const nodes = Array.from(
+        surface.querySelectorAll(
+          "section, [class*='p-3'], button[class*='p-3'], button.flex.w-full",
+        ),
+      ).filter((node) => node instanceof HTMLElement);
+      return nodes.filter((node) => {
+        if (root.contains(node)) return false;
+        const rect = node.getBoundingClientRect();
+        if (rect.width < 120 || rect.height < 18) return false;
+        const text = shortText(node);
+        if (!text || text.length < 2) return false;
+        return !nodes.some(
+          (other) =>
+            other !== node &&
+            other instanceof HTMLElement &&
+            node.contains(other) &&
+            shortText(other) === text,
+        );
+      });
+    };
+
+    const updateCurrentPageIndex = (sidebar) => {
+      const page = activePageLabel(sidebar);
+      const items = [];
+      const seen = new Set();
+      for (const node of contentCandidates()) {
+        const title = sectionTitleFor(node);
+        const text = shortText(node);
+        const key = compact(title);
+        if (!title || seen.has(key)) continue;
+        seen.add(key);
+        items.push({ page, title, text: compact(`${title} ${text}`), node });
+      }
+      if (items.length > 0) pageIndex.set(page, items);
+    };
+
+    const contentMatches = (query) => {
+      if (!query) return [];
+      const matches = [];
+      const seen = new Set();
+      for (const item of knownContent) {
+        const key = `${item.page}:${item.title}`;
+        if (!item.text.includes(query) || seen.has(key)) continue;
+        seen.add(key);
+        matches.push(item);
+      }
+      for (const [page, items] of pageIndex.entries()) {
+        for (const item of items) {
+          const key = `${page}:${item.title}`;
+          if (!item.text.includes(query) || seen.has(key)) continue;
+          seen.add(key);
+          matches.push({ ...item, page });
+          if (matches.length >= 8) return matches;
+        }
+      }
+      return matches;
+    };
+
+    const navForPage = (sidebar, page) =>
+      navControls(sidebar).find((node) => visibleLabelFor(node) === compact(page));
+
+    const clearHighlight = () => {
+      document
+        .querySelectorAll("[data-codexpp-settings-search-highlight]")
+        .forEach((node) => node.removeAttribute("data-codexpp-settings-search-highlight"));
+      if (highlightTimer) {
+        window.clearTimeout(highlightTimer);
+        highlightTimer = null;
+      }
+    };
+
+    const fadeHighlight = (target) => {
+      if (target.getAttribute("data-codexpp-settings-search-highlight") !== "true") return;
+      target.setAttribute("data-codexpp-settings-search-highlight", "fading");
+      highlightTimer = window.setTimeout(clearHighlight, 450);
+    };
+
+    const findContentTarget = (match) => {
+      if (match.node instanceof HTMLElement && document.contains(match.node)) {
+        return match.node;
+      }
+      const title = compact(match.title);
+      const candidates = contentCandidates();
+      return (
+        candidates.find((node) => compact(sectionTitleFor(node)) === title) ||
+        candidates.find((node) => compact(shortText(node)).includes(title)) ||
+        null
+      );
+    };
+
+    const scrollToMatch = (match) => {
+      const target = findContentTarget(match);
+      if (!(target instanceof HTMLElement)) return false;
+      clearHighlight();
+      target.setAttribute("data-codexpp-settings-search-highlight", "true");
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      highlightTimer = window.setTimeout(() => fadeHighlight(target), 3000);
+      return true;
+    };
+
+    const clearRevealTimers = () => {
+      for (const timer of revealTimers) window.clearTimeout(timer);
+      revealTimers.clear();
+    };
+
+    const revealMatch = (match, attempts = 12) => {
+      if (disposed) return;
+      if (lastSidebar) updateCurrentPageIndex(lastSidebar);
+      if (scrollToMatch(match)) return;
+      if (attempts <= 0) return;
+      const timer = window.setTimeout(() => {
+        revealTimers.delete(timer);
+        revealMatch(match, attempts - 1);
+      }, 125);
+      revealTimers.add(timer);
+    };
+
+    const renderResults = (sidebar, matches) => {
+      results.replaceChildren();
+      for (const match of matches.slice(0, 5)) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "codexpp-settings-search-result cursor-interaction";
+        button.title = `Reveal ${match.page} > ${match.title}`;
+        const label = document.createElement("span");
+        label.textContent = `${match.page} > ${match.title}`;
+        button.appendChild(label);
+        const reveal = (event) => {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          clearRevealTimers();
+          const currentSidebar = findSettingsSidebar() || sidebar;
+          navigateToPage(currentSidebar, match.page);
+          window.setTimeout(() => revealMatch(match), 0);
+        };
+        button.addEventListener("pointerdown", reveal);
+        button.addEventListener("click", reveal);
+        button.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          reveal(event);
+        });
+        results.appendChild(button);
+      }
+      root.dataset.hasResults = matches.length > 0 ? "true" : "false";
+    };
+
+    const syncGroupVisibility = (parent, query) => {
+      const children = Array.from(parent.children).filter(
+        (child) => child instanceof HTMLElement && child !== root,
+      );
+
+      for (const child of children) {
+        if (!(child instanceof HTMLElement)) continue;
+        if (child.querySelector("button, a")) {
+          const hasVisibleControl = visibleControlsIn(child).length > 0;
+          const groupLabelMatches = compact(child.textContent).includes(query);
+          hide(child, !hasVisibleControl && !groupLabelMatches);
+        }
+      }
+
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (!(child instanceof HTMLElement) || child.querySelector("button, a")) continue;
+        const labelMatches = compact(child.textContent).includes(query);
+        const nextGroup = children
+          .slice(i + 1)
+          .find((candidate) => candidate instanceof HTMLElement && candidate.querySelector("button, a"));
+        const nextVisible =
+          nextGroup instanceof HTMLElement &&
+          nextGroup.getAttribute(HIDDEN_ATTR) !== "true" &&
+          visibleControlsIn(nextGroup).length > 0;
+        hide(child, !labelMatches && !nextVisible);
+      }
+    };
+
+    const applyFilter = () => {
+      scheduled = false;
+      if (disposed) return;
+
+      const sidebar = findSettingsSidebar();
+      if (!sidebar) {
+        root.remove();
+        restoreHidden(document);
+        return;
+      }
+      lastSidebar = sidebar;
+
+      const mount = findMount(sidebar);
+      if (!root.isConnected || root.parentElement !== mount.parent) {
+        mount.parent.insertBefore(root, mount.before);
+      } else if (root.nextElementSibling !== mount.before && mount.before !== root) {
+        mount.parent.insertBefore(root, mount.before);
+      }
+
+      updateCurrentPageIndex(sidebar);
+      restoreHidden(sidebar);
+      const query = compact(input.value);
+      root.dataset.empty = "false";
+      root.dataset.hasResults = "false";
+      results.replaceChildren();
+      if (!query) return;
+
+      const matches = contentMatches(query);
+      const matchingPages = new Set(matches.map((match) => compact(match.page)));
+
+      const controls = navControls(sidebar);
+      let visibleCount = 0;
+      for (const control of controls) {
+        const matchesNav =
+          labelFor(control).includes(query) || matchingPages.has(visibleLabelFor(control));
+        hide(control, !matchesNav);
+        if (matchesNav) visibleCount++;
+      }
+
+      if (root.parentElement instanceof HTMLElement) {
+        syncGroupVisibility(root.parentElement, query);
+      }
+      renderResults(sidebar, matches);
+      root.dataset.empty = visibleCount === 0 && matches.length === 0 ? "true" : "false";
+    };
+
+    const schedule = () => {
+      if (scheduled || disposed) return;
+      scheduled = true;
+      requestAnimationFrame(applyFilter);
+    };
+
+    input.addEventListener("input", schedule);
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (input.value) {
+        input.value = "";
+        schedule();
+      } else {
+        input.blur();
+      }
+      event.stopPropagation();
+    });
+
+    const onDocumentKeydown = (event) => {
+      if (event.key.toLowerCase() !== "f" || (!event.metaKey && !event.ctrlKey)) return;
+      const sidebar = findSettingsSidebar();
+      if (!sidebar || !document.contains(sidebar)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (document.activeElement === input) {
+        input.blur();
+        return;
+      }
+      schedule();
+      window.setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+    };
+
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    document.addEventListener("keydown", onDocumentKeydown, true);
+    window.addEventListener("codexpp:settings-surface", schedule);
+    schedule();
+
+    api.log.info("settings search active");
+
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      document.removeEventListener("keydown", onDocumentKeydown, true);
+      window.removeEventListener("codexpp:settings-surface", schedule);
+      clearRevealTimers();
+      clearHighlight();
+      restoreHidden(document);
+      root.remove();
       style.remove();
     };
   },

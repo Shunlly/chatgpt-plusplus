@@ -507,6 +507,8 @@ function activatePage(page) {
                 return; // our buttons
             if (state.pagesGroup?.contains(target))
                 return; // our page buttons
+            if (target.closest("[data-codexpp-settings-search]"))
+                return;
             restoreCodexView();
         };
         state.sidebarRestoreHandler = handler;

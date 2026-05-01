@@ -634,6 +634,7 @@ function activatePage(page: ActivePage): void {
       if (!target) return;
       if (state.navGroup?.contains(target)) return; // our buttons
       if (state.pagesGroup?.contains(target)) return; // our page buttons
+      if (target.closest("[data-codexpp-settings-search]")) return;
       restoreCodexView();
     };
     state.sidebarRestoreHandler = handler;
