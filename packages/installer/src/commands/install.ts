@@ -1,6 +1,7 @@
 import kleur from "kleur";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { locateCodex, type CodexInstall } from "../platform.js";
@@ -61,7 +62,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   step(`User dir: ${kleur.cyan(paths.root)}`);
   step(formatCliShimResult(installCliShims(paths.binDir)));
   const launcher = installWindowsManagedAppLauncher(codex);
-  if (launcher) step(launcher);
+  if (launcher) step(`Installed patched Codex++ launcher${launcher.shortcutPaths.length === 1 ? "" : "s"}: ${launcher.shortcutPaths.map((p) => kleur.cyan(p)).join(", ")}`);
 
   // 1. Backup originals.
   const pristineAppBackup = codex.platform === "darwin" ? join(paths.backup, "Codex.app") : null;
@@ -158,7 +159,12 @@ export async function install(opts: Opts = {}): Promise<void> {
     console.log(kleur.green().bold("✓ codex-plusplus installed."));
     console.log(`  Tweaks dir: ${kleur.cyan(paths.tweaks)}`);
     console.log(`  Logs:       ${kleur.cyan(paths.logDir)}`);
-    console.log(`  Launch Codex normally; the Tweaks tab will appear in Settings.`);
+    if (launcher) {
+      console.log(`  Launch ${kleur.cyan("Codex++")} from Start Menu or Desktop.`);
+      console.log(`  Opening the Microsoft Store ${kleur.cyan("Codex")} app directly will launch the unpatched app.`);
+    } else {
+      console.log(`  Launch Codex normally; the Tweaks tab will appear in Settings.`);
+    }
   }
 }
 
@@ -378,7 +384,7 @@ function escapePowerShellSingleQuotedString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-function installWindowsManagedAppLauncher(codex: CodexInstall): string | null {
+function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths: string[] } | null {
   if (codex.platform !== "win32") return null;
   if (!/\\codex-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`)) {
     return null;
@@ -395,19 +401,32 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): string | null {
     `@echo off\r\nstart "" "${codex.executable}" %*\r\n`,
     "utf8",
   );
+  const shortcutPaths = [commandPath];
 
   const startMenuRoot = process.env.APPDATA
     ? join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs")
     : null;
-  if (!startMenuRoot) return `Installed patched Codex launcher: ${kleur.cyan(commandPath)}`;
+  if (!startMenuRoot) return { shortcutPaths };
 
+  const startMenuShortcut = join(startMenuRoot, "Codex++.lnk");
+  if (createWindowsCodexShortcut(startMenuShortcut, codex.executable)) {
+    shortcutPaths.push(startMenuShortcut);
+  }
+  const desktopShortcut = join(homedir(), "Desktop", "Codex++.lnk");
+  if (createWindowsCodexShortcut(desktopShortcut, codex.executable)) {
+    shortcutPaths.push(desktopShortcut);
+  }
+
+  return { shortcutPaths };
+}
+
+function createWindowsCodexShortcut(shortcutPath: string, targetPath: string): boolean {
   try {
-    mkdirSync(startMenuRoot, { recursive: true });
-    const shortcutPath = join(startMenuRoot, "Codex++.lnk");
+    mkdirSync(dirname(shortcutPath), { recursive: true });
     const script = [
       `$shortcutPath = '${escapePowerShellSingleQuotedString(shortcutPath)}'`,
-      `$targetPath = '${escapePowerShellSingleQuotedString(codex.executable)}'`,
-      `$workingDirectory = '${escapePowerShellSingleQuotedString(dirname(codex.executable))}'`,
+      `$targetPath = '${escapePowerShellSingleQuotedString(targetPath)}'`,
+      `$workingDirectory = '${escapePowerShellSingleQuotedString(dirname(targetPath))}'`,
       "$shell = New-Object -ComObject WScript.Shell",
       "$shortcut = $shell.CreateShortcut($shortcutPath)",
       "$shortcut.TargetPath = $targetPath",
@@ -420,9 +439,9 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): string | null {
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
       { stdio: "ignore" },
     );
-    return `Installed patched Codex launchers: ${kleur.cyan(commandPath)} and ${kleur.cyan(shortcutPath)}`;
+    return true;
   } catch {
-    return `Installed patched Codex launcher: ${kleur.cyan(commandPath)}`;
+    return false;
   }
 }
 

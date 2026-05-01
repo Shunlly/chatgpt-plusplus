@@ -42,9 +42,15 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/b-nnett/codex-plusplus/main/install.ps1 | iex
 ```
 
+On Windows, Codex is distributed through the Microsoft Store. Codex++ mirrors the
+Store app into a writable managed copy under `%LOCALAPPDATA%/codex-plusplus/`,
+patches that copy, and installs **Codex++** launchers in the Start Menu and on
+the Desktop. Launch **Codex++**, not the Microsoft Store **Codex** shortcut; the
+Store shortcut opens the unpatched app.
+
 That's it. The installer:
 
-1. Locates your Codex.app (`/Applications/Codex.app`, `%LOCALAPPDATA%/codex/...`, etc.).
+1. Locates Codex (`/Applications/Codex.app` on macOS, or the Microsoft Store package on Windows).
 2. Backs it up to `~/.codex-plusplus/backup/`.
 3. Patches `app.asar` to require our loader.
 4. Recomputes the asar header SHA-256 and writes it into `Info.plist` (`ElectronAsarIntegrity`).
@@ -158,6 +164,9 @@ See [`SECURITY.md`](./SECURITY.md) for the security model and reporting policy.
 - macOS: `~/Library/Application Support/codex-plusplus/`
 - Linux: `$XDG_DATA_HOME/codex-plusplus/` (default `~/.local/share/codex-plusplus/`)
 - Windows: `%APPDATA%/codex-plusplus/`
+
+Windows also keeps the managed patched Codex app mirror in
+`%LOCALAPPDATA%/codex-plusplus/store-apps/`.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for details.
 
