@@ -1630,6 +1630,16 @@ const FEATURES = {
       requestAnimationFrame(applyFilter);
     };
 
+    const clearSearch = () => {
+      if (input.value) input.value = "";
+      root.dataset.empty = "false";
+      root.dataset.hasResults = "false";
+      results.replaceChildren();
+      restoreHidden(document);
+      clearRevealTimers();
+      clearHighlight();
+    };
+
     input.addEventListener("input", schedule);
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
@@ -1662,7 +1672,14 @@ const FEATURES = {
     const observer = new MutationObserver(schedule);
     observer.observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener("keydown", onDocumentKeydown, true);
-    window.addEventListener("codexpp:settings-surface", schedule);
+    const onSettingsSurface = (event) => {
+      if (event instanceof CustomEvent && event.detail?.visible === false) {
+        clearSearch();
+      }
+      schedule();
+    };
+
+    window.addEventListener("codexpp:settings-surface", onSettingsSurface);
     schedule();
 
     api.log.info("settings search active");
@@ -1671,10 +1688,8 @@ const FEATURES = {
       disposed = true;
       observer.disconnect();
       document.removeEventListener("keydown", onDocumentKeydown, true);
-      window.removeEventListener("codexpp:settings-surface", schedule);
-      clearRevealTimers();
-      clearHighlight();
-      restoreHidden(document);
+      window.removeEventListener("codexpp:settings-surface", onSettingsSurface);
+      clearSearch();
       root.remove();
       style.remove();
     };
