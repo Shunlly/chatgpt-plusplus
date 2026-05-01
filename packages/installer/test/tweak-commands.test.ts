@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildPatchFailureIssueUrl } from "../src/alerts";
+import { buildCliFailureIssueUrl, buildPatchFailureIssueUrl } from "../src/alerts";
 import { createTweak } from "../src/commands/create-tweak";
 import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
@@ -272,6 +272,17 @@ test("patch failure report URL includes a prefilled GitHub issue", () => {
   assert.equal(url.searchParams.get("title"), "Codex++ failed to patch Codex after update");
   assert.match(url.searchParams.get("body") ?? "", /Codex window services hook point not found/);
   assert.match(url.searchParams.get("body") ?? "", /Platform:/);
+});
+
+test("CLI failure report URL includes command and environment details", () => {
+  const url = new URL(buildCliFailureIssueUrl("install", "codesign not installed"));
+
+  assert.equal(url.origin + url.pathname, "https://github.com/b-nnett/codex-plusplus/issues/new");
+  assert.equal(url.searchParams.get("title"), "Codex++ install failed");
+  assert.match(url.searchParams.get("body") ?? "", /codexplusplus install/);
+  assert.match(url.searchParams.get("body") ?? "", /codesign not installed/);
+  assert.match(url.searchParams.get("body") ?? "", /Codex\+\+:/);
+  assert.match(url.searchParams.get("body") ?? "", /Node:/);
 });
 
 test("self-update release tags only download newer semver releases", () => {

@@ -3,6 +3,7 @@ import { platform } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { readPlist } from "./plist.js";
+import { CODEX_PLUSPLUS_VERSION } from "./version.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
 const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
@@ -246,6 +247,36 @@ export function buildPatchFailureIssueUrl(errorMessage: string): string {
 
   const params = new URLSearchParams({ title, body });
   return `${CODEX_PLUSPLUS_REPO_URL}/issues/new?${params.toString()}`;
+}
+
+export function buildCliFailureIssueUrl(command: string | undefined, errorMessage: string): string {
+  const commandLabel = command?.trim() || "(unknown command)";
+  const title = `Codex++ ${commandLabel} failed`;
+  const body = [
+    "## What happened",
+    `The \`codexplusplus ${commandLabel}\` command failed.`,
+    "",
+    "## Error",
+    "```text",
+    trimIssueError(errorMessage),
+    "```",
+    "",
+    "## Environment",
+    `- Codex++: ${CODEX_PLUSPLUS_VERSION}`,
+    `- Platform: ${process.platform}`,
+    `- Arch: ${process.arch}`,
+    `- Node: ${process.version}`,
+  ].join("\n");
+
+  const params = new URLSearchParams({ title, body });
+  return `${CODEX_PLUSPLUS_REPO_URL}/issues/new?${params.toString()}`;
+}
+
+function trimIssueError(errorMessage: string): string {
+  const trimmed = errorMessage.trim() || "(empty error message)";
+  const maxLength = 4000;
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength)}\n... truncated ...`;
 }
 
 function openUrl(url: string): void {

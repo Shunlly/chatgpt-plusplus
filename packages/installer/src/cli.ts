@@ -13,7 +13,7 @@ import { validateTweak } from "./commands/validate-tweak.js";
 import { devTweak } from "./commands/dev-tweak.js";
 import { safeMode } from "./commands/safe-mode.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
-import { showPatchFailedAlert } from "./alerts.js";
+import { buildCliFailureIssueUrl, showPatchFailedAlert } from "./alerts.js";
 import { capKnownLogFiles } from "./logging.js";
 
 interface InstallCliOpts {
@@ -31,8 +31,14 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
       .then(() => fn(...args))
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
+        const command = process.argv[2];
         console.error("\n" + kleur.red().bold("✗ codex-plusplus failed"));
         console.error(msg);
+        console.error("");
+        console.error(
+          kleur.yellow("If the message above does not explain how to fix it, please report this on GitHub:"),
+        );
+        console.error(buildCliFailureIssueUrl(command, msg));
         maybeShowPatchFailedAlert(msg);
         process.exit(1);
       });
