@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { homedir, platform } from "node:os";
 import { basename, join } from "node:path";
 import { readPlist } from "./plist.js";
@@ -181,7 +182,19 @@ function locateWin(override?: string): CodexInstall {
   const tried = unique(candidates);
   const appRoot = tried.find(isWinCodexRoot);
   if (!appRoot) {
+    const storeInstall = findWindowsStoreCodexInstall();
     const triedText = tried.length > 0 ? tried.join("\n  ") : "(no default locations available)";
+    if (storeInstall) {
+      throw new Error(
+        `[!] Microsoft Store Codex install detected\n\n` +
+          `Codex appears to be installed from the Microsoft Store:\n` +
+          `  ${storeInstall.name}\n` +
+          `  ${storeInstall.installLocation ?? "(install location is hidden by Windows)"}\n\n` +
+          `Microsoft Store apps are packaged under WindowsApps and cannot be patched in place by Codex++.\n` +
+          `Install the standalone Codex desktop app, then rerun codexplusplus install.\n\n` +
+          `If you have a standalone copy elsewhere, rerun with --app pointing at its install folder.`,
+      );
+    }
     throw new Error(
       `[!] Codex App Not Found\n\n` +
         `Ensure Codex is installed in one of the default Windows locations.\n` +
@@ -249,6 +262,37 @@ function findWinExecutable(appRoot: string): string {
     if (exe) return join(appRoot, exe);
   } catch {}
   return join(appRoot, "Codex.exe");
+}
+
+function findWindowsStoreCodexInstall(): { name: string; installLocation: string | null } | null {
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        [
+          "$pkg = Get-AppxPackage | Where-Object {",
+          "$_.Name -match 'Codex' -or $_.PackageFullName -match 'Codex' -or $_.InstallLocation -match 'Codex'",
+          "} | Select-Object -First 1 Name, InstallLocation;",
+          "if ($pkg) { $pkg | ConvertTo-Json -Compress }",
+        ].join(" "),
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 },
+    ).trim();
+    if (!out) return null;
+    const parsed = JSON.parse(out) as { Name?: unknown; InstallLocation?: unknown };
+    const name = typeof parsed.Name === "string" ? parsed.Name : "Codex";
+    const installLocation =
+      typeof parsed.InstallLocation === "string" && parsed.InstallLocation.trim()
+        ? parsed.InstallLocation
+        : null;
+    return { name, installLocation };
+  } catch {
+    return null;
+  }
 }
 
 function locateLinux(override?: string): CodexInstall {
