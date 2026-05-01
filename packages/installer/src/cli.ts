@@ -62,7 +62,7 @@ prog
   .option("--fuse", "Flip Electron's embedded asar integrity fuse", true)
   .option("--resign", "Ad-hoc code sign Codex.app on macOS", true)
   .option("--watcher", "Install the auto-repair watcher", true)
-  .option("--default-tweaks", "Install the default bundled tweak set", true)
+  .option("--default-tweaks", "Install the default tweak set from latest GitHub releases", true)
   .action(wrap(runInstall));
 
 prog

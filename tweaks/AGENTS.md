@@ -63,16 +63,16 @@ Full manifest example:
 
 ```json
 {
-  "id": "com.example.hello-world",
+  "id": "com.example.my-tweak",
   "name": "Hello World",
   "version": "0.1.0",
-  "githubRepo": "example/hello-world",
+  "githubRepo": "example/my-tweak",
   "description": "Minimal example tweak. Adds a section to the Tweaks tab.",
   "author": {
     "name": "codex-plusplus",
     "url": "https://github.com/anomalyco/codex-plusplus"
   },
-  "homepage": "https://github.com/anomalyco/codex-plusplus/tree/main/examples/hello-world",
+  "homepage": "https://github.com/example/my-tweak",
   "tags": ["example", "demo"],
   "scope": "renderer"
 }
@@ -323,6 +323,5 @@ make a change, rebuild + stage the runtime, `Page.reload`, re-probe.
 
 - SDK types: `@codex-plusplus/sdk` → `TweakManifest`, `TweakApi`,
   `SettingsSection`, etc.
-- Example tweak: `examples/hello-world/`.
 - Codex's Settings markup samples: `/tmp/codex_panels/*.txt` (when the
   runtime is in dev/dump mode).
