@@ -25,6 +25,24 @@ const pkg = require("./package.json");
 const meta = pkg.__codexpp || {};
 const originalMain = meta.originalMain;
 const userRoot = meta.userRoot;
+const MAX_LOG_BYTES = 10 * 1024 * 1024;
+
+function appendCappedLog(file, line) {
+  const incoming = Buffer.from(line);
+  if (incoming.byteLength >= MAX_LOG_BYTES) {
+    fs.writeFileSync(file, incoming.subarray(incoming.byteLength - MAX_LOG_BYTES));
+    return;
+  }
+  if (fs.existsSync(file)) {
+    const size = fs.statSync(file).size;
+    const allowedExisting = MAX_LOG_BYTES - incoming.byteLength;
+    if (size > allowedExisting) {
+      const existing = fs.readFileSync(file);
+      fs.writeFileSync(file, existing.subarray(Math.max(0, existing.byteLength - allowedExisting)));
+    }
+  }
+  fs.appendFileSync(file, incoming);
+}
 
 function safe(label, fn) {
   try {
@@ -34,7 +52,7 @@ function safe(label, fn) {
       const logDir = path.join(userRoot || "", "log");
       fs.mkdirSync(logDir, { recursive: true });
       const line = `[${new Date().toISOString()}] ${label}: ${(e && e.stack) || e}\n`;
-      fs.appendFileSync(path.join(logDir, "loader.log"), line);
+      appendCappedLog(path.join(logDir, "loader.log"), line);
     } catch (_) {
       // last resort: stderr
       process.stderr.write(`[codex-plusplus loader] ${label}: ${e}\n`);

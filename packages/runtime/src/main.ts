@@ -8,7 +8,7 @@
  * code). The renderer-side runtime is bundled separately into preload.js.
  */
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
-import { existsSync, mkdirSync, appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -22,6 +22,7 @@ import {
   reloadTweaks,
   setTweakEnabledAndReload,
 } from "./tweak-lifecycle";
+import { appendCappedLog } from "./logging";
 
 const userRoot = process.env.CODEX_PLUSPLUS_USER_ROOT;
 const runtimeDir = process.env.CODEX_PLUSPLUS_RUNTIME;
@@ -153,7 +154,7 @@ function log(level: "info" | "warn" | "error", ...args: unknown[]): void {
     .map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
     .join(" ")}\n`;
   try {
-    appendFileSync(LOG_FILE, line);
+    appendCappedLog(LOG_FILE, line);
   } catch {}
   if (level === "error") console.error("[codex-plusplus]", ...args);
 }
@@ -525,10 +526,7 @@ ipcMain.handle(
 ipcMain.on("codexpp:preload-log", (_e, level: "info" | "warn" | "error", msg: string) => {
   const lvl = level === "error" || level === "warn" ? level : "info";
   try {
-    appendFileSync(
-      join(LOG_DIR, "preload.log"),
-      `[${new Date().toISOString()}] [${lvl}] ${msg}\n`,
-    );
+    appendCappedLog(join(LOG_DIR, "preload.log"), `[${new Date().toISOString()}] [${lvl}] ${msg}\n`);
   } catch {}
 });
 

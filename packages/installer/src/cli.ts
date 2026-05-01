@@ -14,6 +14,7 @@ import { devTweak } from "./commands/dev-tweak.js";
 import { safeMode } from "./commands/safe-mode.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
 import { showPatchFailedAlert } from "./alerts.js";
+import { capKnownLogFiles } from "./logging.js";
 
 interface InstallCliOpts {
   app?: string;
@@ -54,6 +55,8 @@ function maybeShowPatchFailedAlert(message: string): void {
 const prog = sade("codex-plusplus")
   .version(CODEX_PLUSPLUS_VERSION)
   .describe("Tweak system for the Codex desktop app");
+
+capKnownLogFiles();
 
 prog
   .command("install")
