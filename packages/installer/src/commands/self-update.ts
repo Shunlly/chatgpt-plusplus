@@ -118,6 +118,7 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
       rmSync(previous, { recursive: true, force: true });
       if (existsSync(sourceRoot)) renameSync(sourceRoot, previous);
       renameSync(next, sourceRoot);
+      refreshMovedWorkspaceLinks(sourceRoot);
       writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
         status: "updated",
         repo,
@@ -291,6 +292,11 @@ function installDependencies(cwd: string): void {
 
 function npmCommand(): string {
   return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+function refreshMovedWorkspaceLinks(sourceRoot: string): void {
+  if (process.platform !== "win32") return;
+  installDependencies(sourceRoot);
 }
 
 function runRepairIfRequested(opts: Opts, sourceRoot: string, cwd: string): void {

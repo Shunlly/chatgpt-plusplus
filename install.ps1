@@ -98,6 +98,17 @@ try {
   }
   Move-Item -Path $Next -Destination $InstallDir
 
+  Write-Host "Finalizing workspace links..."
+  Push-Location $InstallDir
+  try {
+    & npm.cmd install --workspaces --include-workspace-root --ignore-scripts
+    if ($LASTEXITCODE -ne 0) {
+      Fail "npm install failed while finalizing codex-plusplus workspace links."
+    }
+  } finally {
+    Pop-Location
+  }
+
   Write-Host "Running installer..."
   & node (Join-Path $InstallDir "packages\installer\dist\cli.js") install @args
   if ($LASTEXITCODE -ne 0) {
