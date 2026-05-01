@@ -142,52 +142,113 @@ function locateWin(override?: string): CodexInstall {
   const candidates: string[] = [];
   if (override) candidates.push(override);
   if (local) {
-    const codexDir = join(local, "codex");
-    if (existsSync(codexDir)) {
-      // pick highest app-* directory
-      try {
-        const entries = readdirSync(codexDir)
-          .filter((d) => d.startsWith("app-"))
-          .map((d) => join(codexDir, d))
-          .filter((p) => statSync(p).isDirectory());
-        entries.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-        const latest = entries.at(-1);
-        if (latest) candidates.push(latest);
-      } catch {}
-    }
+    candidates.push(...windowsCodexCandidates(local));
     candidates.push(
+      join(local, "Programs", "Codex (Beta)"),
+      join(local, "Programs", "Codex Beta"),
+      join(local, "Programs", "codex-beta"),
       join(local, "Programs", "Codex"),
       join(local, "Programs", "codex"),
+      join(local, "Codex (Beta)"),
+      join(local, "Codex Beta"),
+      join(local, "codex-beta"),
       join(local, "Codex"),
       join(local, "codex"),
     );
+    candidates.push(...windowsCodexCandidates(join(local, "Programs")));
   }
-  if (programFiles) candidates.push(join(programFiles, "Codex"), join(programFiles, "codex"));
-  if (programFilesX86) candidates.push(join(programFilesX86, "Codex"), join(programFilesX86, "codex"));
+  if (programFiles) {
+    candidates.push(
+      join(programFiles, "Codex (Beta)"),
+      join(programFiles, "Codex Beta"),
+      join(programFiles, "codex-beta"),
+      join(programFiles, "Codex"),
+      join(programFiles, "codex"),
+      ...windowsCodexCandidates(programFiles),
+    );
+  }
+  if (programFilesX86) {
+    candidates.push(
+      join(programFilesX86, "Codex (Beta)"),
+      join(programFilesX86, "Codex Beta"),
+      join(programFilesX86, "codex-beta"),
+      join(programFilesX86, "Codex"),
+      join(programFilesX86, "codex"),
+      ...windowsCodexCandidates(programFilesX86),
+    );
+  }
 
-  const appRoot = candidates.find((p) => existsSync(join(p, "resources", "app.asar")));
+  const tried = unique(candidates);
+  const appRoot = tried.find(isWinCodexRoot);
   if (!appRoot) {
-    const tried = candidates.length > 0 ? candidates.join("\n  ") : "(no default locations available)";
+    const triedText = tried.length > 0 ? tried.join("\n  ") : "(no default locations available)";
     throw new Error(
       `[!] Codex App Not Found\n\n` +
         `Ensure Codex is installed in one of the default Windows locations.\n` +
-        `Tried:\n  ${tried}\n\n` +
+        `Tried:\n  ${triedText}\n\n` +
         `If Codex is somewhere else, rerun with --app pointing at its install folder.`,
     );
   }
   const resourcesDir = join(appRoot, "resources");
+  const executable = findWinExecutable(appRoot);
+  const appName = basename(executable, ".exe");
   return {
     appRoot,
     resourcesDir,
     asarPath: join(resourcesDir, "app.asar"),
     metaPath: null,
-    electronBinary: join(appRoot, "Codex.exe"),
-    executable: join(appRoot, "Codex.exe"),
-    appName: "Codex",
+    electronBinary: executable,
+    executable,
+    appName,
     bundleId: null,
-    channel: "stable",
+    channel: inferCodexChannel(null, appName),
     platform: "win32",
   };
+}
+
+function windowsCodexCandidates(root: string): string[] {
+  if (!existsSync(root)) return [];
+  const candidates: string[] = [];
+  try {
+    for (const entry of readdirSync(root)) {
+      if (!/\bcodex\b/i.test(entry)) continue;
+      const dir = join(root, entry);
+      try {
+        if (!statSync(dir).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      candidates.push(dir);
+      const latest = latestWindowsSquirrelAppDir(dir);
+      if (latest) candidates.push(latest);
+    }
+  } catch {}
+  return candidates;
+}
+
+function latestWindowsSquirrelAppDir(root: string): string | null {
+  try {
+    const entries = readdirSync(root)
+      .filter((d) => /^app-/i.test(d))
+      .map((d) => join(root, d))
+      .filter((p) => statSync(p).isDirectory());
+    entries.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return entries.at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isWinCodexRoot(appRoot: string): boolean {
+  return existsSync(join(appRoot, "resources", "app.asar"));
+}
+
+function findWinExecutable(appRoot: string): string {
+  try {
+    const exe = readdirSync(appRoot).find((name) => /\.exe$/i.test(name) && /\bcodex\b/i.test(name));
+    if (exe) return join(appRoot, exe);
+  } catch {}
+  return join(appRoot, "Codex.exe");
 }
 
 function locateLinux(override?: string): CodexInstall {
