@@ -64,7 +64,7 @@ export function promptRestartCodexToRepatch(appRoot: string): boolean {
     title: "Codex++ needs to restart Codex",
     message:
       "Codex is running without the latest Codex++ patch.\n\n" +
-      "Codex++ needs to quit Codex, re-patch the app, then reopen it. Choose Later to keep using Codex without the updated Codex++ runtime for now.",
+      "Codex++ needs to quit Codex, re-patch the app, then reopen it.",
     buttons: ["Later", "Restart and Re-Patch"],
     defaultButton: "Restart and Re-Patch",
     timeoutSeconds: 120,
