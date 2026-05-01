@@ -79,7 +79,16 @@ export function promptRestartCodexToRepatch(appRoot: string): boolean {
 export function openCodex(appRoot: string): void {
   if (platform() !== "darwin") return;
   try {
-    execFileSync("open", [appRoot], { stdio: "ignore" });
+    execFileSync("open", ["-b", CODEX_BUNDLE_ID], { stdio: "ignore" });
+  } catch {
+    try {
+      execFileSync("open", [appRoot], { stdio: "ignore" });
+    } catch {}
+  }
+  try {
+    execFileSync("osascript", ["-e", `tell application id ${appleScriptString(CODEX_BUNDLE_ID)} to activate`], {
+      stdio: "ignore",
+    });
   } catch {}
 }
 
