@@ -32,6 +32,7 @@ export function promptRestartCodexAfterPatch(appRoot: string): void {
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
     timeoutSeconds: 120,
+    appBundleId: CODEX_BUNDLE_ID,
   });
 
   if (button !== "Quit and Restart Codex") return;
@@ -49,6 +50,7 @@ export function promptRestartCodexAfterRuntimeUpdate(appRoot: string, version: s
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
     timeoutSeconds: 120,
+    appBundleId: CODEX_BUNDLE_ID,
   });
 
   if (button !== "Quit and Restart Codex") return;
@@ -66,6 +68,7 @@ export function promptRestartCodexToRepatch(appRoot: string): boolean {
     buttons: ["Later", "Restart and Re-Patch"],
     defaultButton: "Restart and Re-Patch",
     timeoutSeconds: 120,
+    appBundleId: CODEX_BUNDLE_ID,
   });
 
   if (button !== "Restart and Re-Patch") return false;
@@ -96,20 +99,44 @@ interface AlertOptions {
   defaultButton?: string;
   critical?: boolean;
   timeoutSeconds?: number;
+  appBundleId?: string;
 }
 
 function showAlert(opts: AlertOptions): string | null {
   if (platform() !== "darwin") return null;
 
+  if (opts.appBundleId) {
+    const appButton = runAlertScript(alertScript(opts, opts.appBundleId), opts);
+    if (appButton) return appButton;
+  }
+
+  return runAlertScript(alertScript(opts), opts);
+}
+
+function alertScript(opts: AlertOptions, appBundleId?: string): string {
   const buttons = opts.buttons ?? ["OK"];
   const defaultButton = opts.defaultButton ?? buttons.at(-1) ?? "OK";
-  const script = [
+  const displayAlert =
+    `display alert alertTitle message alertMessage buttons alertButtons default button ${appleScriptString(defaultButton)}${opts.critical ? " as critical" : ""}${opts.timeoutSeconds ? ` giving up after ${opts.timeoutSeconds}` : ""}`;
+  const lines = [
     `set alertTitle to system attribute "CODEXPP_ALERT_TITLE"`,
     `set alertMessage to system attribute "CODEXPP_ALERT_MESSAGE"`,
     `set alertButtons to {${buttons.map(appleScriptString).join(", ")}}`,
-    `display alert alertTitle message alertMessage buttons alertButtons default button ${appleScriptString(defaultButton)}${opts.critical ? " as critical" : ""}${opts.timeoutSeconds ? ` giving up after ${opts.timeoutSeconds}` : ""}`,
-  ].join("\n");
+  ];
+  if (appBundleId) {
+    lines.push(
+      `tell application id ${appleScriptString(appBundleId)}`,
+      `activate`,
+      displayAlert,
+      `end tell`,
+    );
+  } else {
+    lines.push(displayAlert);
+  }
+  return lines.join("\n");
+}
 
+function runAlertScript(script: string, opts: AlertOptions): string | null {
   try {
     const out = execFileSync("osascript", ["-e", script], {
       encoding: "utf8",
@@ -120,10 +147,15 @@ function showAlert(opts: AlertOptions): string | null {
       },
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    return out.match(/button returned:(.*)$/)?.[1]?.trim() ?? null;
+    return parseAlertButton(out);
   } catch {
     return null;
   }
+}
+
+function parseAlertButton(output: string): string | null {
+  if (/gave up:true/.test(output)) return null;
+  return output.match(/button returned:([^,\n]+)/)?.[1]?.trim() ?? null;
 }
 
 function quitAndRestartCodex(appRoot: string): void {
