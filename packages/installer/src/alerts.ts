@@ -22,6 +22,22 @@ export function showPatchFailedAlert(errorMessage: string): void {
   }
 }
 
+export function showUpdateModePausedAlert(appRoot: string, codexVersion: string | null): void {
+  if (platform() !== "darwin") return;
+
+  showAlert({
+    title: "Codex++ is waiting for Codex to update",
+    message:
+      "Codex is running from a signed upstream app so the official updater can finish.\n\n" +
+      `Current Codex version: ${codexVersion ?? "unknown"}\n\n` +
+      "Codex++ will re-patch automatically after Codex installs a newer build.",
+    buttons: ["OK"],
+    defaultButton: "OK",
+    timeoutSeconds: 20,
+    iconPath: codexIconPath(appRoot),
+  });
+}
+
 export function promptRestartCodexAfterPatch(appRoot: string): void {
   if (platform() !== "darwin") return;
 

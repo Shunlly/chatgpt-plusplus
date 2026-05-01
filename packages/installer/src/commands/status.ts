@@ -6,6 +6,8 @@ import { readHeaderHash } from "../asar.js";
 import { getIntegrity } from "../integrity.js";
 import { readFuses, FuseV1 } from "../fuses.js";
 import { existsSync, readFileSync } from "node:fs";
+import { readCodexVersion } from "./install.js";
+import { describeUpdateMode, readUpdateMode } from "../update-mode.js";
 
 export async function status(): Promise<void> {
   const paths = ensureUserPaths();
@@ -40,6 +42,15 @@ export async function status(): Promise<void> {
     console.log(kleur.red(`Codex not found at recorded path: ${(e as Error).message}`));
     return;
   }
+
+  const currentCodexVersion = readCodexVersion(codex.metaPath);
+  console.log(kleur.bold("current app"));
+  console.log(`  codex ver:    ${currentCodexVersion ?? "(unknown)"}`);
+  const updateMode = readUpdateMode(paths.updateModeFile);
+  if (updateMode) {
+    console.log(`  update mode:  ${kleur.yellow(describeUpdateMode(updateMode))}`);
+  }
+  console.log();
 
   console.log(kleur.bold("integrity"));
   if (existsSync(codex.asarPath)) {

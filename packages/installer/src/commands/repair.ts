@@ -10,13 +10,14 @@ import { locateCodex } from "../platform.js";
 import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
-import { clearUpdateMode, readUpdateMode } from "../update-mode.js";
+import { clearUpdateMode, isUpdateModeFresh, readUpdateMode, writeUpdateMode } from "../update-mode.js";
 import {
   isCodexRunning,
   openCodex,
   promptRestartCodexAfterPatch,
   promptRestartCodexAfterRuntimeUpdate,
   promptRestartCodexToRepatch,
+  showUpdateModePausedAlert,
 } from "../alerts.js";
 
 interface Opts {
@@ -52,13 +53,23 @@ export async function repair(opts: Opts = {}): Promise<void> {
     const updateMode = readUpdateMode(paths.updateModeFile);
     if (updateMode) {
       const codexVersion = readCodexVersion(codex.metaPath);
-      if (codexVersion === updateMode.codexVersion) {
+      if (codexVersion === updateMode.codexVersion && isUpdateModeFresh(updateMode)) {
         const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
         writeState(paths.stateFile, { ...state, watcher });
+        if (!updateMode.notifiedAt) {
+          showUpdateModePausedAlert(codex.appRoot, codexVersion);
+          writeUpdateMode(paths.updateModeFile, {
+            ...updateMode,
+            notifiedAt: new Date().toISOString(),
+          });
+        }
         if (!opts.quiet) {
           console.log(kleur.yellow("Codex update mode is active; leaving signed app unpatched."));
         }
         return;
+      }
+      if (codexVersion === updateMode.codexVersion && !opts.quiet) {
+        console.log(kleur.yellow("Codex update mode is stale; clearing it and repairing Codex++."));
       }
       clearUpdateMode(paths.updateModeFile);
     }
