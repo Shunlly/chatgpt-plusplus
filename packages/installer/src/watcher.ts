@@ -293,12 +293,28 @@ function windowsCommand(command: string, args: string[] = []): string {
 }
 
 function windowsWatcherTaskCommand(): string {
-  const comspec = process.env.ComSpec || "cmd.exe";
-  return `"${comspec}" /d /s /c "${windowsCommand("update", ["--watcher", "--quiet"])} || ${windowsCommand("repair", ["--quiet"])}"`;
+  const scriptPath = join(windowsCodexPlusPlusDir(), "bin", "watcher.cmd");
+  mkdirSync(dirname(scriptPath), { recursive: true });
+  writeFileSync(
+    scriptPath,
+    [
+      "@echo off",
+      "set CODEX_PLUSPLUS_WATCHER=1",
+      `${windowsCommand("update", ["--watcher", "--quiet"])}`,
+      `if errorlevel 1 ${windowsCommand("repair", ["--quiet"])}`,
+      "exit /b 0",
+      "",
+    ].join("\r\n"),
+  );
+  return windowsQuote(scriptPath);
 }
 
 function windowsQuote(value: string): string {
   return `"${value.replace(/"/g, `\\"`)}"`;
+}
+
+function windowsCodexPlusPlusDir(): string {
+  return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "codex-plusplus");
 }
 
 function uninstallScheduledTask(): void {
