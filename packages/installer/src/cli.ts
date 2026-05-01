@@ -15,6 +15,15 @@ import { safeMode } from "./commands/safe-mode.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
 import { showPatchFailedAlert } from "./alerts.js";
 
+interface InstallCliOpts {
+  app?: string;
+  fuse?: boolean;
+  resign?: boolean;
+  watcher?: boolean;
+  defaultTweaks?: boolean;
+  "default-tweaks"?: boolean;
+}
+
 function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T): T {
   return ((...args: Parameters<T>) => {
     Promise.resolve()
@@ -27,6 +36,13 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
         process.exit(1);
       });
   }) as unknown as T;
+}
+
+function runInstall(opts: InstallCliOpts): Promise<void> {
+  return install({
+    ...opts,
+    defaultTweaks: opts.defaultTweaks ?? opts["default-tweaks"],
+  });
 }
 
 function maybeShowPatchFailedAlert(message: string): void {
@@ -43,11 +59,11 @@ prog
   .command("install")
   .describe("Patch Codex.app to load the tweak runtime")
   .option("--app", "Path to Codex.app / install dir (auto-detected if omitted)")
-  .option("--no-fuse", "Skip Electron fuse flip (only patch asar+plist)")
-  .option("--no-resign", "Skip ad-hoc code signing on macOS")
-  .option("--no-watcher", "Skip installing the auto-repair watcher")
-  .option("--no-default-tweaks", "Skip installing the default bundled tweak set")
-  .action(wrap(install));
+  .option("--fuse", "Flip Electron's embedded asar integrity fuse", true)
+  .option("--resign", "Ad-hoc code sign Codex.app on macOS", true)
+  .option("--watcher", "Install the auto-repair watcher", true)
+  .option("--default-tweaks", "Install the default bundled tweak set", true)
+  .action(wrap(runInstall));
 
 prog
   .command("uninstall")
