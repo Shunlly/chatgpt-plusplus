@@ -28,9 +28,9 @@ export function showUpdateModePausedAlert(appRoot: string, codexVersion: string 
   showAlert({
     title: "Codex++ is waiting for Codex to update",
     message:
-      "Codex is running from a signed upstream app so the official updater can finish.\n\n" +
-      `Current Codex version: ${codexVersion ?? "unknown"}\n\n` +
-      "Codex++ will re-patch automatically after Codex installs a newer build.",
+      "Codex++ is paused while Codex installs its update.\n\n" +
+      `Current Codex: ${codexVersion ?? "unknown"}\n\n` +
+      "After the update finishes, Codex++ will patch itself again.",
     buttons: ["OK"],
     defaultButton: "OK",
     timeoutSeconds: 20,
