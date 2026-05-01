@@ -1,9 +1,9 @@
 import kleur from "kleur";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { locateCodex } from "../platform.js";
+import { locateCodex, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
@@ -45,6 +45,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   const codex = locateCodex(opts.app);
   step(`Located Codex at ${kleur.cyan(codex.appRoot)}`);
   preflightSystemTools(codex.platform, resign, codex.metaPath !== null);
+  preflightAppClosed(codex);
 
   // Pre-flight: try to create+remove a probe file inside the app bundle. This
   // surfaces macOS App Management TCC denials BEFORE we touch anything, and
@@ -290,6 +291,8 @@ function preflightWritable(targetDir: string, platform: string): void {
     const err = e as NodeJS.ErrnoException;
     if (err.code === "EPERM" || err.code === "EACCES") {
       const inApps = platform === "darwin" && targetDir.startsWith("/Applications/");
+      const inWindowsApps =
+        platform === "win32" && /\\WindowsApps\\/i.test(`${targetDir}\\`);
       const msg =
         `Cannot write to ${targetDir}.\n\n` +
         (inApps
@@ -299,12 +302,67 @@ function preflightWritable(targetDir: string, platform: string): void {
             `  2. Enable the toggle for your terminal app (Terminal, iTerm2, etc.)\n` +
             `  3. Re-run this command.\n\n` +
             `(If macOS just showed a permission dialog, click Allow and re-run.)\n`
+          : inWindowsApps
+            ? `Windows Store installs live under WindowsApps and may require elevated permissions to patch.\n` +
+              `Fix:\n` +
+              `  1. Quit Codex completely\n` +
+              `  2. Re-open PowerShell as Administrator\n` +
+              `  3. Re-run this command.\n`
           : `Check filesystem permissions for the Codex install folder.\n`) +
         `\nOriginal error: ${err.message}`;
       throw new Error(msg);
     }
     throw e;
   }
+}
+
+function preflightAppClosed(codex: CodexInstall): void {
+  if (codex.platform !== "win32") return;
+
+  const exePath = codex.executable;
+  const processName = basename(exePath, ".exe");
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        [
+          `$exe = '${escapePowerShellSingleQuotedString(exePath)}';`,
+          `$name = '${escapePowerShellSingleQuotedString(processName)}';`,
+          "$match = Get-Process -ErrorAction SilentlyContinue | Where-Object {",
+          "$path = $null; try { $path = $_.Path } catch {}",
+          "($path -and $path -ieq $exe) -or ($_.ProcessName -ieq $name)",
+          "} | Select-Object -First 1 Id, ProcessName, Path;",
+          "if ($match) { $match | ConvertTo-Json -Compress }",
+        ].join(" "),
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 },
+    ).trim();
+    if (!out) return;
+    const process = JSON.parse(out) as { Id?: unknown; ProcessName?: unknown; Path?: unknown };
+    const id = typeof process.Id === "number" ? process.Id : null;
+    const name = typeof process.ProcessName === "string" ? process.ProcessName : processName;
+    const path = typeof process.Path === "string" ? process.Path : exePath;
+    throw new Error(
+      `[!] Close Codex before patching\n\n` +
+        `Codex is currently running:\n` +
+        `  ${name}${id === null ? "" : ` (PID ${id})`}\n` +
+        `  ${path}\n\n` +
+        `Quit Codex completely, then rerun this command.\n` +
+        (id === null ? "" : `If it is stuck, run:\n  Stop-Process -Id ${id}\n`),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("[!] Close Codex before patching")) {
+      throw error;
+    }
+  }
+}
+
+function escapePowerShellSingleQuotedString(value: string): string {
+  return value.replace(/'/g, "''");
 }
 
 function preflightSystemTools(platform: string, resign: boolean, hasPlist: boolean): void {

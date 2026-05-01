@@ -165,6 +165,7 @@ function locateWin(override?: string): CodexInstall {
       join(programFiles, "codex-beta"),
       join(programFiles, "Codex"),
       join(programFiles, "codex"),
+      ...windowsCodexCandidates(join(programFiles, "WindowsApps")),
       ...windowsCodexCandidates(programFiles),
     );
   }
@@ -178,20 +179,29 @@ function locateWin(override?: string): CodexInstall {
       ...windowsCodexCandidates(programFilesX86),
     );
   }
+  const storeInstalls = findWindowsStoreCodexInstalls();
+  for (const storeInstall of storeInstalls) {
+    if (storeInstall.installLocation) {
+      candidates.push(...windowsStoreCodexCandidates(storeInstall.installLocation));
+    }
+  }
 
   const tried = unique(candidates);
   const appRoot = tried.find(isWinCodexRoot);
   if (!appRoot) {
-    const storeInstall = findWindowsStoreCodexInstall();
     const triedText = tried.length > 0 ? tried.join("\n  ") : "(no default locations available)";
-    if (storeInstall) {
+    if (storeInstalls.length > 0) {
+      const storeText = storeInstalls
+        .map((install) => `  ${install.name}\n  ${install.installLocation ?? "(install location is hidden by Windows)"}`)
+        .join("\n");
       throw new Error(
-        `[!] Microsoft Store Codex install detected\n\n` +
-          `Codex appears to be installed from the Microsoft Store:\n` +
-          `  ${storeInstall.name}\n` +
-          `  ${storeInstall.installLocation ?? "(install location is hidden by Windows)"}\n\n` +
-          `Microsoft Store apps are packaged under WindowsApps and cannot be patched in place by Codex++.\n` +
-          `Install the standalone Codex desktop app, then rerun codexplusplus install.\n\n` +
+        `[!] Codex App Not Found\n\n` +
+          `Codex appears to be installed from the Microsoft Store, but Codex++ could not find app.asar under the expected package layout.\n\n` +
+          `Store package(s):\n${storeText}\n\n` +
+          `Expected one of:\n` +
+          `  <package>\\app\\resources\\app.asar\n` +
+          `  <package>\\resources\\app.asar\n\n` +
+          `Tried:\n  ${triedText}\n\n` +
           `If you have a standalone copy elsewhere, rerun with --app pointing at its install folder.`,
       );
     }
@@ -232,11 +242,16 @@ function windowsCodexCandidates(root: string): string[] {
         continue;
       }
       candidates.push(dir);
+      candidates.push(...windowsStoreCodexCandidates(dir));
       const latest = latestWindowsSquirrelAppDir(dir);
       if (latest) candidates.push(latest);
     }
   } catch {}
   return candidates;
+}
+
+function windowsStoreCodexCandidates(packageRoot: string): string[] {
+  return [join(packageRoot, "app"), packageRoot];
 }
 
 function latestWindowsSquirrelAppDir(root: string): string | null {
@@ -264,7 +279,7 @@ function findWinExecutable(appRoot: string): string {
   return join(appRoot, "Codex.exe");
 }
 
-function findWindowsStoreCodexInstall(): { name: string; installLocation: string | null } | null {
+function findWindowsStoreCodexInstalls(): { name: string; installLocation: string | null }[] {
   try {
     const out = execFileSync(
       "powershell.exe",
@@ -274,24 +289,30 @@ function findWindowsStoreCodexInstall(): { name: string; installLocation: string
         "Bypass",
         "-Command",
         [
-          "$pkg = Get-AppxPackage | Where-Object {",
+          "$pkgs = Get-AppxPackage | Where-Object {",
           "$_.Name -match 'Codex' -or $_.PackageFullName -match 'Codex' -or $_.InstallLocation -match 'Codex'",
-          "} | Select-Object -First 1 Name, InstallLocation;",
-          "if ($pkg) { $pkg | ConvertTo-Json -Compress }",
+          "} | Select-Object Name, InstallLocation;",
+          "if ($pkgs) { $pkgs | ConvertTo-Json -Compress }",
         ].join(" "),
       ],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 },
     ).trim();
-    if (!out) return null;
-    const parsed = JSON.parse(out) as { Name?: unknown; InstallLocation?: unknown };
-    const name = typeof parsed.Name === "string" ? parsed.Name : "Codex";
-    const installLocation =
-      typeof parsed.InstallLocation === "string" && parsed.InstallLocation.trim()
-        ? parsed.InstallLocation
-        : null;
-    return { name, installLocation };
+    if (!out) return [];
+    const parsed = JSON.parse(out) as unknown;
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    return rows
+      .map((row) => {
+        const item = row as { Name?: unknown; InstallLocation?: unknown };
+        const name = typeof item.Name === "string" ? item.Name : "Codex";
+        const installLocation =
+          typeof item.InstallLocation === "string" && item.InstallLocation.trim()
+            ? item.InstallLocation
+            : null;
+        return { name, installLocation };
+      })
+      .filter((row) => row.installLocation !== null);
   } catch {
-    return null;
+    return [];
   }
 }
 
