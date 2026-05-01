@@ -15,7 +15,7 @@
  * unix, but launchd's WatchPaths handles it on mac).
  */
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { homedir, platform } from "node:os";
+import { homedir, platform, userInfo } from "node:os";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,6 +53,8 @@ function launchdPath(): string {
 }
 
 function installLaunchd(appRoot: string): WatcherKind {
+  if (isRunningFromWatcher()) return "launchd";
+
   const plPath = launchdPath();
   mkdirSync(dirname(plPath), { recursive: true });
   // Trigger on login + when Codex.app's asar changes. Run this installed CLI
@@ -84,23 +86,56 @@ function installLaunchd(appRoot: string): WatcherKind {
   <string>${join(homedir(), "Library", "Logs", "codex-plusplus-watcher.log")}</string>
   <key>StandardErrorPath</key>
   <string>${join(homedir(), "Library", "Logs", "codex-plusplus-watcher.log")}</string>
-</dict>
+  </dict>
 </plist>`;
   writeFileSync(plPath, xml);
-  try {
-    execFileSync("launchctl", ["unload", plPath], { stdio: "ignore" });
-  } catch {}
-  execFileSync("launchctl", ["load", plPath], { stdio: "ignore" });
+  if (!bootstrapLaunchd(plPath)) {
+    try {
+      execFileSync("launchctl", ["unload", plPath], { stdio: "ignore" });
+    } catch {}
+    execFileSync("launchctl", ["load", plPath], { stdio: "ignore" });
+  }
   return "launchd";
+}
+
+function isRunningFromWatcher(): boolean {
+  return process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === LABEL;
 }
 
 function uninstallLaunchd(): void {
   const plPath = launchdPath();
   if (!existsSync(plPath)) return;
+  bootoutLaunchd(plPath);
   try {
     execFileSync("launchctl", ["unload", plPath], { stdio: "ignore" });
   } catch {}
   rmSync(plPath, { force: true });
+}
+
+function bootstrapLaunchd(plPath: string): boolean {
+  const domain = launchdGuiDomain();
+  if (!domain) return false;
+  bootoutLaunchd(plPath);
+  try {
+    execFileSync("launchctl", ["bootstrap", domain, plPath], { stdio: "ignore" });
+    execFileSync("launchctl", ["enable", `${domain}/${LABEL}`], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function bootoutLaunchd(plPath: string): void {
+  const domain = launchdGuiDomain();
+  if (!domain) return;
+  try {
+    execFileSync("launchctl", ["bootout", domain, plPath], { stdio: "ignore" });
+  } catch {}
+}
+
+function launchdGuiDomain(): string | null {
+  const uid = typeof process.getuid === "function" ? process.getuid() : userInfo().uid;
+  return typeof uid === "number" ? `gui/${uid}` : null;
 }
 
 function installSystemd(appRoot: string): WatcherKind {
@@ -209,11 +244,20 @@ function installScheduledTask(_appRoot: string): WatcherKind {
 }
 
 function repairShellCommand(): string {
-  return `${shellQuote(process.execPath)} ${shellQuote(currentCliPath())} repair --quiet`;
+  return [
+    "CODEX_PLUSPLUS_WATCHER=1",
+    shellQuote(process.execPath),
+    ...process.execArgv.map(shellQuote),
+    shellQuote(currentCliPath()),
+    "repair",
+    "--quiet",
+  ].join(" ");
 }
 
 function currentCliPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "cli.js");
+  const currentModulePath = fileURLToPath(import.meta.url);
+  const extension = currentModulePath.endsWith(".ts") ? ".ts" : ".js";
+  return join(dirname(currentModulePath), `cli${extension}`);
 }
 
 function shellQuote(value: string): string {
@@ -232,12 +276,22 @@ function xmlEscape(value: string): string {
 }
 
 function windowsCommand(): string {
-  return `"${process.execPath}" "${currentCliPath()}" repair --quiet`;
+  return [
+    windowsQuote(process.execPath),
+    ...process.execArgv.map(windowsQuote),
+    windowsQuote(currentCliPath()),
+    "repair",
+    "--quiet",
+  ].join(" ");
 }
 
 function windowsRepairTaskCommand(): string {
   const comspec = process.env.ComSpec || "cmd.exe";
   return `"${comspec}" /d /s /c "${windowsCommand()}"`;
+}
+
+function windowsQuote(value: string): string {
+  return `"${value.replace(/"/g, `\\"`)}"`;
 }
 
 function uninstallScheduledTask(): void {

@@ -11,6 +11,7 @@ import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
 import { clearUpdateMode, readUpdateMode } from "../update-mode.js";
+import { isCodexRunning, promptRestartCodexAfterPatch } from "../alerts.js";
 
 interface Opts {
   app?: string;
@@ -86,6 +87,17 @@ export async function repair(opts: Opts = {}): Promise<void> {
   if (!settledBeforeHashCheck) {
     await waitForMacAppUpdateToSettle(opts.app ?? state?.appRoot, opts.quiet);
   }
+
+  let codexWasRunning = false;
+  let repairedAppRoot: string | null = null;
+  try {
+    const codex = locateCodex(opts.app ?? state?.appRoot);
+    repairedAppRoot = codex.appRoot;
+    codexWasRunning = isCodexRunning(codex.appRoot);
+  } catch {
+    // install() will surface the real locate/preflight error below.
+  }
+
   await install({
     app: opts.app ?? state?.appRoot,
     fuse: state?.fuseFlipped ?? true,
@@ -94,6 +106,9 @@ export async function repair(opts: Opts = {}): Promise<void> {
     watcherKind: state?.watcher,
     quiet: opts.quiet,
   });
+  if (codexWasRunning && repairedAppRoot) {
+    promptRestartCodexAfterPatch(repairedAppRoot);
+  }
   if (!opts.quiet) console.log(kleur.green("✓ Repair complete."));
 }
 

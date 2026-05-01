@@ -5,7 +5,7 @@ import { locateCodex } from "../platform.js";
 import { readHeaderHash } from "../asar.js";
 import { getIntegrity } from "../integrity.js";
 import { readFuses, FuseV1 } from "../fuses.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 export async function status(): Promise<void> {
   const paths = ensureUserPaths();
@@ -15,6 +15,7 @@ export async function status(): Promise<void> {
   console.log(`  user dir:     ${paths.root}`);
   console.log(`  tweaks dir:   ${paths.tweaks}`);
   console.log(`  log dir:      ${paths.logDir}`);
+  console.log(`  safe mode:    ${readSafeMode(paths.configFile) ? kleur.yellow("enabled") : kleur.green("disabled")}`);
   console.log();
 
   if (!state) {
@@ -66,5 +67,17 @@ export async function status(): Promise<void> {
     } catch (e) {
       console.log(kleur.dim(`  fuses:        unreadable (${(e as Error).message})`));
     }
+  }
+}
+
+function readSafeMode(configFile: string): boolean {
+  if (!existsSync(configFile)) return false;
+  try {
+    const config = JSON.parse(readFileSync(configFile, "utf8")) as {
+      codexPlusPlus?: { safeMode?: boolean };
+    };
+    return config.codexPlusPlus?.safeMode === true;
+  } catch {
+    return false;
   }
 }

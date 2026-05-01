@@ -15,6 +15,10 @@ import { installWatcher, type WatcherKind } from "../watcher.js";
 import { CODEX_PLUSPLUS_VERSION } from "../version.js";
 import { installDefaultTweaks } from "../default-tweaks.js";
 import { formatCliShimResult, installCliShims } from "../cli-shim.js";
+import {
+  CODEX_WINDOW_SERVICES_KEY,
+  patchCodexWindowServicesSource,
+} from "../codex-window-services.js";
 
 interface Opts {
   app?: string;
@@ -215,38 +219,15 @@ async function injectLoader(asarPath: string, userRoot: string): Promise<string>
 }
 
 function patchCodexWindowServices(appDir: string, originalMain: string): void {
-  const marker = "__codexpp_window_services__";
   const candidates = findCodexMainCandidates(appDir, originalMain);
 
   for (const mainPath of candidates) {
     const source = readFileSync(mainPath, "utf8");
-    if (source.includes(marker)) return;
-
-    const callNeedle = "=ww({buildFlavor:";
-    const callIndex = source.indexOf(callNeedle);
-    if (callIndex < 1) continue;
-
-    let nameStart = callIndex - 1;
-    while (nameStart > 0 && /[$A-Za-z0-9_]/.test(source[nameStart - 1] ?? "")) {
-      nameStart -= 1;
+    const patched = patchCodexWindowServicesSource(source, CODEX_WINDOW_SERVICES_KEY);
+    if (patched) {
+      if (patched.changed) writeFileSync(mainPath, patched.source);
+      return;
     }
-    const serviceVar = source.slice(nameStart, callIndex);
-    if (!/^[$A-Za-z_][$A-Za-z0-9_]*$/.test(serviceVar)) {
-      throw new Error("Codex window services variable could not be identified");
-    }
-
-    const afterCallNeedle = "});jb({buildFlavor:";
-    const afterCallIndex = source.indexOf(afterCallNeedle, callIndex);
-    if (afterCallIndex < 0) {
-      throw new Error("Codex window services hook insertion point not found");
-    }
-
-    const patched =
-      source.slice(0, afterCallIndex + 2) +
-      `;globalThis.${marker}=${serviceVar}` +
-      source.slice(afterCallIndex + 2);
-    writeFileSync(mainPath, patched);
-    return;
   }
 
   throw new Error("Codex window services hook point not found");

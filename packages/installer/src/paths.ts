@@ -50,6 +50,8 @@ export function ensureUserPaths(): UserPaths {
 }
 
 function userRoot(): string {
+  if (process.env.CODEX_PLUSPLUS_HOME) return process.env.CODEX_PLUSPLUS_HOME;
+
   const home = homedir();
   switch (platform()) {
     case "darwin":

@@ -38,9 +38,207 @@ export interface TweakManifest {
   /** Semver range of runtime versions this tweak supports. */
   minRuntime?: string;
   /** Optional. If set, the tweak is sandboxed to renderer-only or main-only. */
-  scope?: "renderer" | "main" | "both";
+  scope?: TweakScope;
   /** Optional path to entry; defaults to `index.js`/`index.mjs`/`index.cjs`. */
   main?: string;
+  /**
+   * Optional MCP server exposed by this tweak. Codex++ syncs this into Codex's
+   * MCP config so tweak-provided tools can be used from chat.
+   */
+  mcp?: TweakMcpServer;
+  /** Optional declared capabilities shown to users and validators. */
+  permissions?: TweakPermission[];
+}
+
+export type TweakScope = "renderer" | "main" | "both";
+
+export interface TweakMcpServer {
+  /** Command to launch the MCP server, for example "node". */
+  command: string;
+  /** Optional launch arguments. Relative file arguments are resolved against the tweak dir. */
+  args?: string[];
+  /** Optional environment variables passed to the MCP server. */
+  env?: Record<string, string>;
+}
+
+export type TweakPermission =
+  | "ipc"
+  | "filesystem"
+  | "network"
+  | "settings"
+  | "codex.windows"
+  | "codex.views";
+
+export const VALID_TWEAK_SCOPES = ["renderer", "main", "both"] as const;
+
+export const VALID_TWEAK_PERMISSIONS = [
+  "ipc",
+  "filesystem",
+  "network",
+  "settings",
+  "codex.windows",
+  "codex.views",
+] as const;
+
+export interface TweakManifestIssue {
+  path: string;
+  message: string;
+}
+
+export interface TweakManifestValidationResult {
+  ok: boolean;
+  errors: TweakManifestIssue[];
+  warnings: TweakManifestIssue[];
+}
+
+export function validateTweakManifest(manifest: unknown): TweakManifestValidationResult {
+  const errors: TweakManifestIssue[] = [];
+  const warnings: TweakManifestIssue[] = [];
+
+  if (!isRecord(manifest)) {
+    return {
+      ok: false,
+      errors: [{ path: "$", message: "manifest must be a JSON object" }],
+      warnings,
+    };
+  }
+
+  requireString(manifest, "id", errors);
+  requireString(manifest, "name", errors);
+  requireString(manifest, "version", errors);
+  requireString(manifest, "githubRepo", errors);
+
+  if (typeof manifest.id === "string" && !/^[a-zA-Z0-9._-]+$/.test(manifest.id)) {
+    errors.push({
+      path: "id",
+      message: "id may only contain letters, numbers, dots, underscores, and dashes",
+    });
+  }
+
+  if (typeof manifest.version === "string" && !/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(manifest.version)) {
+    warnings.push({
+      path: "version",
+      message: "version should be semver, for example 0.1.0",
+    });
+  }
+
+  if (
+    typeof manifest.githubRepo === "string" &&
+    !/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(manifest.githubRepo)
+  ) {
+    errors.push({
+      path: "githubRepo",
+      message: "githubRepo must use owner/repo format",
+    });
+  }
+
+  if (
+    manifest.scope !== undefined &&
+    !VALID_TWEAK_SCOPES.includes(manifest.scope as TweakScope)
+  ) {
+    errors.push({
+      path: "scope",
+      message: "scope must be one of renderer, main, or both",
+    });
+  }
+
+  optionalString(manifest, "description", errors);
+  optionalString(manifest, "homepage", errors);
+  optionalString(manifest, "iconUrl", errors);
+  optionalString(manifest, "minRuntime", errors);
+  optionalString(manifest, "main", errors);
+
+  if (manifest.author !== undefined) {
+    if (typeof manifest.author !== "string" && !isRecord(manifest.author)) {
+      errors.push({ path: "author", message: "author must be a string or object" });
+    } else if (isRecord(manifest.author)) {
+      requireString(manifest.author, "name", errors, "author.name");
+      optionalString(manifest.author, "url", errors, "author.url");
+      optionalString(manifest.author, "email", errors, "author.email");
+    }
+  }
+
+  if (manifest.tags !== undefined) {
+    if (!Array.isArray(manifest.tags) || !manifest.tags.every((tag) => typeof tag === "string")) {
+      errors.push({ path: "tags", message: "tags must be an array of strings" });
+    }
+  }
+
+  if (manifest.permissions !== undefined) {
+    if (
+      !Array.isArray(manifest.permissions) ||
+      !manifest.permissions.every((permission) =>
+        VALID_TWEAK_PERMISSIONS.includes(permission as TweakPermission),
+      )
+    ) {
+      errors.push({
+        path: "permissions",
+        message: "permissions must be known Codex++ permission strings",
+      });
+    }
+  }
+
+  if (manifest.mcp !== undefined) {
+    validateMcpManifest(manifest.mcp, errors);
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireString(
+  record: Record<string, unknown>,
+  key: string,
+  errors: TweakManifestIssue[],
+  path = key,
+): void {
+  if (typeof record[key] !== "string" || record[key] === "") {
+    errors.push({ path, message: `${path} is required and must be a non-empty string` });
+  }
+}
+
+function optionalString(
+  record: Record<string, unknown>,
+  key: string,
+  errors: TweakManifestIssue[],
+  path = key,
+): void {
+  if (record[key] !== undefined && typeof record[key] !== "string") {
+    errors.push({ path, message: `${path} must be a string` });
+  }
+}
+
+function validateMcpManifest(value: unknown, errors: TweakManifestIssue[]): void {
+  if (!isRecord(value)) {
+    errors.push({ path: "mcp", message: "mcp must be an object" });
+    return;
+  }
+
+  requireString(value, "command", errors, "mcp.command");
+
+  if (value.args !== undefined) {
+    if (!Array.isArray(value.args) || !value.args.every((arg) => typeof arg === "string")) {
+      errors.push({ path: "mcp.args", message: "mcp.args must be an array of strings" });
+    }
+  }
+
+  if (value.env !== undefined) {
+    if (!isRecord(value.env)) {
+      errors.push({ path: "mcp.env", message: "mcp.env must be an object of strings" });
+      return;
+    }
+    for (const [key, envValue] of Object.entries(value.env)) {
+      if (typeof envValue !== "string") {
+        errors.push({
+          path: `mcp.env.${key}`,
+          message: `mcp.env.${key} must be a string`,
+        });
+      }
+    }
+  }
 }
 
 export interface TweakAuthor {

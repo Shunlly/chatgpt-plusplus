@@ -8,7 +8,12 @@ import { updateCodex } from "./commands/update-codex.js";
 import { selfUpdate } from "./commands/self-update.js";
 import { status } from "./commands/status.js";
 import { doctor } from "./commands/doctor.js";
+import { createTweak } from "./commands/create-tweak.js";
+import { validateTweak } from "./commands/validate-tweak.js";
+import { devTweak } from "./commands/dev-tweak.js";
+import { safeMode } from "./commands/safe-mode.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
+import { showPatchFailedAlert } from "./alerts.js";
 
 function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T): T {
   return ((...args: Parameters<T>) => {
@@ -18,9 +23,16 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
         const msg = e instanceof Error ? e.message : String(e);
         console.error("\n" + kleur.red().bold("✗ codex-plusplus failed"));
         console.error(msg);
+        maybeShowPatchFailedAlert(msg);
         process.exit(1);
       });
   }) as unknown as T;
+}
+
+function maybeShowPatchFailedAlert(message: string): void {
+  const command = process.argv[2];
+  if (command !== "repair") return;
+  showPatchFailedAlert(message);
 }
 
 const prog = sade("codex-plusplus")
@@ -82,6 +94,37 @@ prog
   .command("doctor")
   .describe("Diagnose common issues (signature, fuses, asar integrity, perms)")
   .action(doctor);
+
+prog
+  .command("create-tweak <target>")
+  .describe("Scaffold a new local tweak")
+  .option("--id", "Manifest id, e.g. com.you.my-tweak")
+  .option("--name", "Human-readable tweak name")
+  .option("--repo", "GitHub repo in owner/repo form")
+  .option("--scope", "renderer, main, or both")
+  .option("--force", "Write into an existing empty directory")
+  .action(wrap(createTweak));
+
+prog
+  .command("validate-tweak [target]")
+  .describe("Validate a tweak manifest and entry point")
+  .action(wrap(validateTweak));
+
+prog
+  .command("dev [target]")
+  .describe("Link a tweak into the Codex++ tweaks directory for local development")
+  .option("--name", "Override linked directory name; defaults to manifest id")
+  .option("--replace", "Replace an existing symlink at the target tweak id")
+  .option("--no-watch", "Link once and exit instead of watching for changes")
+  .action(wrap(devTweak));
+
+prog
+  .command("safe-mode")
+  .describe("Temporarily disable all tweaks without deleting them")
+  .option("--on", "Enable safe mode (default)")
+  .option("--off", "Disable safe mode")
+  .option("--status", "Print current safe mode status")
+  .action(wrap(safeMode));
 
 prog.parse(process.argv, {
   unknown: (flag) => {

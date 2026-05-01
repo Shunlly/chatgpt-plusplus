@@ -11,6 +11,7 @@ import { signatureInfo, verifySignature } from "../codesign.js";
 import { compareSemver } from "../version.js";
 import { readCodexVersion } from "./install.js";
 import { writeUpdateMode } from "../update-mode.js";
+import { isCodexRunning } from "../alerts.js";
 
 interface Opts {
   app?: string;
@@ -145,15 +146,6 @@ function compareVersions(a: string | null, b: string | null): number {
   if (a) return 1;
   if (b) return -1;
   return 0;
-}
-
-function isCodexRunning(appRoot: string): boolean {
-  try {
-    execFileSync("pgrep", ["-f", `${appRoot}/Contents`], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function timestamp(): string {
