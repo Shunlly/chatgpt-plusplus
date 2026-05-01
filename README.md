@@ -53,7 +53,7 @@ That's it. The installer:
 7. Installs a launch agent / login item that detects app updates and re-runs `repair --quiet`.
 8. Installs the default tweak set from their latest GitHub releases unless `--no-default-tweaks` is passed.
 
-The watcher also runs hourly through the GitHub-installed local CLI. If Codex is already patched but a newer Codex++ CLI/runtime has been installed, `repair` refreshes the runtime in your user directory without replacing tweak code. You can turn this off from Settings → Codex Plus Plus → Config.
+The watcher also runs hourly through the GitHub-installed local CLI. If a newer Codex++ GitHub release is available, it downloads the release, rebuilds the local CLI/runtime, and runs `repair` so the runtime in your user directory is refreshed without replacing tweak code. You can turn this off from Settings → Codex Plus Plus → Config.
 
 After source-bootstrap install, the installer adds `codexplusplus` and `codex-plusplus`
 to a writable PATH directory when possible. Use `codexplusplus` for day-to-day commands:
@@ -64,8 +64,9 @@ codexplusplus repair
 codexplusplus update
 ```
 
-`codexplusplus update` downloads the latest Codex++ source, rebuilds it, and runs
+`codexplusplus update` downloads the latest Codex++ GitHub release, rebuilds it, and runs
 `repair`. If the command is not on PATH yet, rerun the source bootstrap once.
+Use `codexplusplus update --ref main` only when you intentionally want the current development branch instead of the latest release.
 
 To revert:
 

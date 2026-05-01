@@ -59,7 +59,9 @@ function installLaunchd(appRoot: string): WatcherKind {
   mkdirSync(dirname(plPath), { recursive: true });
   // Trigger on login + when Codex.app's asar changes. Run this installed CLI
   // directly so auto-repair does not depend on npm availability.
-  const repair = xmlEscape(`sleep 5; ${repairShellCommand()} || true`);
+  const repair = xmlEscape(
+    `sleep 5; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
+  );
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -141,7 +143,9 @@ function launchdGuiDomain(): string | null {
 function installSystemd(appRoot: string): WatcherKind {
   const dir = join(homedir(), ".config", "systemd", "user");
   mkdirSync(dir, { recursive: true });
-  const repair = shellSingleQuote(`sleep 5; ${repairShellCommand()} || true`);
+  const repair = shellSingleQuote(
+    `sleep 5; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
+  );
   const unit = `[Unit]
 Description=codex-plusplus repair watcher
 
@@ -214,8 +218,8 @@ function uninstallSystemd(): void {
 }
 
 function installScheduledTask(_appRoot: string): WatcherKind {
-  // schtasks.exe creates a logon-trigger task. We pass the repair command via /TR.
-  const repair = windowsRepairTaskCommand();
+  // schtasks.exe creates a logon-trigger task. We pass the watcher command via /TR.
+  const repair = windowsWatcherTaskCommand();
   try {
     deleteScheduledTask("codex-plusplus-watcher-daily");
     execFileSync("schtasks.exe", [
@@ -246,14 +250,14 @@ function installScheduledTask(_appRoot: string): WatcherKind {
   }
 }
 
-function repairShellCommand(): string {
+function cliShellCommand(command: string, args: string[] = []): string {
   return [
     "CODEX_PLUSPLUS_WATCHER=1",
     shellQuote(process.execPath),
     ...process.execArgv.map(shellQuote),
     shellQuote(currentCliPath()),
-    "repair",
-    "--quiet",
+    command,
+    ...args,
   ].join(" ");
 }
 
@@ -278,19 +282,19 @@ function xmlEscape(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function windowsCommand(): string {
+function windowsCommand(command: string, args: string[] = []): string {
   return [
     windowsQuote(process.execPath),
     ...process.execArgv.map(windowsQuote),
     windowsQuote(currentCliPath()),
-    "repair",
-    "--quiet",
+    command,
+    ...args,
   ].join(" ");
 }
 
-function windowsRepairTaskCommand(): string {
+function windowsWatcherTaskCommand(): string {
   const comspec = process.env.ComSpec || "cmd.exe";
-  return `"${comspec}" /d /s /c "${windowsCommand()}"`;
+  return `"${comspec}" /d /s /c "${windowsCommand("update", ["--watcher", "--quiet"])} || ${windowsCommand("repair", ["--quiet"])}"`;
 }
 
 function windowsQuote(value: string): string {

@@ -13,6 +13,10 @@ import { buildPatchFailureIssueUrl } from "../src/alerts";
 import { createTweak } from "../src/commands/create-tweak";
 import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
+import {
+  releaseVersionFromTag,
+  shouldDownloadSelfUpdate,
+} from "../src/commands/self-update";
 import { validateTweak } from "../src/commands/validate-tweak";
 import {
   CODEX_WINDOW_SERVICES_KEY,
@@ -268,6 +272,17 @@ test("patch failure report URL includes a prefilled GitHub issue", () => {
   assert.equal(url.searchParams.get("title"), "Codex++ failed to patch Codex after update");
   assert.match(url.searchParams.get("body") ?? "", /Codex window services hook point not found/);
   assert.match(url.searchParams.get("body") ?? "", /Platform:/);
+});
+
+test("self-update release tags only download newer semver releases", () => {
+  assert.equal(releaseVersionFromTag("v0.1.3"), "0.1.3");
+  assert.equal(releaseVersionFromTag("0.1.3"), "0.1.3");
+  assert.equal(releaseVersionFromTag("main"), null);
+  assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.3"), true);
+  assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.2"), false);
+  assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.1"), false);
+  assert.equal(shouldDownloadSelfUpdate("0.1.2", "main"), true);
+  assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.2", true), true);
 });
 
 function withTempDir(fn: (root: string) => void): void {

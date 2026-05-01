@@ -76,8 +76,8 @@ function checkLaunchdWatcher(appRoot) {
             detail: asarPath || "missing appRoot",
         });
         checks.push({
-            name: "repair command",
-            status: plist.includes("CODEX_PLUSPLUS_WATCHER=1") && plist.includes(" repair --quiet")
+            name: "watcher command",
+            status: plist.includes("CODEX_PLUSPLUS_WATCHER=1") && plist.includes(" update --watcher --quiet")
                 ? "ok"
                 : "error",
             detail: commandSummary(plist),
@@ -194,8 +194,8 @@ function commandSucceeds(command, args) {
     }
 }
 function commandSummary(plist) {
-    const command = extractFirst(plist, /<string>([^<]*repair --quiet[^<]*)<\/string>/);
-    return command ? unescapeXml(command).replace(/\s+/g, " ").trim() : "repair command not found";
+    const command = extractFirst(plist, /<string>([^<]*(?:update --watcher --quiet|repair --quiet)[^<]*)<\/string>/);
+    return command ? unescapeXml(command).replace(/\s+/g, " ").trim() : "watcher command not found";
 }
 function extractFirst(source, pattern) {
     return source.match(pattern)?.[1] ?? null;
