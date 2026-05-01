@@ -19,8 +19,7 @@ Everything beyond the one-time install patch lives **outside** the app bundle, s
 Homebrew:
 
 ```sh
-brew tap b-nnett/codex-plusplus https://github.com/b-nnett/codex-plusplus
-brew install codexplusplus
+brew install b-nnett/codex-plusplus/codexplusplus
 codexplusplus install
 ```
 
