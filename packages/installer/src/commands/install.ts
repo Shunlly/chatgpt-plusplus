@@ -1,6 +1,6 @@
 import kleur from "kleur";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { locateCodex, type CodexInstall } from "../platform.js";
@@ -283,11 +283,20 @@ function makeStepper(quiet = false) {
  */
 function preflightWritable(targetDir: string, platform: string): void {
   const probe = join(targetDir, ".codexpp-write-probe");
+  const copyProbe = join(targetDir, ".codexpp-copy-probe");
   try {
     const fd = openSync(probe, "w");
     closeSync(fd);
+    copyFileSync(probe, copyProbe);
     unlinkSync(probe);
+    unlinkSync(copyProbe);
   } catch (e) {
+    try {
+      unlinkSync(probe);
+    } catch {}
+    try {
+      unlinkSync(copyProbe);
+    } catch {}
     const err = e as NodeJS.ErrnoException;
     if (err.code === "EPERM" || err.code === "EACCES") {
       const inApps = platform === "darwin" && targetDir.startsWith("/Applications/");
@@ -303,11 +312,13 @@ function preflightWritable(targetDir: string, platform: string): void {
             `  3. Re-run this command.\n\n` +
             `(If macOS just showed a permission dialog, click Allow and re-run.)\n`
           : inWindowsApps
-            ? `Windows Store installs live under WindowsApps and may require elevated permissions to patch.\n` +
+            ? `Windows Store installs live under WindowsApps and Windows is blocking the patch write.\n` +
               `Fix:\n` +
               `  1. Quit Codex completely\n` +
               `  2. Re-open PowerShell as Administrator\n` +
-              `  3. Re-run this command.\n`
+              `  3. Re-run this command.\n\n` +
+              `If Administrator still cannot write here, this Store install is locked by Windows package protections.\n` +
+              `Use a writable Codex install folder and rerun with --app pointing at it.\n`
           : `Check filesystem permissions for the Codex install folder.\n`) +
         `\nOriginal error: ${err.message}`;
       throw new Error(msg);
