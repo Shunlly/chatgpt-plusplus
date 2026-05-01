@@ -11,9 +11,17 @@ import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, we
 import { existsSync, mkdirSync, appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
+import { homedir } from "node:os";
 import chokidar from "chokidar";
 import { discoverTweaks, type DiscoveredTweak } from "./tweak-discovery";
 import { createDiskStorage, type DiskStorage } from "./storage";
+import { syncManagedMcpServers } from "./mcp-sync";
+import { getWatcherHealth } from "./watcher-health";
+import {
+  isMainProcessTweakScope,
+  reloadTweaks,
+  setTweakEnabledAndReload,
+} from "./tweak-lifecycle";
 
 const userRoot = process.env.CODEX_PLUSPLUS_USER_ROOT;
 const runtimeDir = process.env.CODEX_PLUSPLUS_RUNTIME;
@@ -29,10 +37,11 @@ const TWEAKS_DIR = join(userRoot, "tweaks");
 const LOG_DIR = join(userRoot, "log");
 const LOG_FILE = join(LOG_DIR, "main.log");
 const CONFIG_FILE = join(userRoot, "config.json");
+const CODEX_CONFIG_FILE = join(homedir(), ".codex", "config.toml");
 const INSTALLER_STATE_FILE = join(userRoot, "state.json");
 const UPDATE_MODE_FILE = join(userRoot, "update-mode.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
-const CODEX_PLUSPLUS_VERSION = "0.1.1";
+const CODEX_PLUSPLUS_VERSION = "0.1.2";
 const CODEX_PLUSPLUS_REPO = "b-nnett/codex-plusplus";
 const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 
@@ -58,6 +67,7 @@ if (process.env.CODEXPP_REMOTE_DEBUG === "1") {
 interface PersistedState {
   codexPlusPlus?: {
     autoUpdate?: boolean;
+    safeMode?: boolean;
     updateCheck?: CodexPlusPlusUpdateCheck;
   };
   /** Per-tweak enable flags. Missing entries default to enabled. */
@@ -110,8 +120,12 @@ function setCodexPlusPlusAutoUpdate(enabled: boolean): void {
   s.codexPlusPlus.autoUpdate = enabled;
   writeState(s);
 }
+function isCodexPlusPlusSafeModeEnabled(): boolean {
+  return readState().codexPlusPlus?.safeMode === true;
+}
 function isTweakEnabled(id: string): boolean {
   const s = readState();
+  if (s.codexPlusPlus?.safeMode === true) return false;
   return s.tweaks?.[id]?.enabled !== false;
 }
 function setTweakEnabled(id: string, enabled: boolean): void {
@@ -322,6 +336,15 @@ const tweakState = {
   loadedMain: new Map<string, LoadedMainTweak>(),
 };
 
+const tweakLifecycleDeps = {
+  logInfo: (message: string) => log("info", message),
+  setTweakEnabled,
+  stopAllMainTweaks,
+  clearTweakModuleCache,
+  loadAllMainTweaks,
+  broadcastReload,
+};
+
 // 1. Hook every session so our preload runs in every renderer.
 //
 // We use Electron's modern `session.registerPreloadScript` API (added in
@@ -388,6 +411,9 @@ app.on("web-contents-created", (_e, wc) => {
 });
 
 log("info", "main.ts evaluated; app.isReady=" + app.isReady());
+if (isCodexPlusPlusSafeModeEnabled()) {
+  log("warn", "safe mode is enabled; tweaks will not be loaded");
+}
 
 // 2. Initial tweak discovery + main-scope load.
 loadAllMainTweaks();
@@ -418,11 +444,7 @@ ipcMain.handle("codexpp:list-tweaks", async () => {
 
 ipcMain.handle("codexpp:get-tweak-enabled", (_e, id: string) => isTweakEnabled(id));
 ipcMain.handle("codexpp:set-tweak-enabled", (_e, id: string, enabled: boolean) => {
-  setTweakEnabled(id, !!enabled);
-  log("info", `tweak ${id} enabled=${!!enabled}`);
-  // Broadcast so renderer hosts re-evaluate which tweaks should be running.
-  broadcastReload();
-  return true;
+  return setTweakEnabledAndReload(id, enabled, tweakLifecycleDeps);
 });
 
 ipcMain.handle("codexpp:get-config", () => {
@@ -430,6 +452,7 @@ ipcMain.handle("codexpp:get-config", () => {
   return {
     version: CODEX_PLUSPLUS_VERSION,
     autoUpdate: s.codexPlusPlus?.autoUpdate !== false,
+    safeMode: s.codexPlusPlus?.safeMode === true,
     updateCheck: s.codexPlusPlus?.updateCheck ?? null,
   };
 });
@@ -442,6 +465,8 @@ ipcMain.handle("codexpp:set-auto-update", (_e, enabled: boolean) => {
 ipcMain.handle("codexpp:check-codexpp-update", async (_e, force?: boolean) => {
   return ensureCodexPlusPlusUpdateCheck(force === true);
 });
+
+ipcMain.handle("codexpp:get-watcher-health", () => getWatcherHealth(userRoot!));
 
 // Sandboxed renderer preload can't use Node fs to read tweak source. Main
 // reads it on the renderer's behalf. Path must live under tweaksDir for
@@ -553,11 +578,7 @@ ipcMain.handle("codexpp:copy-text", (_e, text: string) => {
 // Manual force-reload trigger from the renderer (e.g. the "Force Reload"
 // button on our injected Tweaks page). Bypasses the watcher debounce.
 ipcMain.handle("codexpp:reload-tweaks", () => {
-  log("info", "reloading tweaks (manual)");
-  stopAllMainTweaks();
-  clearTweakModuleCache();
-  loadAllMainTweaks();
-  broadcastReload();
+  reloadTweaks("manual", tweakLifecycleDeps);
   return { at: Date.now(), count: tweakState.discovered.length };
 });
 
@@ -572,11 +593,7 @@ function scheduleReload(reason: string): void {
   if (reloadTimer) clearTimeout(reloadTimer);
   reloadTimer = setTimeout(() => {
     reloadTimer = null;
-    log("info", `reloading tweaks (${reason})`);
-    stopAllMainTweaks();
-    clearTweakModuleCache();
-    loadAllMainTweaks();
-    broadcastReload();
+    reloadTweaks(reason, tweakLifecycleDeps);
   }, RELOAD_DEBOUNCE_MS);
 }
 
@@ -612,8 +629,10 @@ function loadAllMainTweaks(): void {
     tweakState.discovered = [];
   }
 
+  syncMcpServersFromEnabledTweaks();
+
   for (const t of tweakState.discovered) {
-    if (t.manifest.scope === "renderer") continue;
+    if (!isMainProcessTweakScope(t.manifest.scope)) continue;
     if (!isTweakEnabled(t.manifest.id)) {
       log("info", `skipping disabled main tweak: ${t.manifest.id}`);
       continue;
@@ -641,6 +660,26 @@ function loadAllMainTweaks(): void {
     } catch (e) {
       log("error", `tweak ${t.manifest.id} failed to start:`, e);
     }
+  }
+}
+
+function syncMcpServersFromEnabledTweaks(): void {
+  try {
+    const result = syncManagedMcpServers({
+      configPath: CODEX_CONFIG_FILE,
+      tweaks: tweakState.discovered.filter((t) => isTweakEnabled(t.manifest.id)),
+    });
+    if (result.changed) {
+      log("info", `synced Codex MCP config: ${result.serverNames.join(", ") || "none"}`);
+    }
+    if (result.skippedServerNames.length > 0) {
+      log(
+        "info",
+        `skipped Codex++ managed MCP server(s) already configured by user: ${result.skippedServerNames.join(", ")}`,
+      );
+    }
+  } catch (e) {
+    log("warn", "failed to sync Codex MCP config:", e);
   }
 }
 

@@ -66,6 +66,21 @@ interface CodexPlusPlusUpdateCheck {
   error?: string;
 }
 
+interface WatcherHealth {
+  checkedAt: string;
+  status: "ok" | "warn" | "error";
+  title: string;
+  summary: string;
+  watcher: string;
+  checks: WatcherHealthCheck[];
+}
+
+interface WatcherHealthCheck {
+  name: string;
+  status: "ok" | "warn" | "error";
+  detail: string;
+}
+
 /**
  * A tweak-registered page. We carry the owning tweak's manifest so we can
  * resolve relative iconUrls and show authorship in the page header.
@@ -703,6 +718,15 @@ function renderConfigPage(sectionsWrap: HTMLElement): void {
       card.appendChild(rowSimple("Could not load update settings", String(e)));
     });
 
+  const watcher = document.createElement("section");
+  watcher.className = "flex flex-col gap-2";
+  watcher.appendChild(sectionTitle("Auto-Repair Watcher"));
+  const watcherCard = roundedCard();
+  watcherCard.appendChild(rowSimple("Checking watcher", "Verifying the updater repair service."));
+  watcher.appendChild(watcherCard);
+  sectionsWrap.appendChild(watcher);
+  renderWatcherHealthCard(watcherCard);
+
   const maintenance = document.createElement("section");
   maintenance.className = "flex flex-col gap-2";
   maintenance.appendChild(sectionTitle("Maintenance"));
@@ -804,6 +828,81 @@ function releaseNotesRow(check: CodexPlusPlusUpdateCheck): HTMLElement {
   body.textContent = check.releaseNotes?.trim() || check.error || "No release notes available.";
   row.appendChild(body);
   return row;
+}
+
+function renderWatcherHealthCard(card: HTMLElement): void {
+  void ipcRenderer
+    .invoke("codexpp:get-watcher-health")
+    .then((health) => {
+      card.textContent = "";
+      renderWatcherHealth(card, health as WatcherHealth);
+    })
+    .catch((e) => {
+      card.textContent = "";
+      card.appendChild(rowSimple("Could not check watcher", String(e)));
+    });
+}
+
+function renderWatcherHealth(card: HTMLElement, health: WatcherHealth): void {
+  card.appendChild(watcherSummaryRow(health));
+  for (const check of health.checks) {
+    if (check.status === "ok") continue;
+    card.appendChild(watcherCheckRow(check));
+  }
+}
+
+function watcherSummaryRow(health: WatcherHealth): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "flex items-center justify-between gap-4 p-3";
+  const left = document.createElement("div");
+  left.className = "flex min-w-0 items-start gap-3";
+  left.appendChild(statusBadge(health.status, health.watcher));
+  const stack = document.createElement("div");
+  stack.className = "flex min-w-0 flex-col gap-1";
+  const title = document.createElement("div");
+  title.className = "min-w-0 text-sm text-token-text-primary";
+  title.textContent = health.title;
+  const desc = document.createElement("div");
+  desc.className = "text-token-text-secondary min-w-0 text-sm";
+  desc.textContent = `${health.summary} Checked ${new Date(health.checkedAt).toLocaleString()}.`;
+  stack.appendChild(title);
+  stack.appendChild(desc);
+  left.appendChild(stack);
+  row.appendChild(left);
+
+  const action = document.createElement("div");
+  action.className = "flex shrink-0 items-center gap-2";
+  action.appendChild(
+    compactButton("Check Now", () => {
+      const card = row.parentElement;
+      if (!card) return;
+      card.textContent = "";
+      card.appendChild(rowSimple("Checking watcher", "Verifying the updater repair service."));
+      renderWatcherHealthCard(card);
+    }),
+  );
+  row.appendChild(action);
+  return row;
+}
+
+function watcherCheckRow(check: WatcherHealthCheck): HTMLElement {
+  const row = rowSimple(check.name, check.detail);
+  const left = row.firstElementChild as HTMLElement | null;
+  if (left) left.prepend(statusBadge(check.status));
+  return row;
+}
+
+function statusBadge(status: "ok" | "warn" | "error", label?: string): HTMLElement {
+  const badge = document.createElement("span");
+  const tone =
+    status === "ok"
+      ? "border-token-charts-green text-token-charts-green"
+      : status === "warn"
+        ? "border-token-charts-yellow text-token-charts-yellow"
+        : "border-token-charts-red text-token-charts-red";
+  badge.className = `inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`;
+  badge.textContent = label || (status === "ok" ? "OK" : status === "warn" ? "Review" : "Error");
+  return badge;
 }
 
 function updateSummary(check: CodexPlusPlusUpdateCheck | null): string {
