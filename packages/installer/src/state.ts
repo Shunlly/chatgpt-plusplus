@@ -15,6 +15,10 @@ export interface InstallerState {
   patchedAsarHash: string;
   /** Codex version string we patched against (CFBundleShortVersionString). */
   codexVersion: string | null;
+  /** Release channel inferred from app metadata. */
+  codexChannel?: "stable" | "beta" | "unknown";
+  /** macOS bundle id, when available. */
+  codexBundleId?: string | null;
   /** Whether we flipped the Electron fuse. */
   fuseFlipped: boolean;
   /** Whether we re-signed ad-hoc. */

@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { readPlist } from "./plist.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
 const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
@@ -104,15 +106,16 @@ export function promptRestartCodexToRepatch(appRoot: string): boolean {
 
 export function openCodex(appRoot: string): void {
   if (platform() !== "darwin") return;
+  const bundleId = codexBundleId(appRoot);
   try {
-    execFileSync("open", ["-b", CODEX_BUNDLE_ID], { stdio: "ignore" });
+    execFileSync("open", ["-b", bundleId], { stdio: "ignore" });
   } catch {
     try {
       execFileSync("open", [appRoot], { stdio: "ignore" });
     } catch {}
   }
   try {
-    execFileSync("osascript", ["-e", `tell application id ${appleScriptString(CODEX_BUNDLE_ID)} to activate`], {
+    execFileSync("osascript", ["-e", `tell application id ${appleScriptString(bundleId)} to activate`], {
       stdio: "ignore",
     });
   } catch {}
@@ -209,7 +212,7 @@ function quitAndRestartCodex(appRoot: string): void {
 
 function quitCodex(appRoot: string): void {
   try {
-    execFileSync("osascript", ["-e", `tell application id ${appleScriptString(CODEX_BUNDLE_ID)} to quit`], {
+    execFileSync("osascript", ["-e", `tell application id ${appleScriptString(codexBundleId(appRoot))} to quit`], {
       stdio: "ignore",
     });
   } catch {}
@@ -250,6 +253,17 @@ function openUrl(url: string): void {
   try {
     execFileSync("open", [url], { stdio: "ignore" });
   } catch {}
+}
+
+function codexBundleId(appRoot: string): string {
+  const info = join(appRoot, "Contents", "Info.plist");
+  if (!existsSync(info)) return CODEX_BUNDLE_ID;
+  try {
+    const plist = readPlist(info);
+    return typeof plist.CFBundleIdentifier === "string" ? plist.CFBundleIdentifier : CODEX_BUNDLE_ID;
+  } catch {
+    return CODEX_BUNDLE_ID;
+  }
 }
 
 function appleScriptString(value: string): string {

@@ -2,7 +2,7 @@ import kleur from "kleur";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { installWatcher } from "../watcher.js";
 import { ensureUserPaths } from "../paths.js";
 import { locateCodex } from "../platform.js";
@@ -35,7 +35,7 @@ export async function updateCodex(opts: Opts = {}): Promise<void> {
     throw new Error("codex-plusplus update-codex is only needed on macOS/Sparkle installs.");
   }
 
-  const candidate = selectSignedAppCandidate(paths.backup, state.codexVersion);
+  const candidate = selectSignedAppCandidate(paths.backup, state.codexVersion, codex.bundleId);
   if (!candidate) {
     throw new Error(
       `No signed Codex.app backup or Sparkle-cached update was found.\n\n` +
@@ -89,9 +89,13 @@ export async function updateCodex(opts: Opts = {}): Promise<void> {
   }
 }
 
-function selectSignedAppCandidate(backupDir: string, currentVersion: string | null): SignedAppCandidate | null {
+function selectSignedAppCandidate(
+  backupDir: string,
+  currentVersion: string | null,
+  bundleId: string | null,
+): SignedAppCandidate | null {
   const candidates = [
-    ...findSparkleCachedApps(),
+    ...findSparkleCachedApps(bundleId),
     signedCandidate(join(backupDir, "Codex.app"), "pristine-backup"),
   ].filter((c): c is SignedAppCandidate => c !== null);
 
@@ -104,11 +108,11 @@ function selectSignedAppCandidate(backupDir: string, currentVersion: string | nu
   );
 }
 
-function findSparkleCachedApps(): SignedAppCandidate[] {
-  const root = join(homedir(), "Library", "Caches", "com.openai.codex", "org.sparkle-project.Sparkle");
+function findSparkleCachedApps(bundleId: string | null): SignedAppCandidate[] {
+  const root = join(homedir(), "Library", "Caches", bundleId ?? "com.openai.codex", "org.sparkle-project.Sparkle");
   const out: SignedAppCandidate[] = [];
   walk(root, (path) => {
-    if (basename(path) !== "Codex.app") return;
+    if (!path.endsWith(".app")) return;
     const candidate = signedCandidate(path, "sparkle-cache");
     if (candidate) out.push(candidate);
   });

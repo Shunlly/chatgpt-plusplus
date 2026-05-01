@@ -52,6 +52,7 @@ export async function install(opts: Opts = {}): Promise<void> {
 
   const codexVersion = readCodexVersion(codex.metaPath);
   if (codexVersion) step(`Codex version: ${kleur.cyan(codexVersion)}`);
+  step(`Codex channel: ${kleur.cyan(codex.channel)}`);
 
   const paths = ensureUserPaths();
   step(`User dir: ${kleur.cyan(paths.root)}`);
@@ -138,6 +139,8 @@ export async function install(opts: Opts = {}): Promise<void> {
     originalAsarHash,
     patchedAsarHash,
     codexVersion,
+    codexChannel: codex.channel,
+    codexBundleId: codex.bundleId,
     fuseFlipped,
     resigned,
     originalEntryPoint: originalEntry,
@@ -287,7 +290,7 @@ function preflightWritable(targetDir: string, platform: string): void {
       const msg =
         `Cannot write to ${targetDir}.\n\n` +
         (inApps
-          ? `macOS App Management is blocking modification of /Applications/Codex.app.\n` +
+          ? `macOS App Management is blocking modification of ${targetDir}.\n` +
             `Fix:\n` +
             `  1. Open System Settings → Privacy & Security → App Management\n` +
             `  2. Enable the toggle for your terminal app (Terminal, iTerm2, etc.)\n` +

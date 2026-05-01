@@ -1,8 +1,10 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { readPlist } from "./plist.js";
 
 export type Platform = "darwin" | "win32" | "linux";
+export type CodexChannel = "stable" | "beta" | "unknown";
 
 export interface CodexInstall {
   /** Path to Codex.app (mac), Codex install dir (win), or AppImage (linux). */
@@ -17,10 +19,17 @@ export interface CodexInstall {
   electronBinary: string;
   /** Original-name executable used when launching. */
   executable: string;
+  /** Human-readable app name, when available. */
+  appName: string;
+  /** Bundle id on macOS, when available. */
+  bundleId: string | null;
+  /** Known Codex release channel inferred from bundle metadata. */
+  channel: CodexChannel;
   platform: Platform;
 }
 
 const MAC_DEFAULT = "/Applications/Codex.app";
+const MAC_BETA_DEFAULT = "/Applications/Codex (Beta).app";
 
 export function detectPlatform(): Platform {
   const p = platform();
@@ -39,7 +48,9 @@ function locateMac(override?: string): CodexInstall {
   const candidates = [
     override,
     MAC_DEFAULT,
+    MAC_BETA_DEFAULT,
     join(homedir(), "Applications", "Codex.app"),
+    join(homedir(), "Applications", "Codex (Beta).app"),
   ].filter(Boolean) as string[];
 
   const appRoot = candidates.find((p) => existsSync(join(p, "Contents", "Info.plist")));
@@ -52,6 +63,7 @@ function locateMac(override?: string): CodexInstall {
         `  codex-plusplus install --app /path/to/Codex.app`,
     );
   }
+  const info = readMacAppInfo(appRoot);
   const resourcesDir = join(appRoot, "Contents", "Resources");
   return {
     appRoot,
@@ -67,9 +79,34 @@ function locateMac(override?: string): CodexInstall {
       "A",
       "Electron Framework",
     ),
-    executable: join(appRoot, "Contents", "MacOS", "Codex"),
+    executable: join(appRoot, "Contents", "MacOS", info.executable),
+    appName: info.name,
+    bundleId: info.bundleId,
+    channel: inferCodexChannel(info.bundleId, info.name),
     platform: "darwin",
   };
+}
+
+function readMacAppInfo(appRoot: string): { name: string; executable: string; bundleId: string | null } {
+  const metaPath = join(appRoot, "Contents", "Info.plist");
+  try {
+    const plist = readPlist(metaPath);
+    const name = String(plist.CFBundleDisplayName ?? plist.CFBundleName ?? basename(appRoot, ".app"));
+    const executable = String(plist.CFBundleExecutable ?? name);
+    const bundleId = typeof plist.CFBundleIdentifier === "string" ? plist.CFBundleIdentifier : null;
+    return { name, executable, bundleId };
+  } catch {
+    const name = basename(appRoot, ".app");
+    return { name, executable: name, bundleId: null };
+  }
+}
+
+export function inferCodexChannel(bundleId: string | null, appName?: string): CodexChannel {
+  if (bundleId === "com.openai.codex") return "stable";
+  if (bundleId === "com.openai.codex.beta") return "beta";
+  if (/\bbeta\b/i.test(appName ?? "")) return "beta";
+  if (/\bcodex\b/i.test(appName ?? "")) return "stable";
+  return "unknown";
 }
 
 function locateWin(override?: string): CodexInstall {
@@ -122,6 +159,9 @@ function locateWin(override?: string): CodexInstall {
     metaPath: null,
     electronBinary: join(appRoot, "Codex.exe"),
     executable: join(appRoot, "Codex.exe"),
+    appName: "Codex",
+    bundleId: null,
+    channel: "stable",
     platform: "win32",
   };
 }
@@ -152,6 +192,9 @@ function locateLinux(override?: string): CodexInstall {
     metaPath: null,
     electronBinary: join(appRoot, "codex"),
     executable: join(appRoot, "codex"),
+    appName: "Codex",
+    bundleId: null,
+    channel: "stable",
     platform: "linux",
   };
 }

@@ -30,6 +30,8 @@ export async function status(): Promise<void> {
   console.log(`  version:      ${state.version}`);
   console.log(`  app root:     ${state.appRoot}`);
   console.log(`  codex ver:    ${state.codexVersion ?? "(unknown)"}`);
+  if (state.codexChannel) console.log(`  channel:      ${state.codexChannel}`);
+  if (state.codexBundleId) console.log(`  bundle id:    ${state.codexBundleId}`);
   console.log(`  fuse flipped: ${state.fuseFlipped}`);
   console.log(`  resigned:     ${state.resigned}`);
   console.log(`  watcher:      ${state.watcher}`);
@@ -46,6 +48,8 @@ export async function status(): Promise<void> {
   const currentCodexVersion = readCodexVersion(codex.metaPath);
   console.log(kleur.bold("current app"));
   console.log(`  codex ver:    ${currentCodexVersion ?? "(unknown)"}`);
+  console.log(`  channel:      ${codex.channel}`);
+  if (codex.bundleId) console.log(`  bundle id:    ${codex.bundleId}`);
   const updateMode = readUpdateMode(paths.updateModeFile);
   if (updateMode) {
     console.log(`  update mode:  ${kleur.yellow(describeUpdateMode(updateMode))}`);
