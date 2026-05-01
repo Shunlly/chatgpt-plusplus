@@ -60,6 +60,8 @@ export async function install(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
   step(`User dir: ${kleur.cyan(paths.root)}`);
   step(formatCliShimResult(installCliShims(paths.binDir)));
+  const launcher = installWindowsManagedAppLauncher(codex);
+  if (launcher) step(launcher);
 
   // 1. Backup originals.
   const pristineAppBackup = codex.platform === "darwin" ? join(paths.backup, "Codex.app") : null;
@@ -374,6 +376,54 @@ function preflightAppClosed(codex: CodexInstall): void {
 
 function escapePowerShellSingleQuotedString(value: string): string {
   return value.replace(/'/g, "''");
+}
+
+function installWindowsManagedAppLauncher(codex: CodexInstall): string | null {
+  if (codex.platform !== "win32") return null;
+  if (!/\\codex-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`)) {
+    return null;
+  }
+
+  const localAppData = process.env.LOCALAPPDATA;
+  if (!localAppData) return null;
+
+  const shimDir = join(localAppData, "Microsoft", "WindowsApps");
+  mkdirSync(shimDir, { recursive: true });
+  const commandPath = join(shimDir, "codex-plusplus-codex.cmd");
+  writeFileSync(
+    commandPath,
+    `@echo off\r\nstart "" "${codex.executable}" %*\r\n`,
+    "utf8",
+  );
+
+  const startMenuRoot = process.env.APPDATA
+    ? join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs")
+    : null;
+  if (!startMenuRoot) return `Installed patched Codex launcher: ${kleur.cyan(commandPath)}`;
+
+  try {
+    mkdirSync(startMenuRoot, { recursive: true });
+    const shortcutPath = join(startMenuRoot, "Codex++.lnk");
+    const script = [
+      `$shortcutPath = '${escapePowerShellSingleQuotedString(shortcutPath)}'`,
+      `$targetPath = '${escapePowerShellSingleQuotedString(codex.executable)}'`,
+      `$workingDirectory = '${escapePowerShellSingleQuotedString(dirname(codex.executable))}'`,
+      "$shell = New-Object -ComObject WScript.Shell",
+      "$shortcut = $shell.CreateShortcut($shortcutPath)",
+      "$shortcut.TargetPath = $targetPath",
+      "$shortcut.WorkingDirectory = $workingDirectory",
+      "$shortcut.IconLocation = \"$targetPath,0\"",
+      "$shortcut.Save()",
+    ].join("; ");
+    execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+      { stdio: "ignore" },
+    );
+    return `Installed patched Codex launchers: ${kleur.cyan(commandPath)} and ${kleur.cyan(shortcutPath)}`;
+  } catch {
+    return `Installed patched Codex launcher: ${kleur.cyan(commandPath)}`;
+  }
 }
 
 function preflightSystemTools(platform: string, resign: boolean, hasPlist: boolean): void {

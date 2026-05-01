@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, statSync, cpSync, rmSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
 import { homedir, platform } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { readPlist } from "./plist.js";
 
 export type Platform = "darwin" | "win32" | "linux";
@@ -212,11 +212,12 @@ function locateWin(override?: string): CodexInstall {
         `If Codex is somewhere else, rerun with --app pointing at its install folder.`,
     );
   }
-  const resourcesDir = join(appRoot, "resources");
-  const executable = findWinExecutable(appRoot);
+  const writableAppRoot = isWindowsAppsPath(appRoot) ? ensureWindowsStoreMirror(appRoot) : appRoot;
+  const resourcesDir = join(writableAppRoot, "resources");
+  const executable = findWinExecutable(writableAppRoot);
   const appName = basename(executable, ".exe");
   return {
-    appRoot,
+    appRoot: writableAppRoot,
     resourcesDir,
     asarPath: join(resourcesDir, "app.asar"),
     metaPath: null,
@@ -252,6 +253,38 @@ function windowsCodexCandidates(root: string): string[] {
 
 function windowsStoreCodexCandidates(packageRoot: string): string[] {
   return [join(packageRoot, "app"), packageRoot];
+}
+
+function isWindowsAppsPath(path: string): boolean {
+  return /\\WindowsApps\\/i.test(`${path.replace(/\//g, "\\")}\\`);
+}
+
+function ensureWindowsStoreMirror(storeAppRoot: string): string {
+  const sourceAppRoot = basename(storeAppRoot).toLowerCase() === "app"
+    ? storeAppRoot
+    : join(storeAppRoot, "app");
+  if (!isWinCodexRoot(sourceAppRoot)) return storeAppRoot;
+
+  const packageRoot = dirname(sourceAppRoot);
+  const packageName = basename(packageRoot);
+  const local = process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local");
+  const mirrorAppRoot = join(local, "codex-plusplus", "store-apps", packageName, "app");
+  mirrorDirectory(sourceAppRoot, mirrorAppRoot);
+  return mirrorAppRoot;
+}
+
+function mirrorDirectory(source: string, target: string): void {
+  mkdirSync(dirname(target), { recursive: true });
+  const result = spawnSync(
+    "robocopy.exe",
+    [source, target, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"],
+    { stdio: "ignore" },
+  );
+  // Robocopy uses 0-7 for success / non-fatal copy states.
+  if (typeof result.status === "number" && result.status <= 7) return;
+
+  rmSync(target, { recursive: true, force: true });
+  cpSync(source, target, { recursive: true });
 }
 
 function latestWindowsSquirrelAppDir(root: string): string | null {
