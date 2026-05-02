@@ -7,8 +7,14 @@ import { CODEX_PLUSPLUS_VERSION } from "./version.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
 const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
+const APP_MANAGEMENT_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_AppManagement";
 
 export function showPatchFailedAlert(errorMessage: string): void {
+  if (isMacAppManagementError(errorMessage)) {
+    showAppManagementPatchFailedAlert(errorMessage);
+    return;
+  }
+
   const button = showAlert({
     title: "Codex++ could not patch Codex",
     message:
@@ -21,6 +27,28 @@ export function showPatchFailedAlert(errorMessage: string): void {
   });
 
   if (button === "Report on GitHub") {
+    openUrl(buildPatchFailureIssueUrl(errorMessage));
+  }
+}
+
+function showAppManagementPatchFailedAlert(errorMessage: string): void {
+  const button = showAlert({
+    title: "Codex++ needs App Management permission",
+    message:
+      "Codex was updated, but macOS blocked Codex++ from modifying the app.\n\n" +
+      "To finish the repair:\n" +
+      "1. Open System Settings > Privacy & Security > App Management\n" +
+      "2. Enable the app running the repair command (Codex, Terminal, iTerm2, etc.)\n" +
+      "3. Run: codexplusplus repair\n\n" +
+      "Codex will stay unpatched until that permission is granted.",
+    buttons: ["Dismiss", "Open Settings", "Report on GitHub"],
+    defaultButton: "Open Settings",
+    critical: true,
+  });
+
+  if (button === "Open Settings") {
+    openUrl(APP_MANAGEMENT_SETTINGS_URL);
+  } else if (button === "Report on GitHub") {
     openUrl(buildPatchFailureIssueUrl(errorMessage));
   }
 }
@@ -277,6 +305,10 @@ function trimIssueError(errorMessage: string): string {
   const maxLength = 4000;
   if (trimmed.length <= maxLength) return trimmed;
   return `${trimmed.slice(0, maxLength)}\n... truncated ...`;
+}
+
+export function isMacAppManagementError(errorMessage: string): boolean {
+  return /macOS App Management is blocking modification/.test(errorMessage);
 }
 
 function openUrl(url: string): void {

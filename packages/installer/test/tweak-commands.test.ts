@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildCliFailureIssueUrl, buildPatchFailureIssueUrl } from "../src/alerts";
+import { buildCliFailureIssueUrl, buildPatchFailureIssueUrl, isMacAppManagementError } from "../src/alerts";
 import { createTweak } from "../src/commands/create-tweak";
 import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
@@ -289,6 +289,14 @@ test("CLI failure report URL includes command and environment details", () => {
   assert.match(url.searchParams.get("body") ?? "", /codesign not installed/);
   assert.match(url.searchParams.get("body") ?? "", /Codex\+\+:/);
   assert.match(url.searchParams.get("body") ?? "", /Node:/);
+});
+
+test("App Management failures use the dedicated repair alert path", () => {
+  assert.equal(
+    isMacAppManagementError("macOS App Management is blocking modification of /Applications/Codex.app."),
+    true,
+  );
+  assert.equal(isMacAppManagementError("Codex window services hook point not found"), false);
 });
 
 test("self-update release tags only download newer semver releases", () => {
