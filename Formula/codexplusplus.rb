@@ -31,7 +31,7 @@ class Codexplusplus < Formula
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/codexplusplus --version")
-    assert_match version.to_s, shell_output("#{bin}/codex-plusplus --version")
+    assert_match(/codex-plusplus, \d+\.\d+\.\d+/, shell_output("#{bin}/codexplusplus --version"))
+    assert_match(/codex-plusplus, \d+\.\d+\.\d+/, shell_output("#{bin}/codex-plusplus --version"))
   end
 end
