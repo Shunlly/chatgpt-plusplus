@@ -170,7 +170,9 @@ prog
   .option("--status", "Print current safe mode status")
   .action(wrap(safeMode));
 
-prog.parse(process.argv, {
+const argv = process.argv.length <= 2 ? [...process.argv, "--help"] : process.argv;
+
+prog.parse(argv, {
   unknown: (flag) => {
     console.error(kleur.red(`Unknown flag: ${flag}`));
     process.exit(1);
