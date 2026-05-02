@@ -594,7 +594,7 @@ function rerender() {
     if (ap.kind === "tweaks")
         renderTweaksPage(root.sectionsWrap);
     else if (ap.kind === "store")
-        renderTweakStorePage(root.sectionsWrap);
+        renderTweakStorePage(root.sectionsWrap, root.headerActions);
     else
         renderConfigPage(root.sectionsWrap, root.subtitle);
 }
@@ -1120,80 +1120,40 @@ function actionRow(titleText, description) {
     row.appendChild(actions);
     return row;
 }
-function renderTweakStorePage(sectionsWrap) {
+function renderTweakStorePage(sectionsWrap, headerActions) {
     const section = document.createElement("section");
     section.className = "flex flex-col gap-4";
-    section.style.maxWidth = "768px";
-    const header = document.createElement("div");
-    header.className = "flex items-center justify-between gap-3 border-b border-token-border-light pr-0.5 pb-2";
-    const title = document.createElement("div");
-    title.className = "text-sm font-medium text-token-text-primary";
-    title.textContent = "Reviewed Tweaks";
-    const source = document.createElement("div");
-    source.className = "text-xs text-token-text-secondary";
+    const source = document.createElement("span");
+    source.hidden = true;
     source.dataset.codexppStoreSource = "true";
     source.textContent = "Loading live registry";
-    const titleStack = document.createElement("div");
-    titleStack.className = "flex min-w-0 flex-col gap-0.5";
-    titleStack.appendChild(title);
-    titleStack.appendChild(source);
     const actions = document.createElement("div");
     actions.className = "flex shrink-0 items-center gap-2";
-    const refreshBtn = storeToolbarButton("Refresh", () => {
+    const refreshBtn = storeIconButton(refreshIconSvg(), "Refresh tweak store", () => {
         refreshBtn.disabled = true;
         grid.textContent = "";
         grid.appendChild(storeMessageCard("Refreshing tweak store", "Fetching the latest reviewed registry from GitHub."));
-        refreshTweakStoreGrid(grid, search, source, refreshBtn);
+        refreshTweakStoreGrid(grid, source, refreshBtn);
     });
     actions.appendChild(refreshBtn);
-    actions.appendChild(storeToolbarButton("Publish", openPublishTweakDialog, "primary"));
-    header.appendChild(titleStack);
-    header.appendChild(actions);
-    section.appendChild(header);
-    const toolbar = document.createElement("div");
-    toolbar.className = "flex w-full flex-col gap-3 md:flex-row md:items-center md:gap-2";
-    const searchWrap = document.createElement("div");
-    searchWrap.className = "w-full md:flex-1";
-    const searchBox = document.createElement("div");
-    searchBox.className =
-        "no-drag flex h-8 items-center gap-2 rounded-lg border border-token-input-border bg-token-input-background/75 px-2.5 py-0 text-sm leading-[18px] shadow-sm";
-    searchBox.innerHTML =
-        `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" class="icon-xs text-token-text-tertiary" aria-hidden="true">` +
-            `<path d="M9 15.5A6.5 6.5 0 1 0 9 2.5a6.5 6.5 0 0 0 0 13ZM14 14l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
-            `</svg>`;
-    const search = document.createElement("input");
-    search.type = "search";
-    search.placeholder = "Search tweaks";
-    search.className =
-        "min-w-0 flex-1 bg-transparent text-sm text-token-text-primary outline-none placeholder:text-token-text-tertiary";
-    searchBox.appendChild(search);
-    searchWrap.appendChild(searchBox);
-    toolbar.appendChild(searchWrap);
-    const filter = document.createElement("div");
-    filter.className = "flex flex-wrap items-center gap-2";
-    const reviewed = document.createElement("div");
-    reviewed.className =
-        "inline-flex h-8 items-center gap-1 rounded-lg bg-token-foreground/5 px-2 text-sm text-token-text-primary";
-    reviewed.textContent = "Reviewed";
-    filter.appendChild(reviewed);
-    toolbar.appendChild(filter);
-    section.appendChild(toolbar);
+    actions.appendChild(storeToolbarButton("Publish Tweak", openPublishTweakDialog, "primary"));
+    if (headerActions) {
+        headerActions.replaceChildren(actions);
+    }
     const grid = document.createElement("div");
     grid.dataset.codexppStoreGrid = "true";
     grid.className = "grid gap-4";
-    grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(340px, 1fr))";
     grid.appendChild(storeMessageCard("Loading tweak store", "Fetching reviewed tweaks from the Codex++ registry."));
     section.appendChild(grid);
     sectionsWrap.appendChild(section);
-    search.addEventListener("input", () => renderTweakStoreGrid(grid, search, source));
-    refreshTweakStoreGrid(grid, search, source, refreshBtn);
+    refreshTweakStoreGrid(grid, source, refreshBtn);
 }
-function refreshTweakStoreGrid(grid, search, source, refreshBtn) {
+function refreshTweakStoreGrid(grid, source, refreshBtn) {
     void electron_1.ipcRenderer
         .invoke("codexpp:get-tweak-store")
         .then((store) => {
         grid.dataset.codexppStore = JSON.stringify(store);
-        renderTweakStoreGrid(grid, search, source);
+        renderTweakStoreGrid(grid, source);
     })
         .catch((e) => {
         grid.dataset.codexppStore = "";
@@ -1206,22 +1166,15 @@ function refreshTweakStoreGrid(grid, search, source, refreshBtn) {
             refreshBtn.disabled = false;
     });
 }
-function renderTweakStoreGrid(grid, search, source) {
+function renderTweakStoreGrid(grid, source) {
     const store = parseStoreDataset(grid);
     if (!store)
         return;
-    const query = search.value.trim().toLowerCase();
-    const entries = query
-        ? store.entries.filter((entry) => storeEntryMatches(entry, query))
-        : store.entries;
-    source.textContent = `Live registry · refreshed ${new Date(store.fetchedAt).toLocaleString()}`;
+    const entries = store.entries;
+    source.textContent = `Refreshed ${new Date(store.fetchedAt).toLocaleString()}`;
     grid.textContent = "";
     if (store.entries.length === 0) {
-        grid.appendChild(storeMessageCard("No reviewed tweaks yet", "Use Publish to submit the first one."));
-        return;
-    }
-    if (entries.length === 0) {
-        grid.appendChild(storeMessageCard("No matching tweaks", "Try a different search."));
+        grid.appendChild(storeMessageCard("No tweaks yet", "Use Publish Tweak to submit the first one."));
         return;
     }
     for (const entry of entries)
@@ -1238,35 +1191,19 @@ function parseStoreDataset(grid) {
         return null;
     }
 }
-function storeEntryMatches(entry, query) {
-    return [
-        entry.manifest.name,
-        entry.manifest.description,
-        entry.manifest.id,
-        entry.repo,
-        typeof entry.manifest.author === "string"
-            ? entry.manifest.author
-            : entry.manifest.author?.name,
-        ...(entry.manifest.tags ?? []),
-    ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
-}
 function tweakStoreCard(entry) {
     const card = document.createElement("div");
     card.className =
-        "border-token-border/40 flex min-h-[76px] flex-col justify-center gap-2.5 rounded-2xl border p-2.5 transition-colors hover:bg-token-foreground/5";
+        "border-token-border/40 flex min-h-[190px] flex-col justify-between gap-4 rounded-2xl border p-4 transition-colors hover:bg-token-foreground/5";
     const left = document.createElement("div");
-    left.className = "flex min-w-0 flex-1 items-center gap-3";
+    left.className = "flex min-w-0 flex-1 items-start gap-3";
     left.appendChild(storeAvatar(entry));
     const stack = document.createElement("div");
-    stack.className = "flex min-w-0 flex-1 flex-col justify-center gap-0.5";
+    stack.className = "flex min-w-0 flex-1 flex-col gap-2";
     const titleRow = document.createElement("div");
-    titleRow.className = "flex min-w-0 items-center gap-2";
+    titleRow.className = "flex min-w-0 items-start justify-between gap-3";
     const title = document.createElement("div");
-    title.className = "truncate font-medium text-token-foreground";
+    title.className = "min-w-0 text-base font-medium leading-6 text-token-foreground";
     title.textContent = entry.manifest.name;
     titleRow.appendChild(title);
     const version = document.createElement("span");
@@ -1276,60 +1213,51 @@ function tweakStoreCard(entry) {
     stack.appendChild(titleRow);
     if (entry.manifest.description) {
         const desc = document.createElement("div");
-        desc.className = "line-clamp-1 min-w-0 text-sm leading-relaxed text-token-text-secondary";
+        desc.className = "line-clamp-3 min-w-0 text-sm leading-5 text-token-text-secondary";
         desc.textContent = entry.manifest.description;
         stack.appendChild(desc);
     }
-    const meta = document.createElement("div");
-    meta.className = "flex min-w-0 flex-wrap items-center gap-2 text-xs text-token-description-foreground";
-    meta.appendChild(document.createTextNode(`Approved ${shortSha(entry.approvedCommitSha)}`));
-    meta.appendChild(dot());
-    const repo = document.createElement("button");
-    repo.type = "button";
-    repo.className = "inline-flex text-token-text-link-foreground hover:underline";
-    repo.textContent = entry.repo;
-    repo.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void electron_1.ipcRenderer.invoke("codexpp:open-external", `https://github.com/${entry.repo}`);
-    });
-    meta.appendChild(repo);
-    stack.appendChild(meta);
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "flex min-w-0 flex-wrap items-center gap-2";
+    badgeRow.appendChild(verifiedSafeBadge());
+    stack.appendChild(badgeRow);
     left.appendChild(stack);
+    card.appendChild(left);
     const actions = document.createElement("div");
-    actions.className = "flex shrink-0 items-center gap-2";
+    actions.className = "mt-auto flex shrink-0 items-center justify-end gap-2";
     if (entry.releaseUrl) {
         actions.appendChild(compactButton("Release", () => {
             void electron_1.ipcRenderer.invoke("codexpp:open-external", entry.releaseUrl);
         }));
     }
-    const installLabel = entry.installed
-        ? entry.installed.version === entry.manifest.version ? "Reinstall" : "Update"
-        : "Install";
-    actions.appendChild(compactButton(installLabel, () => {
-        const grid = card.closest("[data-codexpp-store-grid]");
-        const search = grid?.parentElement?.querySelector("input[type='search']");
-        const source = grid?.parentElement?.querySelector("[data-codexpp-store-source]");
-        card.style.opacity = "0.65";
-        actions.querySelectorAll("button").forEach((button) => (button.disabled = true));
-        void electron_1.ipcRenderer
-            .invoke("codexpp:install-store-tweak", entry.id)
-            .then(() => {
-            if (grid && search && source) {
-                grid.textContent = "";
-                grid.appendChild(storeMessageCard("Installed tweak", `${entry.manifest.name} was installed from the approved commit.`));
-                refreshTweakStoreGrid(grid, search, source);
-            }
-            location.reload();
-        })
-            .catch((e) => {
-            card.style.opacity = "";
-            actions.querySelectorAll("button").forEach((button) => (button.disabled = false));
-            window.alert(`Could not install ${entry.manifest.name}: ${String(e.message ?? e)}`);
-        });
-    }));
-    left.appendChild(actions);
-    card.appendChild(left);
+    if (entry.installed && entry.installed.version === entry.manifest.version) {
+        actions.appendChild(storeStatusPill("Installed"));
+    }
+    else {
+        const installLabel = entry.installed ? "Update" : "Install";
+        actions.appendChild(storeInstallButton(installLabel, () => {
+            const grid = card.closest("[data-codexpp-store-grid]");
+            const source = grid?.parentElement?.querySelector("[data-codexpp-store-source]");
+            card.style.opacity = "0.65";
+            actions.querySelectorAll("button").forEach((button) => (button.disabled = true));
+            void electron_1.ipcRenderer
+                .invoke("codexpp:install-store-tweak", entry.id)
+                .then(() => {
+                if (grid && source) {
+                    grid.textContent = "";
+                    grid.appendChild(storeMessageCard("Installed tweak", `${entry.manifest.name} was installed from the approved commit.`));
+                    refreshTweakStoreGrid(grid, source);
+                }
+                location.reload();
+            })
+                .catch((e) => {
+                card.style.opacity = "";
+                actions.querySelectorAll("button").forEach((button) => (button.disabled = false));
+                window.alert(`Could not install ${entry.manifest.name}: ${String(e.message ?? e)}`);
+            });
+        }));
+    }
+    card.appendChild(actions);
     return card;
 }
 function storeAvatar(entry) {
@@ -1376,6 +1304,59 @@ function storeToolbarButton(label, onClick, variant = "secondary") {
         variant === "primary"
             ? "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-token-border bg-token-bg-fog px-2 py-0 text-sm text-token-button-tertiary-foreground enabled:hover:bg-token-list-hover-background disabled:cursor-not-allowed disabled:opacity-40"
             : "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-transparent bg-token-foreground/5 px-2 py-0 text-sm text-token-foreground enabled:hover:bg-token-foreground/10 disabled:cursor-not-allowed disabled:opacity-40";
+    btn.textContent = label;
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+    });
+    return btn;
+}
+function storeIconButton(iconSvg, label, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+        "border-token-border user-select-none no-drag cursor-interaction flex h-8 w-8 items-center justify-center rounded-lg border border-transparent bg-token-foreground/5 p-0 text-token-foreground enabled:hover:bg-token-foreground/10 disabled:cursor-not-allowed disabled:opacity-40";
+    btn.innerHTML = iconSvg;
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+    });
+    return btn;
+}
+function refreshIconSvg() {
+    return (`<svg width="18" height="18" viewBox="0 0 20 20" fill="none" class="icon-xs" aria-hidden="true">` +
+        `<path d="M4.4 9.35A5.65 5.65 0 0 1 14 5.3L15.75 7M15.75 3.75V7h-3.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<path d="M15.6 10.65A5.65 5.65 0 0 1 6 14.7L4.25 13M4.25 16.25V13H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `</svg>`);
+}
+function verifiedSafeBadge() {
+    const badge = document.createElement("span");
+    badge.className =
+        "inline-flex h-7 items-center gap-1.5 rounded-full border border-blue-500/25 bg-blue-500/10 px-2.5 text-xs font-medium text-blue-500";
+    badge.innerHTML =
+        `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">` +
+            `<path d="M8 1.75 13.25 3.8v3.72c0 3.28-2.12 5.36-5.25 6.73-3.13-1.37-5.25-3.45-5.25-6.73V3.8L8 1.75Z" fill="currentColor" opacity=".16"/>` +
+            `<path d="M5.25 8.15 7.05 9.9l3.7-4.05" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"/>` +
+            `</svg>` +
+            `<span>Verified as safe</span>`;
+    return badge;
+}
+function storeStatusPill(label) {
+    const pill = document.createElement("span");
+    pill.className =
+        "inline-flex h-8 items-center justify-center rounded-lg bg-token-foreground/5 px-3 text-sm font-medium text-token-description-foreground";
+    pill.textContent = label;
+    return pill;
+}
+function storeInstallButton(label, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+        "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center justify-center whitespace-nowrap rounded-lg border border-blue-500/40 bg-blue-500 px-3 py-0 text-sm font-medium text-white shadow-sm enabled:hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
     btn.textContent = label;
     btn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1734,7 +1715,7 @@ async function submitPublishTweak(repoInput, status) {
 }
 // ───────────────────────────────────────────────────────────── components ──
 /** The full panel shell (toolbar + scroll + heading + sections wrap). */
-function panelShell(title, subtitle) {
+function panelShell(title, subtitle, options) {
     const outer = document.createElement("div");
     outer.className = "main-surface flex h-full min-h-0 flex-col";
     const toolbar = document.createElement("div");
@@ -1746,7 +1727,9 @@ function panelShell(title, subtitle) {
     outer.appendChild(scroll);
     const inner = document.createElement("div");
     inner.className =
-        "mx-auto flex w-full flex-col max-w-2xl electron:min-w-[calc(320px*var(--codex-window-zoom))]";
+        options?.wide
+            ? "mx-auto flex w-full max-w-5xl flex-col electron:min-w-[calc(320px*var(--codex-window-zoom))]"
+            : "mx-auto flex w-full flex-col max-w-2xl electron:min-w-[calc(320px*var(--codex-window-zoom))]";
     scroll.appendChild(inner);
     const headerWrap = document.createElement("div");
     headerWrap.className = "flex items-center justify-between gap-3 pb-panel";
@@ -1765,11 +1748,14 @@ function panelShell(title, subtitle) {
         subtitleElement = sub;
     }
     headerWrap.appendChild(headerInner);
+    const headerActions = document.createElement("div");
+    headerActions.className = "flex shrink-0 items-center gap-2";
+    headerWrap.appendChild(headerActions);
     inner.appendChild(headerWrap);
     const sectionsWrap = document.createElement("div");
     sectionsWrap.className = "flex flex-col gap-[var(--padding-panel)]";
     inner.appendChild(sectionsWrap);
-    return { outer, sectionsWrap, subtitle: subtitleElement };
+    return { outer, sectionsWrap, subtitle: subtitleElement, headerActions };
 }
 function sectionTitle(text, trailing) {
     const titleRow = document.createElement("div");
