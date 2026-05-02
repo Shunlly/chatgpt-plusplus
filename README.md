@@ -1,10 +1,10 @@
-# codex-plusplus
+# Codex++
 
-[Join the Discord](https://discord.gg/6bY6gGX36H)
+[Join the Discord Community!](https://discord.gg/6bY6gGX36H)
 
 A tweak system for the [Codex](https://chatgpt.com/codex) desktop app. Inject custom features, fix UI bugs, and add a tweak manager — without rebuilding the app.
 
-> **Status:** alpha. The architecture is designed but the installer needs real-device testing on each platform before declaring victory. PRs welcome.
+> **Status:** ~~alpha~~ Beta! Confirmed working on both macOS & Windows. Expect bugs, especially around auto-updating and new Codex updates. PRs welcome.
 
 <img width="1413" height="1016" alt="Screenshot 2026-04-28 at 19 42 56" src="https://github.com/user-attachments/assets/ea0b2ffc-c30d-4f68-ae12-dd8d6a997b2f" />
 
@@ -15,6 +15,12 @@ A tweak system for the [Codex](https://chatgpt.com/codex) desktop app. Inject cu
 Everything beyond the one-time install patch lives **outside** the app bundle, so iterating on tweaks is just save-and-reload.
 
 ## Install
+
+Agentic Install (via Codex):
+
+```sh
+Inspect & install this for me: https://github.com/b-nnett/codex-plusplus, tell me where you install it and send me the local path for me to add new tweaks.
+```
 
 Bun:
 
