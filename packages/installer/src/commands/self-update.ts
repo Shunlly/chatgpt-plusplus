@@ -18,6 +18,7 @@ import { ensureUserPaths } from "../paths.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { describeInstallationSource, findSourceRoot } from "../source-root.js";
 import {
+  readSelfUpdateState,
   type SelfUpdateChannel,
   type SelfUpdateState,
   writeSelfUpdateState,
@@ -58,6 +59,7 @@ interface UpdateTarget {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
+const WATCHER_SELF_UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 
 export async function selfUpdate(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
@@ -81,6 +83,12 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
           sourceRoot,
         }));
         log(opts, "Codex++ auto-update is disabled; running repair only.");
+        runRepairIfRequested(opts, sourceRoot, parent);
+        return;
+      }
+
+      if (opts.watcher && !opts.force && !shouldRunWatcherSelfUpdate(paths.selfUpdateStateFile)) {
+        log(opts, "Codex++ release check skipped; running repair only.");
         runRepairIfRequested(opts, sourceRoot, parent);
         return;
       }
@@ -217,6 +225,13 @@ export function shouldDownloadSelfUpdate(
   const targetVersion = releaseVersionFromTag(targetRef);
   if (!targetVersion) return true;
   return compareSemver(targetVersion, currentVersion) > 0;
+}
+
+export function shouldRunWatcherSelfUpdate(stateFile: string, now = Date.now()): boolean {
+  const state = readSelfUpdateState(stateFile);
+  if (!state) return true;
+  const checkedAt = Date.parse(state.checkedAt);
+  return !Number.isFinite(checkedAt) || now - checkedAt >= WATCHER_SELF_UPDATE_INTERVAL_MS;
 }
 
 export function releaseVersionFromTag(ref: string): string | null {

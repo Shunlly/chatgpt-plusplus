@@ -98,6 +98,7 @@ prog
   .option("--app", "Path to Codex.app / install dir")
   .option("--quiet", "Suppress non-error output")
   .option("--force", "Re-apply even if the patch appears intact")
+  .option("--watcher", "Run from the auto-repair watcher")
   .action(wrap(repair));
 
 prog

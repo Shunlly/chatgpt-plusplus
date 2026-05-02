@@ -17,6 +17,7 @@ import { safeMode } from "../src/commands/safe-mode";
 import {
   releaseVersionFromTag,
   shouldDownloadSelfUpdate,
+  shouldRunWatcherSelfUpdate,
 } from "../src/commands/self-update";
 import { validateTweak } from "../src/commands/validate-tweak";
 import {
@@ -320,6 +321,28 @@ test("self-update state persists human-readable diagnostics", () => {
     assert.equal(state?.status, "failed");
     assert.equal(state?.latestVersion, "0.1.4");
     assert.equal(state?.error, "download failed");
+  });
+});
+
+test("watcher self-update checks stay hourly while repair can run more often", () => {
+  withTempDir((root) => {
+    const file = join(root, "self-update-state.json");
+    const checkedAt = Date.parse("2026-05-01T00:00:00.000Z");
+    writeSelfUpdateState(file, {
+      checkedAt: new Date(checkedAt).toISOString(),
+      completedAt: new Date(checkedAt + 1_000).toISOString(),
+      status: "up-to-date",
+      currentVersion: "0.1.4",
+      latestVersion: "0.1.4",
+      targetRef: "v0.1.4",
+      releaseUrl: "https://github.com/b-nnett/codex-plusplus/releases/tag/v0.1.4",
+      repo: "b-nnett/codex-plusplus",
+      channel: "stable",
+      sourceRoot: root,
+    });
+
+    assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 5 * 60_000), false);
+    assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 60 * 60_000), true);
   });
 });
 

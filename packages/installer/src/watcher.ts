@@ -47,6 +47,7 @@ export function uninstallWatcher(): void {
 }
 
 const LABEL = "com.codexplusplus.watcher";
+const WATCHER_INTERVAL_SECONDS = 5 * 60;
 
 function launchdPath(): string {
   return join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
@@ -58,9 +59,10 @@ function installLaunchd(appRoot: string): WatcherKind {
   const plPath = launchdPath();
   mkdirSync(dirname(plPath), { recursive: true });
   // Trigger on login + when Codex.app's asar changes. Run this installed CLI
-  // directly so auto-repair does not depend on npm availability.
+  // directly so auto-repair does not depend on npm availability. The CLI
+  // throttles GitHub release checks, so this interval keeps app repair prompt.
   const repair = xmlEscape(
-    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
+    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
   );
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -77,7 +79,7 @@ function installLaunchd(appRoot: string): WatcherKind {
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>3600</integer>
+  <integer>${WATCHER_INTERVAL_SECONDS}</integer>
   <key>WatchPaths</key>
   <array>
     <string>${appRoot}/Contents/Resources/app.asar</string>
@@ -144,7 +146,7 @@ function installSystemd(appRoot: string): WatcherKind {
   const dir = join(homedir(), ".config", "systemd", "user");
   mkdirSync(dir, { recursive: true });
   const repair = shellSingleQuote(
-    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
+    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
   );
   const unit = `[Unit]
 Description=codex-plusplus repair watcher
@@ -158,11 +160,11 @@ WantedBy=default.target
 `;
   writeFileSync(join(dir, "codex-plusplus-watcher.service"), unit);
   writeFileSync(join(dir, "codex-plusplus-watcher.timer"), `[Unit]
-Description=codex-plusplus hourly self-update check
+Description=codex-plusplus repair watcher interval
 
 [Timer]
 OnBootSec=5m
-OnUnitActiveSec=1h
+OnUnitActiveSec=${Math.round(WATCHER_INTERVAL_SECONDS / 60)}m
 Persistent=true
 
 [Install]
@@ -232,15 +234,17 @@ function installScheduledTask(_appRoot: string): WatcherKind {
       "/TR",
       repair,
     ]);
+    deleteScheduledTask("codex-plusplus-watcher-hourly");
+    deleteScheduledTask("codex-plusplus-watcher-interval");
     execFileSync("schtasks.exe", [
       "/Create",
       "/F",
       "/SC",
-      "HOURLY",
+      "MINUTE",
       "/MO",
-      "1",
+      String(Math.round(WATCHER_INTERVAL_SECONDS / 60)),
       "/TN",
-      "codex-plusplus-watcher-hourly",
+      "codex-plusplus-watcher-interval",
       "/TR",
       repair,
     ]);
@@ -301,7 +305,7 @@ function windowsWatcherTaskCommand(): string {
       "@echo off",
       "set CODEX_PLUSPLUS_WATCHER=1",
       `${windowsCommand("update", ["--watcher", "--quiet"])}`,
-      `if errorlevel 1 ${windowsCommand("repair", ["--quiet"])}`,
+      `if errorlevel 1 ${windowsCommand("repair", ["--watcher", "--quiet"])}`,
       "exit /b 0",
       "",
     ].join("\r\n"),
@@ -319,6 +323,7 @@ function windowsCodexPlusPlusDir(): string {
 
 function uninstallScheduledTask(): void {
   deleteScheduledTask("codex-plusplus-watcher");
+  deleteScheduledTask("codex-plusplus-watcher-interval");
   deleteScheduledTask("codex-plusplus-watcher-hourly");
   deleteScheduledTask("codex-plusplus-watcher-daily");
 }
