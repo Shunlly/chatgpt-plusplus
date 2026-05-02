@@ -1,5 +1,6 @@
 import kleur from "kleur";
 import {
+  chmodSync,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -126,6 +127,7 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
       rmSync(previous, { recursive: true, force: true });
       if (existsSync(sourceRoot)) renameSync(sourceRoot, previous);
       renameSync(next, sourceRoot);
+      ensureCliExecutable(sourceRoot);
       refreshMovedWorkspaceLinks(sourceRoot);
       writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
         status: "updated",
@@ -232,6 +234,11 @@ export function shouldRunWatcherSelfUpdate(stateFile: string, now = Date.now()):
   if (!state) return true;
   const checkedAt = Date.parse(state.checkedAt);
   return !Number.isFinite(checkedAt) || now - checkedAt >= WATCHER_SELF_UPDATE_INTERVAL_MS;
+}
+
+export function ensureCliExecutable(sourceRoot: string): void {
+  if (process.platform === "win32") return;
+  chmodSync(join(sourceRoot, "packages", "installer", "dist", "cli.js"), 0o755);
 }
 
 export function releaseVersionFromTag(ref: string): string | null {

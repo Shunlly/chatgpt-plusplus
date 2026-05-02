@@ -14,8 +14,13 @@ class Codexplusplus < Formula
 
     libexec.install Dir["*"]
     chmod 0755, libexec/"packages/installer/dist/cli.js"
-    bin.install_symlink libexec/"packages/installer/dist/cli.js" => "codexplusplus"
-    bin.install_symlink libexec/"packages/installer/dist/cli.js" => "codex-plusplus"
+    ["codexplusplus", "codex-plusplus"].each do |cmd|
+      (bin/cmd).write <<~EOS
+        #!/bin/bash
+        exec "#{Formula["node"].opt_bin}/node" "#{libexec}/packages/installer/dist/cli.js" "$@"
+      EOS
+      chmod 0755, bin/cmd
+    end
   end
 
   def caveats

@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +16,7 @@ import { createTweak } from "../src/commands/create-tweak";
 import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
 import {
+  ensureCliExecutable,
   releaseVersionFromTag,
   shouldDownloadSelfUpdate,
   shouldRunWatcherSelfUpdate,
@@ -343,6 +345,21 @@ test("watcher self-update checks stay hourly while repair can run more often", (
 
     assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 5 * 60_000), false);
     assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 60 * 60_000), true);
+  });
+});
+
+test("self-update marks the installed CLI executable on unix", () => {
+  if (process.platform === "win32") return;
+
+  withTempDir((root) => {
+    const dist = join(root, "packages", "installer", "dist");
+    mkdirSync(dist, { recursive: true });
+    const cli = join(dist, "cli.js");
+    writeFileSync(cli, "#!/usr/bin/env node\n", { mode: 0o644 });
+
+    ensureCliExecutable(root);
+
+    assert.equal(statSync(cli).mode & 0o111, 0o111);
   });
 });
 
