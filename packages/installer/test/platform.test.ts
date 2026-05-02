@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inferCodexChannel, locateCodex } from "../src/platform";
+import { inferCodexChannel, locateCodex, resolveLinuxInstall } from "../src/platform";
 
 test("inferCodexChannel detects stable and beta metadata", () => {
   assert.equal(inferCodexChannel("com.openai.codex", "Codex"), "stable");
@@ -37,6 +37,47 @@ test("locateCodex reads beta bundle metadata from override path on macOS", { ski
     assert.equal(codex.bundleId, "com.openai.codex.beta");
     assert.equal(codex.channel, "beta");
     assert.equal(codex.executable.endsWith("Contents/MacOS/Codex (Beta)"), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveLinuxInstall supports am-will codex-app install directory", () => {
+  const root = mkdtempSync(join(tmpdir(), "codexpp-platform-"));
+  try {
+    const app = join(root, "codex-desktop");
+    mkdirSync(join(app, "resources"), { recursive: true });
+    writeFileSync(join(app, "resources", "app.asar"), "");
+    writeFileSync(join(app, "Codex"), "", { mode: 0o755 });
+
+    const codex = resolveLinuxInstall(app);
+    const resolvedApp = realpathSync(app);
+    assert.ok(codex);
+    assert.equal(codex.appRoot, resolvedApp);
+    assert.equal(codex.resourcesDir, join(resolvedApp, "resources"));
+    assert.equal(codex.executable, join(resolvedApp, "Codex"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveLinuxInstall accepts a launcher symlink override", { skip: process.platform === "win32" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "codexpp-platform-"));
+  try {
+    const app = join(root, "codex-desktop");
+    const bin = join(root, "bin");
+    mkdirSync(join(app, "resources"), { recursive: true });
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(app, "resources", "app.asar"), "");
+    writeFileSync(join(app, "codex-desktop"), "", { mode: 0o755 });
+    symlinkSync(join(app, "codex-desktop"), join(bin, "codex-desktop"));
+
+    const codex = resolveLinuxInstall(join(bin, "codex-desktop"));
+    const resolvedApp = realpathSync(app);
+    assert.ok(codex);
+    assert.equal(codex.appRoot, resolvedApp);
+    assert.equal(codex.resourcesDir, join(resolvedApp, "resources"));
+    assert.equal(codex.executable, join(resolvedApp, "codex-desktop"));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

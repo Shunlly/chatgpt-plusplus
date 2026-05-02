@@ -248,7 +248,7 @@ function patchCodexWindowServices(appDir: string, originalMain: string): void {
   throw new Error("Codex window services hook point not found");
 }
 
-function findCodexMainCandidates(appDir: string, originalMain: string): string[] {
+export function findCodexMainCandidates(appDir: string, originalMain: string): string[] {
   const out = [resolve(appDir, originalMain)];
   const buildDir = resolve(appDir, ".vite", "build");
   try {
