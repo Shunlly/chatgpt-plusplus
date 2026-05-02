@@ -16,8 +16,9 @@
  *   CODEX++                       (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
+ *   ◇ Tweak Store
  *
- * Clicking Config / Tweaks hides Codex's content panel children and renders
+ * Clicking Config / Tweaks / Tweak Store hides Codex's content panel children and renders
  * our own `main-surface` panel in their place. Clicking any of Codex's
  * sidebar items restores the original view.
  */
@@ -28,6 +29,7 @@ exports.clearSections = clearSections;
 exports.registerPage = registerPage;
 exports.setListedTweaks = setListedTweaks;
 const electron_1 = require("electron");
+const tweak_store_1 = require("../tweak-store");
 const state = {
     sections: new Map(),
     pages: new Map(),
@@ -230,9 +232,10 @@ function tryInject() {
     group.dataset.codexpp = "nav-group";
     group.className = "flex flex-col gap-px";
     group.appendChild(sidebarGroupHeader("Codex++", "pt-3"));
-    // ── Two sidebar items ────────────────────────────────────────────────
+    // ── Sidebar items ────────────────────────────────────────────────────
     const configBtn = makeSidebarItem("Config", configIconSvg());
     const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
+    const storeBtn = makeSidebarItem("Tweak Store", storeIconSvg());
     configBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -243,11 +246,17 @@ function tryInject() {
         e.stopPropagation();
         activatePage({ kind: "tweaks" });
     });
+    storeBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        activatePage({ kind: "store" });
+    });
     group.appendChild(configBtn);
     group.appendChild(tweaksBtn);
+    group.appendChild(storeBtn);
     outer.appendChild(group);
     state.navGroup = group;
-    state.navButtons = { config: configBtn, tweaks: tweaksBtn };
+    state.navButtons = { config: configBtn, tweaks: tweaksBtn, store: storeBtn };
     plog("nav group injected", { outerTag: outer.tagName });
     syncPagesGroup();
 }
@@ -388,7 +397,8 @@ function setNavActive(active) {
     // Built-in (Config/Tweaks) buttons.
     if (state.navButtons) {
         const builtin = active?.kind === "config" ? "config" :
-            active?.kind === "tweaks" ? "tweaks" : null;
+            active?.kind === "tweaks" ? "tweaks" :
+                active?.kind === "store" ? "store" : null;
         for (const [key, btn] of Object.entries(state.navButtons)) {
             applyNavActive(btn, key === builtin);
         }
@@ -572,14 +582,19 @@ function rerender() {
         }
         return;
     }
-    const title = ap.kind === "tweaks" ? "Tweaks" : "Config";
+    const title = ap.kind === "tweaks" ? "Tweaks" :
+        ap.kind === "store" ? "Tweak Store" : "Config";
     const subtitle = ap.kind === "tweaks"
         ? "Manage your installed Codex++ tweaks."
-        : "Checking installed Codex++ version.";
+        : ap.kind === "store"
+            ? "Install reviewed tweaks pinned to approved GitHub commits."
+            : "Checking installed Codex++ version.";
     const root = panelShell(title, subtitle);
     host.appendChild(root.outer);
     if (ap.kind === "tweaks")
         renderTweaksPage(root.sectionsWrap);
+    else if (ap.kind === "store")
+        renderTweakStorePage(root.sectionsWrap);
     else
         renderConfigPage(root.sectionsWrap, root.subtitle);
 }
@@ -1105,6 +1120,163 @@ function actionRow(titleText, description) {
     row.appendChild(actions);
     return row;
 }
+function renderTweakStorePage(sectionsWrap) {
+    const publishBtn = openInPlaceButton("Publish Tweak", () => {
+        openPublishTweakDialog();
+    });
+    const card = roundedCard();
+    card.dataset.codexppStoreCard = "true";
+    const refreshBtn = openInPlaceButton("Refresh Store", () => {
+        card.textContent = "";
+        card.appendChild(rowSimple("Refreshing tweak store", "Fetching the latest reviewed registry from GitHub."));
+        refreshTweakStoreCard(card);
+    });
+    const trailing = document.createElement("div");
+    trailing.className = "flex items-center gap-2";
+    trailing.appendChild(refreshBtn);
+    trailing.appendChild(publishBtn);
+    const section = document.createElement("section");
+    section.className = "flex flex-col gap-2";
+    section.appendChild(sectionTitle("Reviewed Tweaks", trailing));
+    card.appendChild(rowSimple("Loading tweak store", "Fetching reviewed tweaks from the Codex++ registry."));
+    section.appendChild(card);
+    sectionsWrap.appendChild(section);
+    refreshTweakStoreCard(card);
+}
+function refreshTweakStoreCard(card) {
+    void electron_1.ipcRenderer
+        .invoke("codexpp:get-tweak-store")
+        .then((store) => {
+        card.textContent = "";
+        renderTweakStore(card, store);
+    })
+        .catch((e) => {
+        card.textContent = "";
+        card.appendChild(rowSimple("Could not load tweak store", String(e)));
+    });
+}
+function renderTweakStore(card, store) {
+    card.appendChild(tweakStoreSourceRow(store));
+    if (store.entries.length === 0) {
+        card.appendChild(rowSimple("No reviewed tweaks yet", "Use Publish Tweak to submit the first one."));
+        return;
+    }
+    for (const entry of store.entries) {
+        card.appendChild(tweakStoreRow(entry));
+    }
+}
+function tweakStoreSourceRow(store) {
+    const row = rowSimple("Live store registry", `Fetched from GitHub. Refreshed ${new Date(store.fetchedAt).toLocaleString()}.`);
+    const left = row.firstElementChild;
+    if (left)
+        left.prepend(statusBadge("ok", "Live"));
+    return row;
+}
+function tweakStoreRow(entry) {
+    const row = document.createElement("div");
+    row.className = "flex items-start justify-between gap-4 p-3";
+    const left = document.createElement("div");
+    left.className = "flex min-w-0 flex-1 items-start gap-3";
+    left.appendChild(storeAvatar(entry));
+    const stack = document.createElement("div");
+    stack.className = "flex min-w-0 flex-col gap-1";
+    const titleRow = document.createElement("div");
+    titleRow.className = "flex min-w-0 flex-wrap items-center gap-2";
+    const title = document.createElement("div");
+    title.className = "min-w-0 text-sm font-medium text-token-text-primary";
+    title.textContent = entry.manifest.name;
+    titleRow.appendChild(title);
+    const version = document.createElement("span");
+    version.className = "text-token-text-secondary text-xs tabular-nums";
+    version.textContent = `v${entry.manifest.version}`;
+    titleRow.appendChild(version);
+    if (entry.installed)
+        titleRow.appendChild(storePill("Installed"));
+    stack.appendChild(titleRow);
+    if (entry.manifest.description) {
+        const desc = document.createElement("div");
+        desc.className = "text-token-text-secondary min-w-0 text-sm";
+        desc.textContent = entry.manifest.description;
+        stack.appendChild(desc);
+    }
+    const meta = document.createElement("div");
+    meta.className = "flex flex-wrap items-center gap-2 text-xs text-token-text-secondary";
+    meta.appendChild(document.createTextNode(`Approved ${shortSha(entry.approvedCommitSha)}`));
+    meta.appendChild(dot());
+    const repo = document.createElement("button");
+    repo.type = "button";
+    repo.className = "inline-flex text-token-text-link-foreground hover:underline";
+    repo.textContent = entry.repo;
+    repo.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void electron_1.ipcRenderer.invoke("codexpp:open-external", `https://github.com/${entry.repo}`);
+    });
+    meta.appendChild(repo);
+    stack.appendChild(meta);
+    if (entry.manifest.tags && entry.manifest.tags.length > 0) {
+        const tags = document.createElement("div");
+        tags.className = "flex flex-wrap items-center gap-1 pt-0.5";
+        for (const tag of entry.manifest.tags)
+            tags.appendChild(storePill(tag));
+        stack.appendChild(tags);
+    }
+    left.appendChild(stack);
+    row.appendChild(left);
+    const actions = document.createElement("div");
+    actions.className = "flex shrink-0 items-center gap-2 pt-0.5";
+    if (entry.releaseUrl) {
+        actions.appendChild(compactButton("Release", () => {
+            void electron_1.ipcRenderer.invoke("codexpp:open-external", entry.releaseUrl);
+        }));
+    }
+    const installLabel = entry.installed
+        ? entry.installed.version === entry.manifest.version ? "Reinstall" : "Update"
+        : "Install";
+    actions.appendChild(compactButton(installLabel, () => {
+        const card = row.closest("[data-codexpp-store-card]");
+        row.style.opacity = "0.65";
+        actions.querySelectorAll("button").forEach((button) => (button.disabled = true));
+        void electron_1.ipcRenderer
+            .invoke("codexpp:install-store-tweak", entry.id)
+            .then(() => {
+            if (card) {
+                card.textContent = "";
+                card.appendChild(rowSimple("Installed tweak", `${entry.manifest.name} was installed from the approved commit.`));
+                refreshTweakStoreCard(card);
+            }
+            location.reload();
+        })
+            .catch((e) => {
+            row.style.opacity = "";
+            actions.querySelectorAll("button").forEach((button) => (button.disabled = false));
+            window.alert(`Could not install ${entry.manifest.name}: ${String(e.message ?? e)}`);
+        });
+    }));
+    row.appendChild(actions);
+    return row;
+}
+function storeAvatar(entry) {
+    const avatar = document.createElement("div");
+    avatar.className =
+        "flex shrink-0 items-center justify-center rounded-md border border-token-border overflow-hidden text-token-text-secondary";
+    avatar.style.width = "56px";
+    avatar.style.height = "56px";
+    avatar.style.backgroundColor = "var(--color-token-bg-fog, transparent)";
+    const initial = (entry.manifest.name?.[0] ?? "?").toUpperCase();
+    avatar.textContent = initial;
+    return avatar;
+}
+function storePill(label) {
+    const pill = document.createElement("span");
+    pill.className =
+        "rounded-full border border-token-border bg-token-foreground/5 px-2 py-0.5 text-[11px] text-token-text-secondary";
+    pill.textContent = label;
+    return pill;
+}
+function shortSha(value) {
+    return value.slice(0, 7);
+}
 function renderTweaksPage(sectionsWrap) {
     const openBtn = openInPlaceButton("Open Tweaks Folder", () => {
         void electron_1.ipcRenderer.invoke("codexpp:reveal", tweaksPath());
@@ -1153,17 +1325,23 @@ function renderTweaksPage(sectionsWrap) {
             sectionsByTweak.set(tweakId, []);
         sectionsByTweak.get(tweakId).push(s);
     }
+    const pagesByTweak = new Map();
+    for (const p of state.pages.values()) {
+        if (!pagesByTweak.has(p.tweakId))
+            pagesByTweak.set(p.tweakId, []);
+        pagesByTweak.get(p.tweakId).push(p);
+    }
     const wrap = document.createElement("section");
     wrap.className = "flex flex-col gap-2";
     wrap.appendChild(sectionTitle("Installed Tweaks", trailing));
     const card = roundedCard();
     for (const t of state.listedTweaks) {
-        card.appendChild(tweakRow(t, sectionsByTweak.get(t.manifest.id) ?? []));
+        card.appendChild(tweakRow(t, sectionsByTweak.get(t.manifest.id) ?? [], pagesByTweak.get(t.manifest.id) ?? []));
     }
     wrap.appendChild(card);
     sectionsWrap.appendChild(wrap);
 }
-function tweakRow(t, sections) {
+function tweakRow(t, sections, pages) {
     const m = t.manifest;
     // Outer cell wraps the header row + (optional) nested sections so the
     // parent card's divider stays between *tweaks*, not between header and
@@ -1297,6 +1475,15 @@ function tweakRow(t, sections) {
     // ── Toggle ────────────────────────────────────────────────────────────
     const right = document.createElement("div");
     right.className = "flex shrink-0 items-center gap-2 pt-0.5";
+    if (t.enabled && pages.length > 0) {
+        const configureBtn = compactButton("Configure", () => {
+            activatePage({ kind: "registered", id: pages[0].id });
+        });
+        configureBtn.title = pages.length === 1
+            ? `Open ${pages[0].page.title}`
+            : `Open ${pages.map((p) => p.page.title).join(", ")}`;
+        right.appendChild(configureBtn);
+    }
     if (t.update?.updateAvailable && t.update.releaseUrl) {
         right.appendChild(compactButton("Review Release", () => {
             void electron_1.ipcRenderer.invoke("codexpp:open-external", t.update.releaseUrl);
@@ -1355,6 +1542,69 @@ function renderAuthor(author) {
         wrap.appendChild(span);
     }
     return wrap;
+}
+function openPublishTweakDialog() {
+    const existing = document.querySelector("[data-codexpp-publish-dialog]");
+    existing?.remove();
+    const overlay = document.createElement("div");
+    overlay.dataset.codexppPublishDialog = "true";
+    overlay.className = "fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4";
+    const dialog = document.createElement("div");
+    dialog.className =
+        "flex w-full max-w-xl flex-col gap-4 rounded-lg border border-token-border bg-token-main-surface-primary p-4 shadow-xl";
+    overlay.appendChild(dialog);
+    const header = document.createElement("div");
+    header.className = "flex items-start justify-between gap-3";
+    const titleStack = document.createElement("div");
+    titleStack.className = "flex min-w-0 flex-col gap-1";
+    const title = document.createElement("div");
+    title.className = "text-base font-medium text-token-text-primary";
+    title.textContent = "Publish Tweak";
+    const subtitle = document.createElement("div");
+    subtitle.className = "text-sm text-token-text-secondary";
+    subtitle.textContent = "Submit a GitHub repo for admin review. Codex++ records the exact commit admins must review and pin.";
+    titleStack.appendChild(title);
+    titleStack.appendChild(subtitle);
+    header.appendChild(titleStack);
+    header.appendChild(compactButton("Dismiss", () => overlay.remove()));
+    dialog.appendChild(header);
+    const repoInput = document.createElement("input");
+    repoInput.type = "text";
+    repoInput.placeholder = "owner/repo or https://github.com/owner/repo";
+    repoInput.className =
+        "h-10 rounded-lg border border-token-border bg-transparent px-3 text-sm text-token-text-primary focus:outline-none";
+    dialog.appendChild(repoInput);
+    const status = document.createElement("div");
+    status.className = "min-h-5 text-sm text-token-text-secondary";
+    status.textContent = "Screenshots must be committed in .codexpp-store/screenshots at the submitted commit.";
+    dialog.appendChild(status);
+    const actions = document.createElement("div");
+    actions.className = "flex items-center justify-end gap-2";
+    const submit = compactButton("Open Review Issue", () => {
+        void submitPublishTweak(repoInput, status);
+    });
+    actions.appendChild(submit);
+    dialog.appendChild(actions);
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay)
+            overlay.remove();
+    });
+    document.body.appendChild(overlay);
+    repoInput.focus();
+}
+async function submitPublishTweak(repoInput, status) {
+    status.className = "min-h-5 text-sm text-token-text-secondary";
+    status.textContent = "Resolving the repo commit to review.";
+    try {
+        const submission = await electron_1.ipcRenderer.invoke("codexpp:prepare-tweak-store-submission", repoInput.value);
+        const url = (0, tweak_store_1.buildTweakPublishIssueUrl)(submission);
+        await electron_1.ipcRenderer.invoke("codexpp:open-external", url);
+        status.textContent = `GitHub review issue opened for ${submission.commitSha.slice(0, 7)}.`;
+    }
+    catch (e) {
+        status.className = "min-h-5 text-sm text-token-charts-red";
+        status.textContent = String(e.message ?? e);
+    }
 }
 // ───────────────────────────────────────────────────────────── components ──
 /** The full panel shell (toolbar + scroll + heading + sections wrap). */
@@ -1539,6 +1789,13 @@ function tweaksIconSvg() {
     return (`<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" class="icon-sm inline-block align-middle" aria-hidden="true">` +
         `<path d="M10 2.5 L11.4 8.6 L17.5 10 L11.4 11.4 L10 17.5 L8.6 11.4 L2.5 10 L8.6 8.6 Z" fill="currentColor"/>` +
         `<path d="M15.5 3 L16 5 L18 5.5 L16 6 L15.5 8 L15 6 L13 5.5 L15 5 Z" fill="currentColor" opacity="0.7"/>` +
+        `</svg>`);
+}
+function storeIconSvg() {
+    return (`<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" class="icon-sm inline-block align-middle" aria-hidden="true">` +
+        `<path d="M4 8.2 5.1 4.5A1.5 1.5 0 0 1 6.55 3.4h6.9a1.5 1.5 0 0 1 1.45 1.1L16 8.2" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>` +
+        `<path d="M4.5 8h11v7.5A1.5 1.5 0 0 1 14 17H6a1.5 1.5 0 0 1-1.5-1.5V8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>` +
+        `<path d="M7.5 8v1a2.5 2.5 0 0 0 5 0V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
         `</svg>`);
 }
 function defaultPageIconSvg() {

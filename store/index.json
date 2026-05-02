@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-02T00:00:00.000Z",
+  "entries": [
+    {
+      "id": "co.bennett.file-editor",
+      "manifest": {
+        "id": "co.bennett.file-editor",
+        "name": "File Editor",
+        "version": "0.1.0",
+        "githubRepo": "b-nnett/codex-plusplus-file-editor",
+        "description": "Makes Codex right-panel file tabs editable with debounced autosave.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "files",
+          "editor",
+          "autosave"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "permissions": [
+          "ipc",
+          "filesystem",
+          "settings"
+        ]
+      },
+      "repo": "b-nnett/codex-plusplus-file-editor",
+      "approvedCommitSha": "182004ff5f07efbf14ce9b8ed0a609dc63a77500",
+      "approvedAt": "2026-05-02T10:38:01.000Z",
+      "approvedBy": "bennett",
+      "screenshots": []
+    }
+  ]
+}

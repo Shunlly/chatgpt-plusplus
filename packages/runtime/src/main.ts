@@ -8,10 +8,10 @@
  * code). The renderer-side runtime is bundled separately into preload.js.
  */
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import chokidar from "chokidar";
 import { discoverTweaks, type DiscoveredTweak } from "./tweak-discovery";
 import { createDiskStorage, type DiskStorage } from "./storage";
@@ -23,6 +23,16 @@ import {
   setTweakEnabledAndReload,
 } from "./tweak-lifecycle";
 import { appendCappedLog } from "./logging";
+import type { TweakManifest } from "@codex-plusplus/sdk";
+import {
+  DEFAULT_TWEAK_STORE_INDEX_URL,
+  normalizeGitHubRepo,
+  normalizeStoreRegistry,
+  storeArchiveUrl,
+  type TweakStorePublishSubmission,
+  type TweakStoreEntry,
+  type TweakStoreRegistry,
+} from "./tweak-store";
 
 const userRoot = process.env.CODEX_PLUSPLUS_USER_ROOT;
 const runtimeDir = process.env.CODEX_PLUSPLUS_RUNTIME;
@@ -45,6 +55,7 @@ const SELF_UPDATE_STATE_FILE = join(userRoot, "self-update-state.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
 const CODEX_PLUSPLUS_VERSION = "0.1.4";
 const CODEX_PLUSPLUS_REPO = "b-nnett/codex-plusplus";
+const TWEAK_STORE_INDEX_URL = process.env.CODEX_PLUSPLUS_STORE_INDEX_URL ?? DEFAULT_TWEAK_STORE_INDEX_URL;
 const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 
 mkdirSync(LOG_DIR, { recursive: true });
@@ -560,6 +571,42 @@ ipcMain.handle("codexpp:run-codexpp-update", async () => {
 
 ipcMain.handle("codexpp:get-watcher-health", () => getWatcherHealth(userRoot!));
 
+ipcMain.handle("codexpp:get-tweak-store", async () => {
+  const store = await fetchTweakStoreRegistry();
+  const registry = store.registry;
+  const installed = new Map(tweakState.discovered.map((t) => [t.manifest.id, t]));
+  return {
+    ...registry,
+    sourceUrl: TWEAK_STORE_INDEX_URL,
+    fetchedAt: store.fetchedAt,
+    entries: registry.entries.map((entry) => {
+      const local = installed.get(entry.id);
+      return {
+        ...entry,
+        installed: local
+          ? {
+              version: local.manifest.version,
+              enabled: isTweakEnabled(local.manifest.id),
+            }
+          : null,
+      };
+    }),
+  };
+});
+
+ipcMain.handle("codexpp:install-store-tweak", async (_e, id: string) => {
+  const { registry } = await fetchTweakStoreRegistry();
+  const entry = registry.entries.find((candidate) => candidate.id === id);
+  if (!entry) throw new Error(`Tweak store entry not found: ${id}`);
+  await installStoreTweak(entry);
+  reloadTweaks("store-install", tweakLifecycleDeps);
+  return { installed: entry.id };
+});
+
+ipcMain.handle("codexpp:prepare-tweak-store-submission", async (_e, repoInput: string) => {
+  return prepareTweakStoreSubmission(repoInput);
+});
+
 // Sandboxed renderer preload can't use Node fs to read tweak source. Main
 // reads it on the renderer's behalf. Path must live under tweaksDir for
 // security — we refuse anything else.
@@ -906,6 +953,192 @@ async function fetchLatestRelease(
       error: e instanceof Error ? e.message : String(e),
     };
   }
+}
+
+interface TweakStoreFetchResult {
+  registry: TweakStoreRegistry;
+  fetchedAt: string;
+}
+
+async function fetchTweakStoreRegistry(): Promise<TweakStoreFetchResult> {
+  const fetchedAt = new Date().toISOString();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(TWEAK_STORE_INDEX_URL, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}`,
+        },
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`store returned ${res.status}`);
+      return {
+        registry: normalizeStoreRegistry(await res.json()),
+        fetchedAt,
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (e) {
+    const error = e instanceof Error ? e : new Error(String(e));
+    log("warn", "failed to fetch tweak store registry:", error.message);
+    throw error;
+  }
+}
+
+async function installStoreTweak(entry: TweakStoreEntry): Promise<void> {
+  const url = storeArchiveUrl(entry);
+  const work = mkdtempSync(join(tmpdir(), "codexpp-store-tweak-"));
+  const archive = join(work, "source.tar.gz");
+  const extractDir = join(work, "extract");
+  const target = join(TWEAKS_DIR, entry.id);
+  const stagedTarget = join(work, "staged", entry.id);
+
+  try {
+    log("info", `installing store tweak ${entry.id} from ${entry.repo}@${entry.approvedCommitSha}`);
+    const res = await fetch(url, {
+      headers: { "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}` },
+      redirect: "follow",
+    });
+    if (!res.ok) throw new Error(`download failed: ${res.status}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    writeFileSync(archive, bytes);
+    mkdirSync(extractDir, { recursive: true });
+    extractTarArchive(archive, extractDir);
+    const source = findTweakRoot(extractDir);
+    if (!source) throw new Error("downloaded archive did not contain manifest.json");
+    validateStoreTweakSource(entry, source);
+    rmSync(stagedTarget, { recursive: true, force: true });
+    copyTweakSource(source, stagedTarget);
+    writeFileSync(
+      join(stagedTarget, ".codexpp-store.json"),
+      JSON.stringify(
+        {
+          repo: entry.repo,
+          approvedCommitSha: entry.approvedCommitSha,
+          installedAt: new Date().toISOString(),
+          storeIndexUrl: TWEAK_STORE_INDEX_URL,
+        },
+        null,
+        2,
+      ),
+    );
+    rmSync(target, { recursive: true, force: true });
+    cpSync(stagedTarget, target, { recursive: true });
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+async function prepareTweakStoreSubmission(repoInput: string): Promise<TweakStorePublishSubmission> {
+  const repo = normalizeGitHubRepo(repoInput);
+  const repoInfo = await fetchGithubJson<{ default_branch?: string }>(`https://api.github.com/repos/${repo}`);
+  const defaultBranch = repoInfo.default_branch;
+  if (!defaultBranch) throw new Error(`Could not resolve default branch for ${repo}`);
+
+  const commit = await fetchGithubJson<{
+    sha?: string;
+    html_url?: string;
+  }>(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(defaultBranch)}`);
+  if (!commit.sha) throw new Error(`Could not resolve current commit for ${repo}`);
+
+  const manifest = await fetchManifestAtCommit(repo, commit.sha).catch((e) => {
+    log("warn", `could not read manifest for store submission ${repo}@${commit.sha}:`, e);
+    return undefined;
+  });
+
+  return {
+    repo,
+    defaultBranch,
+    commitSha: commit.sha,
+    commitUrl: commit.html_url ?? `https://github.com/${repo}/commit/${commit.sha}`,
+    manifest: manifest
+      ? {
+          id: typeof manifest.id === "string" ? manifest.id : undefined,
+          name: typeof manifest.name === "string" ? manifest.name : undefined,
+          version: typeof manifest.version === "string" ? manifest.version : undefined,
+          description: typeof manifest.description === "string" ? manifest.description : undefined,
+        }
+      : undefined,
+  };
+}
+
+async function fetchGithubJson<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}`,
+      },
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`GitHub returned ${res.status}`);
+    return await res.json() as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchManifestAtCommit(repo: string, commitSha: string): Promise<Partial<TweakManifest>> {
+  const res = await fetch(`https://raw.githubusercontent.com/${repo}/${commitSha}/manifest.json`, {
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}`,
+    },
+  });
+  if (!res.ok) throw new Error(`manifest fetch returned ${res.status}`);
+  return await res.json() as Partial<TweakManifest>;
+}
+
+function extractTarArchive(archive: string, targetDir: string): void {
+  const result = spawnSync("tar", ["-xzf", archive, "-C", targetDir], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    throw new Error(`tar extraction failed: ${result.stderr || result.stdout || result.status}`);
+  }
+}
+
+function validateStoreTweakSource(entry: TweakStoreEntry, source: string): void {
+  const manifestPath = join(source, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as TweakManifest;
+  if (manifest.id !== entry.manifest.id) {
+    throw new Error(`downloaded tweak id ${manifest.id} does not match approved id ${entry.manifest.id}`);
+  }
+  if (manifest.githubRepo !== entry.repo) {
+    throw new Error(`downloaded tweak repo ${manifest.githubRepo} does not match approved repo ${entry.repo}`);
+  }
+  if (manifest.version !== entry.manifest.version) {
+    throw new Error(`downloaded tweak version ${manifest.version} does not match approved version ${entry.manifest.version}`);
+  }
+}
+
+function findTweakRoot(dir: string): string | null {
+  if (!existsSync(dir)) return null;
+  if (existsSync(join(dir, "manifest.json"))) return dir;
+  for (const name of readdirSync(dir)) {
+    const child = join(dir, name);
+    try {
+      if (!statSync(child).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    const found = findTweakRoot(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function copyTweakSource(source: string, target: string): void {
+  cpSync(source, target, {
+    recursive: true,
+    filter: (src) => !/(^|[/\\])(?:\.git|node_modules)(?:[/\\]|$)/.test(src),
+  });
 }
 
 function normalizeVersion(v: string): string {
