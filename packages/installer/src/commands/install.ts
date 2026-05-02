@@ -313,12 +313,7 @@ function preflightWritable(targetDir: string, platform: string): void {
       const msg =
         `Cannot write to ${targetDir}.\n\n` +
         (inApps
-          ? `macOS App Management is blocking modification of ${targetDir}.\n` +
-            `Fix:\n` +
-            `  1. Open System Settings → Privacy & Security → App Management\n` +
-            `  2. Enable the toggle for your terminal app (Terminal, iTerm2, etc.)\n` +
-            `  3. Re-run this command.\n\n` +
-            `(If macOS just showed a permission dialog, click Allow and re-run.)\n`
+          ? macAppManagementFix(targetDir)
           : inWindowsApps
             ? `Windows Store installs live under WindowsApps and Windows is blocking the patch write.\n` +
               `Fix:\n` +
@@ -333,6 +328,30 @@ function preflightWritable(targetDir: string, platform: string): void {
     }
     throw e;
   }
+}
+
+function macAppManagementFix(targetDir: string): string {
+  const watcher = process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === "com.codexplusplus.watcher";
+  const permissionSteps =
+    `macOS App Management is blocking modification of ${targetDir}.\n` +
+    `Fix:\n` +
+    `  1. Open System Settings > Privacy & Security > App Management\n` +
+    `  2. Enable the toggle for your terminal app (Terminal, iTerm2, etc.)\n`;
+
+  if (watcher) {
+    return (
+      permissionSteps +
+      `  3. Open Terminal and run: codexplusplus repair\n\n` +
+      `The automatic watcher cannot complete this repair until a user-approved terminal has permission.\n` +
+      `(If macOS just showed a permission dialog, click Allow, then run codexplusplus repair.)\n`
+    );
+  }
+
+  return (
+    permissionSteps +
+    `  3. Re-run this command.\n\n` +
+    `(If macOS just showed a permission dialog, click Allow and re-run.)\n`
+  );
 }
 
 function preflightAppClosed(codex: CodexInstall): void {
