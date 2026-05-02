@@ -10,6 +10,7 @@
         "version": "0.1.0",
         "githubRepo": "b-nnett/codex-plusplus-file-editor",
         "description": "Makes Codex right-panel file tabs editable with debounced autosave.",
+        "iconUrl": "./.codexpp-store/icon.png",
         "author": {
           "name": "bennett",
           "url": "https://github.com/anomalyco/codex-plusplus"
@@ -28,8 +29,8 @@
         ]
       },
       "repo": "b-nnett/codex-plusplus-file-editor",
-      "approvedCommitSha": "182004ff5f07efbf14ce9b8ed0a609dc63a77500",
-      "approvedAt": "2026-05-02T10:38:01.000Z",
+      "approvedCommitSha": "672e21d955b636ec88c6e8c67de5431341f146dc",
+      "approvedAt": "2026-05-02T13:25:48.000Z",
       "approvedBy": "bennett",
       "screenshots": []
     }

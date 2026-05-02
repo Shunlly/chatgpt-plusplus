@@ -1567,8 +1567,35 @@ function storeAvatar(entry: TweakStoreEntryView): HTMLElement {
   avatar.className =
     "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-token-border-default bg-transparent text-token-description-foreground";
   const initial = (entry.manifest.name?.[0] ?? "?").toUpperCase();
-  avatar.textContent = initial;
+  const fallback = document.createElement("span");
+  fallback.textContent = initial;
+  avatar.appendChild(fallback);
+  const iconUrl = storeEntryIconUrl(entry);
+  if (iconUrl) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.className = "h-full w-full object-cover";
+    img.style.display = "none";
+    img.addEventListener("load", () => {
+      fallback.remove();
+      img.style.display = "";
+    });
+    img.addEventListener("error", () => {
+      img.remove();
+    });
+    img.src = iconUrl;
+    avatar.appendChild(img);
+  }
   return avatar;
+}
+
+function storeEntryIconUrl(entry: TweakStoreEntryView): string | null {
+  const iconUrl = entry.manifest.iconUrl?.trim();
+  if (!iconUrl) return null;
+  if (/^(https?:|data:)/i.test(iconUrl)) return iconUrl;
+  const rel = iconUrl.replace(/^\.?\//, "");
+  if (!rel || rel.startsWith("../")) return null;
+  return `https://raw.githubusercontent.com/${entry.repo}/${entry.approvedCommitSha}/${rel}`;
 }
 
 function storeToolbarButton(
