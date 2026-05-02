@@ -4,6 +4,31 @@ All notable changes to codex-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 0.1.4
+
+Release notes: [docs/releases/0.1.4.md](docs/releases/0.1.4.md)
+
+### Added
+
+- Added Microsoft Store / WindowsApps Codex detection and patch support.
+- Added Bun global install support with a first-run bootstrap command.
+- Added dedicated macOS App Management permission alerts with an Open Settings action.
+
+### Changed
+
+- Improved auto-repair watcher retries after Codex updates and reduced repair checks to a 5-minute interval.
+- Kept Codex++ release checks throttled to hourly while allowing app repair checks to run more often.
+- Made Codex.app settle detection depend only on patch-critical inputs.
+- Made blank `codexplusplus` invocations show help instead of a command error.
+
+### Fixed
+
+- Fixed Windows install dependency execution by using `npm.cmd`.
+- Fixed Windows Store installs by mirroring locked app resources into a writable managed location.
+- Fixed Windows renderer tweak settings.
+- Fixed Homebrew command wrappers, executable permissions, reinstall conflicts, and formula tests after self-update.
+- Fixed macOS App Management alert text and guidance.
+
 ## 0.1.3
 
 Release notes: [docs/releases/0.1.3.md](docs/releases/0.1.3.md)
