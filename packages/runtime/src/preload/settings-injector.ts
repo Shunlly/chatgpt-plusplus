@@ -1330,96 +1330,181 @@ function actionRow(titleText: string, description: string): HTMLElement {
 }
 
 function renderTweakStorePage(sectionsWrap: HTMLElement): void {
-  const publishBtn = openInPlaceButton("Publish Tweak", () => {
-    openPublishTweakDialog();
-  });
-  const card = roundedCard();
-  card.dataset.codexppStoreCard = "true";
-  const refreshBtn = openInPlaceButton("Refresh Store", () => {
-    card.textContent = "";
-    card.appendChild(rowSimple("Refreshing tweak store", "Fetching the latest reviewed registry from GitHub."));
-    refreshTweakStoreCard(card);
-  });
-  const trailing = document.createElement("div");
-  trailing.className = "flex items-center gap-2";
-  trailing.appendChild(refreshBtn);
-  trailing.appendChild(publishBtn);
-
   const section = document.createElement("section");
-  section.className = "flex flex-col gap-2";
-  section.appendChild(sectionTitle("Reviewed Tweaks", trailing));
-  card.appendChild(rowSimple("Loading tweak store", "Fetching reviewed tweaks from the Codex++ registry."));
-  section.appendChild(card);
+  section.className = "flex flex-col gap-4";
+  section.style.maxWidth = "768px";
+
+  const header = document.createElement("div");
+  header.className = "flex items-center justify-between gap-3 border-b border-token-border-light pr-0.5 pb-2";
+  const title = document.createElement("div");
+  title.className = "text-sm font-medium text-token-text-primary";
+  title.textContent = "Reviewed Tweaks";
+  const source = document.createElement("div");
+  source.className = "text-xs text-token-text-secondary";
+  source.dataset.codexppStoreSource = "true";
+  source.textContent = "Loading live registry";
+  const titleStack = document.createElement("div");
+  titleStack.className = "flex min-w-0 flex-col gap-0.5";
+  titleStack.appendChild(title);
+  titleStack.appendChild(source);
+
+  const actions = document.createElement("div");
+  actions.className = "flex shrink-0 items-center gap-2";
+  const refreshBtn = storeToolbarButton("Refresh", () => {
+    refreshBtn.disabled = true;
+    grid.textContent = "";
+    grid.appendChild(storeMessageCard("Refreshing tweak store", "Fetching the latest reviewed registry from GitHub."));
+    refreshTweakStoreGrid(grid, search, source, refreshBtn);
+  });
+  actions.appendChild(refreshBtn);
+  actions.appendChild(storeToolbarButton("Publish", openPublishTweakDialog, "primary"));
+  header.appendChild(titleStack);
+  header.appendChild(actions);
+  section.appendChild(header);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "flex w-full flex-col gap-3 md:flex-row md:items-center md:gap-2";
+  const searchWrap = document.createElement("div");
+  searchWrap.className = "w-full md:flex-1";
+  const searchBox = document.createElement("div");
+  searchBox.className =
+    "no-drag flex h-8 items-center gap-2 rounded-lg border border-token-input-border bg-token-input-background/75 px-2.5 py-0 text-sm leading-[18px] shadow-sm";
+  searchBox.innerHTML =
+    `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" class="icon-xs text-token-text-tertiary" aria-hidden="true">` +
+    `<path d="M9 15.5A6.5 6.5 0 1 0 9 2.5a6.5 6.5 0 0 0 0 13ZM14 14l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>` +
+    `</svg>`;
+  const search = document.createElement("input");
+  search.type = "search";
+  search.placeholder = "Search tweaks";
+  search.className =
+    "min-w-0 flex-1 bg-transparent text-sm text-token-text-primary outline-none placeholder:text-token-text-tertiary";
+  searchBox.appendChild(search);
+  searchWrap.appendChild(searchBox);
+  toolbar.appendChild(searchWrap);
+
+  const filter = document.createElement("div");
+  filter.className = "flex flex-wrap items-center gap-2";
+  const reviewed = document.createElement("div");
+  reviewed.className =
+    "inline-flex h-8 items-center gap-1 rounded-lg bg-token-foreground/5 px-2 text-sm text-token-text-primary";
+  reviewed.textContent = "Reviewed";
+  filter.appendChild(reviewed);
+  toolbar.appendChild(filter);
+  section.appendChild(toolbar);
+
+  const grid = document.createElement("div");
+  grid.dataset.codexppStoreGrid = "true";
+  grid.className = "grid gap-4";
+  grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(340px, 1fr))";
+  grid.appendChild(storeMessageCard("Loading tweak store", "Fetching reviewed tweaks from the Codex++ registry."));
+  section.appendChild(grid);
   sectionsWrap.appendChild(section);
-  refreshTweakStoreCard(card);
+  search.addEventListener("input", () => renderTweakStoreGrid(grid, search, source));
+  refreshTweakStoreGrid(grid, search, source, refreshBtn);
 }
 
-function refreshTweakStoreCard(card: HTMLElement): void {
+function refreshTweakStoreGrid(
+  grid: HTMLElement,
+  search: HTMLInputElement,
+  source: HTMLElement,
+  refreshBtn?: HTMLButtonElement,
+): void {
   void ipcRenderer
     .invoke("codexpp:get-tweak-store")
     .then((store) => {
-      card.textContent = "";
-      renderTweakStore(card, store as TweakStoreRegistryView);
+      grid.dataset.codexppStore = JSON.stringify(store);
+      renderTweakStoreGrid(grid, search, source);
     })
     .catch((e) => {
-      card.textContent = "";
-      card.appendChild(rowSimple("Could not load tweak store", String(e)));
+      grid.dataset.codexppStore = "";
+      source.textContent = "Live registry unavailable";
+      grid.textContent = "";
+      grid.appendChild(storeMessageCard("Could not load tweak store", String(e)));
+    })
+    .finally(() => {
+      if (refreshBtn) refreshBtn.disabled = false;
     });
 }
 
-function renderTweakStore(card: HTMLElement, store: TweakStoreRegistryView): void {
-  card.appendChild(tweakStoreSourceRow(store));
+function renderTweakStoreGrid(grid: HTMLElement, search: HTMLInputElement, source: HTMLElement): void {
+  const store = parseStoreDataset(grid);
+  if (!store) return;
+  const query = search.value.trim().toLowerCase();
+  const entries = query
+    ? store.entries.filter((entry) => storeEntryMatches(entry, query))
+    : store.entries;
+  source.textContent = `Live registry · refreshed ${new Date(store.fetchedAt).toLocaleString()}`;
+  grid.textContent = "";
   if (store.entries.length === 0) {
-    card.appendChild(rowSimple("No reviewed tweaks yet", "Use Publish Tweak to submit the first one."));
+    grid.appendChild(storeMessageCard("No reviewed tweaks yet", "Use Publish to submit the first one."));
     return;
   }
-  for (const entry of store.entries) {
-    card.appendChild(tweakStoreRow(entry));
+  if (entries.length === 0) {
+    grid.appendChild(storeMessageCard("No matching tweaks", "Try a different search."));
+    return;
+  }
+  for (const entry of entries) grid.appendChild(tweakStoreCard(entry));
+}
+
+function parseStoreDataset(grid: HTMLElement): TweakStoreRegistryView | null {
+  const raw = grid.dataset.codexppStore;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as TweakStoreRegistryView;
+  } catch {
+    return null;
   }
 }
 
-function tweakStoreSourceRow(store: TweakStoreRegistryView): HTMLElement {
-  const row = rowSimple(
-    "Live store registry",
-    `Fetched from GitHub. Refreshed ${new Date(store.fetchedAt).toLocaleString()}.`,
-  );
-  const left = row.firstElementChild as HTMLElement | null;
-  if (left) left.prepend(statusBadge("ok", "Live"));
-  return row;
+function storeEntryMatches(entry: TweakStoreEntryView, query: string): boolean {
+  return [
+    entry.manifest.name,
+    entry.manifest.description,
+    entry.manifest.id,
+    entry.repo,
+    typeof entry.manifest.author === "string"
+      ? entry.manifest.author
+      : entry.manifest.author?.name,
+    ...(entry.manifest.tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
 }
 
-function tweakStoreRow(entry: TweakStoreEntryView): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "flex items-start justify-between gap-4 p-3";
+function tweakStoreCard(entry: TweakStoreEntryView): HTMLElement {
+  const card = document.createElement("div");
+  card.className =
+    "border-token-border/40 flex min-h-[76px] flex-col justify-center gap-2.5 rounded-2xl border p-2.5 transition-colors hover:bg-token-foreground/5";
 
   const left = document.createElement("div");
-  left.className = "flex min-w-0 flex-1 items-start gap-3";
+  left.className = "flex min-w-0 flex-1 items-center gap-3";
   left.appendChild(storeAvatar(entry));
 
   const stack = document.createElement("div");
-  stack.className = "flex min-w-0 flex-col gap-1";
+  stack.className = "flex min-w-0 flex-1 flex-col justify-center gap-0.5";
   const titleRow = document.createElement("div");
-  titleRow.className = "flex min-w-0 flex-wrap items-center gap-2";
+  titleRow.className = "flex min-w-0 items-center gap-2";
   const title = document.createElement("div");
-  title.className = "min-w-0 text-sm font-medium text-token-text-primary";
+  title.className = "truncate font-medium text-token-foreground";
   title.textContent = entry.manifest.name;
   titleRow.appendChild(title);
   const version = document.createElement("span");
-  version.className = "text-token-text-secondary text-xs tabular-nums";
+  version.className = "shrink-0 text-xs tabular-nums text-token-description-foreground";
   version.textContent = `v${entry.manifest.version}`;
   titleRow.appendChild(version);
-  if (entry.installed) titleRow.appendChild(storePill("Installed"));
   stack.appendChild(titleRow);
 
   if (entry.manifest.description) {
     const desc = document.createElement("div");
-    desc.className = "text-token-text-secondary min-w-0 text-sm";
+    desc.className = "line-clamp-1 min-w-0 text-sm leading-relaxed text-token-text-secondary";
     desc.textContent = entry.manifest.description;
     stack.appendChild(desc);
   }
 
   const meta = document.createElement("div");
-  meta.className = "flex flex-wrap items-center gap-2 text-xs text-token-text-secondary";
+  meta.className = "flex min-w-0 flex-wrap items-center gap-2 text-xs text-token-description-foreground";
   meta.appendChild(document.createTextNode(`Approved ${shortSha(entry.approvedCommitSha)}`));
   meta.appendChild(dot());
   const repo = document.createElement("button");
@@ -1434,18 +1519,10 @@ function tweakStoreRow(entry: TweakStoreEntryView): HTMLElement {
   meta.appendChild(repo);
   stack.appendChild(meta);
 
-  if (entry.manifest.tags && entry.manifest.tags.length > 0) {
-    const tags = document.createElement("div");
-    tags.className = "flex flex-wrap items-center gap-1 pt-0.5";
-    for (const tag of entry.manifest.tags) tags.appendChild(storePill(tag));
-    stack.appendChild(tags);
-  }
-
   left.appendChild(stack);
-  row.appendChild(left);
 
   const actions = document.createElement("div");
-  actions.className = "flex shrink-0 items-center gap-2 pt-0.5";
+  actions.className = "flex shrink-0 items-center gap-2";
   if (entry.releaseUrl) {
     actions.appendChild(
       compactButton("Release", () => {
@@ -1458,48 +1535,77 @@ function tweakStoreRow(entry: TweakStoreEntryView): HTMLElement {
     : "Install";
   actions.appendChild(
     compactButton(installLabel, () => {
-      const card = row.closest("[data-codexpp-store-card]") as HTMLElement | null;
-      row.style.opacity = "0.65";
+      const grid = card.closest("[data-codexpp-store-grid]") as HTMLElement | null;
+      const search = grid?.parentElement?.querySelector("input[type='search']") as HTMLInputElement | null;
+      const source = grid?.parentElement?.querySelector("[data-codexpp-store-source]") as HTMLElement | null;
+      card.style.opacity = "0.65";
       actions.querySelectorAll("button").forEach((button) => (button.disabled = true));
       void ipcRenderer
         .invoke("codexpp:install-store-tweak", entry.id)
         .then(() => {
-          if (card) {
-            card.textContent = "";
-            card.appendChild(rowSimple("Installed tweak", `${entry.manifest.name} was installed from the approved commit.`));
-            refreshTweakStoreCard(card);
+          if (grid && search && source) {
+            grid.textContent = "";
+            grid.appendChild(storeMessageCard("Installed tweak", `${entry.manifest.name} was installed from the approved commit.`));
+            refreshTweakStoreGrid(grid, search, source);
           }
           location.reload();
         })
         .catch((e) => {
-          row.style.opacity = "";
+          card.style.opacity = "";
           actions.querySelectorAll("button").forEach((button) => (button.disabled = false));
           window.alert(`Could not install ${entry.manifest.name}: ${String((e as Error).message ?? e)}`);
         });
     }),
   );
-  row.appendChild(actions);
-  return row;
+  left.appendChild(actions);
+  card.appendChild(left);
+  return card;
 }
 
 function storeAvatar(entry: TweakStoreEntryView): HTMLElement {
   const avatar = document.createElement("div");
   avatar.className =
-    "flex shrink-0 items-center justify-center rounded-md border border-token-border overflow-hidden text-token-text-secondary";
-  avatar.style.width = "56px";
-  avatar.style.height = "56px";
-  avatar.style.backgroundColor = "var(--color-token-bg-fog, transparent)";
+    "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-token-border-default bg-transparent text-token-description-foreground";
   const initial = (entry.manifest.name?.[0] ?? "?").toUpperCase();
   avatar.textContent = initial;
   return avatar;
 }
 
-function storePill(label: string): HTMLElement {
-  const pill = document.createElement("span");
-  pill.className =
-    "rounded-full border border-token-border bg-token-foreground/5 px-2 py-0.5 text-[11px] text-token-text-secondary";
-  pill.textContent = label;
-  return pill;
+function storeToolbarButton(
+  label: string,
+  onClick: () => void,
+  variant: "primary" | "secondary" = "secondary",
+): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className =
+    variant === "primary"
+      ? "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-token-border bg-token-bg-fog px-2 py-0 text-sm text-token-button-tertiary-foreground enabled:hover:bg-token-list-hover-background disabled:cursor-not-allowed disabled:opacity-40"
+      : "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-transparent bg-token-foreground/5 px-2 py-0 text-sm text-token-foreground enabled:hover:bg-token-foreground/10 disabled:cursor-not-allowed disabled:opacity-40";
+  btn.textContent = label;
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClick();
+  });
+  return btn;
+}
+
+function storeMessageCard(title: string, description?: string): HTMLElement {
+  const card = document.createElement("div");
+  card.className =
+    "border-token-border/40 flex min-h-[84px] flex-col justify-center gap-1 rounded-2xl border p-4 text-sm";
+  const t = document.createElement("div");
+  t.className = "font-medium text-token-text-primary";
+  t.textContent = title;
+  card.appendChild(t);
+  if (description) {
+    const d = document.createElement("div");
+    d.className = "text-token-text-secondary";
+    d.textContent = description;
+    card.appendChild(d);
+  }
+  return card;
 }
 
 function shortSha(value: string): string {
