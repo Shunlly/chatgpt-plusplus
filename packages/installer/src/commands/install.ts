@@ -336,7 +336,7 @@ function macAppManagementFix(targetDir: string): string {
     `macOS App Management is blocking modification of ${targetDir}.\n` +
     `Fix:\n` +
     `  1. Open System Settings > Privacy & Security > App Management\n` +
-    `  2. Enable the toggle for your terminal app (Terminal, iTerm2, etc.)\n`;
+    `  2. Enable the app running this command (Terminal, iTerm2, Codex, etc.)\n`;
 
   if (watcher) {
     return (

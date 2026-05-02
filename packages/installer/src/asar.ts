@@ -141,7 +141,7 @@ function annotatePermError(e: unknown, target: string): Error {
       `Permission denied writing to ${target}.\n\n` +
       `macOS App Management is blocking modification of /Applications/Codex.app.\n` +
       `Grant permission via:\n` +
-      `  System Settings > Privacy & Security > App Management > enable your terminal\n` +
+      `  System Settings > Privacy & Security > App Management > enable the app running this command\n` +
       `(macOS may also have shown a permission prompt - click Allow, then re-run install.)\n\n` +
       `Original error: ${err.message}`;
     const wrapped = new Error(msg);
