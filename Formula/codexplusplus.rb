@@ -13,6 +13,7 @@ class Codexplusplus < Formula
     system "npm", "run", "build"
 
     libexec.install Dir["*"]
+    chmod 0755, libexec/"packages/installer/dist/cli.js"
     bin.install_symlink libexec/"packages/installer/dist/cli.js" => "codexplusplus"
     bin.install_symlink libexec/"packages/installer/dist/cli.js" => "codex-plusplus"
   end
