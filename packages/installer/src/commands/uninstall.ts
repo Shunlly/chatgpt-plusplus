@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { locateCodex } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { readState } from "../state.js";
-import { adHocSign } from "../codesign.js";
+import { signCodexApp } from "../codesign.js";
 import { uninstallWatcher } from "../watcher.js";
 
 interface Opts {
@@ -41,7 +41,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   console.log(kleur.green("Restored Codex.app from backup."));
 
   if (codex.platform === "darwin") {
-    adHocSign(codex.appRoot);
+    signCodexApp(codex.appRoot, { useLocalIdentity: state?.signingMode !== "adhoc" });
     console.log(kleur.green("Re-signed restored bundle."));
   }
 

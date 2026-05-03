@@ -1,21 +1,37 @@
 /**
- * Ad-hoc code signing on macOS. After we mutate Info.plist or the
- * Electron Framework binary, the original signature is invalid. Re-signing
- * with the ad-hoc identity (`-`) makes Gatekeeper accept it on the
- * developer's own machine.
+ * Code signing on macOS. After we mutate Info.plist or the Electron Framework
+ * binary, the original signature is invalid. Re-signing with a stable local
+ * identity keeps macOS privacy permissions attached to the patched app across
+ * Codex++ repair runs on the same machine.
  *
  * `codesign --deep` does NOT recurse into `app.asar.unpacked` (it's not a
  * standard bundle layout), so native modules like `better-sqlite3.node` keep
- * their original Developer ID signature. Once the parent app is ad-hoc, the
- * dyld loader's Library Validation rejects the team-id mismatch and the
+ * their original Developer ID signature. Once the parent app is re-signed,
+ * the dyld loader's Library Validation rejects the team-id mismatch and the
  * native module fails to load. We work around this by walking
- * `app.asar.unpacked` ourselves and re-signing every Mach-O file ad-hoc
- * before signing the main bundle.
+ * `app.asar.unpacked` ourselves and re-signing every Mach-O file with the
+ * same identity before signing the main bundle.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { platform } from "node:os";
+import { platform, tmpdir } from "node:os";
+
+export const DEFAULT_LOCAL_SIGNING_IDENTITY = "Codex++ Local Signing";
+
+export type SigningMode = "local-identity" | "adhoc";
+
+export interface CodeSigningResult {
+  mode: SigningMode;
+  identity: string;
+  identityHash?: string;
+  createdIdentity?: boolean;
+}
+
+export interface CodeSigningOptions {
+  useLocalIdentity?: boolean;
+  identityName?: string;
+}
 
 const MACHO_MAGICS = new Set([
   0xfeedface, // 32-bit
@@ -25,18 +41,24 @@ const MACHO_MAGICS = new Set([
   0xcefaedfe, // 32-bit LE
 ]);
 
-export function adHocSign(appRoot: string): void {
-  if (platform() !== "darwin") return;
+export function signCodexApp(appRoot: string, opts: CodeSigningOptions = {}): CodeSigningResult | null {
+  if (platform() !== "darwin") return null;
+
+  const useLocalIdentity = opts.useLocalIdentity !== false;
+  const localIdentity = useLocalIdentity
+    ? ensureLocalSigningIdentity(opts.identityName ?? DEFAULT_LOCAL_SIGNING_IDENTITY)
+    : null;
+  const signingIdentity = localIdentity?.hash ?? "-";
 
   // Step 1: pre-sign every Mach-O file under app.asar.unpacked. We do this
-  // before the bundle-level pass because once the framework is ad-hoc, every
-  // load must agree.
+  // before the bundle-level pass because once the framework is re-signed,
+  // every native load must agree.
   const resources = join(appRoot, "Contents", "Resources");
   for (const candidate of [
     join(resources, "app.asar.unpacked"),
   ]) {
     try {
-      walkAndSign(candidate);
+      walkAndSign(candidate, signingIdentity);
     } catch {
       // Directory may not exist; ignore.
     }
@@ -45,12 +67,25 @@ export function adHocSign(appRoot: string): void {
   // Step 2: sign the bundle itself with --deep (covers Frameworks, Helpers).
   execFileSync(
     "codesign",
-    ["--force", "--deep", "--sign", "-", appRoot],
+    ["--force", "--deep", "--sign", signingIdentity, appRoot],
     { stdio: "inherit" },
   );
+
+  return localIdentity
+    ? {
+        mode: "local-identity",
+        identity: localIdentity.name,
+        identityHash: localIdentity.hash,
+        createdIdentity: localIdentity.created,
+      }
+    : { mode: "adhoc", identity: "-" };
 }
 
-function walkAndSign(root: string): void {
+export function adHocSign(appRoot: string): void {
+  signCodexApp(appRoot, { useLocalIdentity: false });
+}
+
+function walkAndSign(root: string, signingIdentity: string): void {
   let entries: string[];
   try {
     entries = readdirSync(root);
@@ -66,7 +101,7 @@ function walkAndSign(root: string): void {
       continue;
     }
     if (st.isDirectory()) {
-      walkAndSign(full);
+      walkAndSign(full, signingIdentity);
       continue;
     }
     if (!st.isFile()) continue;
@@ -74,13 +109,144 @@ function walkAndSign(root: string): void {
     try {
       execFileSync(
         "codesign",
-        ["--force", "--sign", "-", "--preserve-metadata=entitlements,flags", full],
+        ["--force", "--sign", signingIdentity, "--preserve-metadata=entitlements,flags", full],
         { stdio: "ignore" },
       );
     } catch {
       // Some files (e.g., already-signed dSYMs) may refuse; not fatal.
     }
   }
+}
+
+interface LocalSigningIdentity {
+  name: string;
+  hash: string;
+  created: boolean;
+}
+
+function ensureLocalSigningIdentity(identityName: string): LocalSigningIdentity {
+  const existing = findCodeSigningIdentity(identityName);
+  if (existing) return { ...existing, created: false };
+
+  createLocalSigningIdentity(identityName);
+
+  const created = findCodeSigningIdentity(identityName);
+  if (!created) {
+    throw new Error(
+      `Created local signing certificate "${identityName}", but it was not found as a valid code signing identity.`,
+    );
+  }
+  return { ...created, created: true };
+}
+
+function findCodeSigningIdentity(identityName: string): Omit<LocalSigningIdentity, "created"> | null {
+  const result = spawnSync("security", ["find-identity", "-v", "-p", "codesigning"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  return parseCodeSigningIdentities(output).find((identity) => identity.name === identityName) ?? null;
+}
+
+function createLocalSigningIdentity(identityName: string): void {
+  const dir = mkdtempSync(join(tmpdir(), "codex-plusplus-signing-"));
+  try {
+    const configPath = join(dir, "openssl.cnf");
+    const keyPath = join(dir, "identity.key");
+    const certPath = join(dir, "identity.crt");
+    const p12Path = join(dir, "identity.p12");
+
+    writeFileSync(
+      configPath,
+      [
+        "[req]",
+        "distinguished_name=req_distinguished_name",
+        "x509_extensions=v3_req",
+        "prompt=no",
+        "",
+        "[req_distinguished_name]",
+        `CN=${identityName}`,
+        "",
+        "[v3_req]",
+        "basicConstraints=critical,CA:FALSE",
+        "keyUsage=critical,digitalSignature",
+        "extendedKeyUsage=codeSigning",
+        "",
+      ].join("\n"),
+    );
+
+    execFileSync("openssl", [
+      "req",
+      "-new",
+      "-newkey",
+      "rsa:2048",
+      "-x509",
+      "-sha256",
+      "-days",
+      "3650",
+      "-nodes",
+      "-config",
+      configPath,
+      "-keyout",
+      keyPath,
+      "-out",
+      certPath,
+    ], { stdio: "ignore" });
+
+    execFileSync("openssl", [
+      "pkcs12",
+      "-export",
+      "-inkey",
+      keyPath,
+      "-in",
+      certPath,
+      "-name",
+      identityName,
+      "-out",
+      p12Path,
+      "-keypbe",
+      "PBE-SHA1-3DES",
+      "-certpbe",
+      "PBE-SHA1-3DES",
+      "-macalg",
+      "sha1",
+      "-passout",
+      "pass:",
+    ], { stdio: "ignore" });
+
+    execFileSync("security", [
+      "import",
+      p12Path,
+      "-P",
+      "",
+      "-T",
+      "/usr/bin/codesign",
+    ], { stdio: "ignore" });
+
+    execFileSync("security", [
+      "add-trusted-cert",
+      "-r",
+      "trustRoot",
+      "-p",
+      "codeSign",
+      certPath,
+    ], { stdio: "ignore" });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(`Failed to create local signing identity "${identityName}": ${message}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function parseCodeSigningIdentities(output: string): Array<{ hash: string; name: string }> {
+  const identities: Array<{ hash: string; name: string }> = [];
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^\s*\d+\)\s+([0-9A-Fa-f]{40})\s+"([^"]+)"/.exec(line);
+    if (!match) continue;
+    identities.push({ hash: match[1], name: match[2] });
+  }
+  return identities;
 }
 
 function isMachO(path: string): boolean {

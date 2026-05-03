@@ -8,7 +8,7 @@ import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
-import { adHocSign, clearQuarantine, signatureInfo } from "../codesign.js";
+import { clearQuarantine, signCodexApp, signatureInfo } from "../codesign.js";
 import { readPlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
@@ -24,6 +24,7 @@ interface Opts {
   app?: string;
   fuse?: boolean; // sade --no-fuse → fuse: false
   resign?: boolean;
+  localSigning?: boolean;
   watcher?: boolean;
   watcherKind?: WatcherKind;
   quiet?: boolean;
@@ -36,13 +37,14 @@ const assetsDir = resolve(here, "..", "..", "assets");
 export async function install(opts: Opts = {}): Promise<void> {
   const fuseFlip = opts.fuse !== false;
   const resign = opts.resign !== false;
+  const localSigning = opts.localSigning !== false;
   const wantWatcher = opts.watcher !== false;
   const wantDefaultTweaks = opts.defaultTweaks !== false;
 
   const step = makeStepper(opts.quiet === true);
   const codex = locateCodex(opts.app);
   step(`Located Codex at ${kleur.cyan(codex.appRoot)}`);
-  preflightSystemTools(codex.platform, resign, codex.metaPath !== null);
+  preflightSystemTools(codex.platform, resign, localSigning, codex.metaPath !== null);
 
   // Pre-flight: try to create+remove a probe file inside the app bundle. This
   // surfaces macOS App Management TCC denials BEFORE we touch anything, and
@@ -108,11 +110,23 @@ export async function install(opts: Opts = {}): Promise<void> {
 
   // 6. Re-sign on macOS.
   let resigned = false;
+  let signingMode: "local-identity" | "adhoc" | undefined;
+  let signingIdentity: string | undefined;
+  let signingIdentityHash: string | undefined;
   if (resign && codex.platform === "darwin") {
     clearQuarantine(codex.appRoot);
-    adHocSign(codex.appRoot);
+    const signing = signCodexApp(codex.appRoot, { useLocalIdentity: localSigning });
     resigned = true;
-    step("Re-signed ad-hoc");
+    signingMode = signing?.mode;
+    signingIdentity = signing?.identity;
+    signingIdentityHash = signing?.identityHash;
+    if (signing?.mode === "local-identity") {
+      step(
+        `${signing.createdIdentity ? "Created and used" : "Used"} local signing identity ${kleur.cyan(signing.identity)}`,
+      );
+    } else {
+      step("Re-signed ad-hoc");
+    }
   }
 
   // 7. Auto-repair watcher.
@@ -143,6 +157,9 @@ export async function install(opts: Opts = {}): Promise<void> {
     codexBundleId: codex.bundleId,
     fuseFlipped,
     resigned,
+    signingMode,
+    signingIdentity,
+    signingIdentityHash,
     originalEntryPoint: originalEntry,
     watcher,
   });
@@ -304,9 +321,13 @@ function preflightWritable(targetDir: string, platform: string): void {
   }
 }
 
-function preflightSystemTools(platform: string, resign: boolean, hasPlist: boolean): void {
+function preflightSystemTools(platform: string, resign: boolean, localSigning: boolean, hasPlist: boolean): void {
   if (platform !== "darwin") return;
   if (resign) requireCommand("codesign", "macOS codesign is required to re-sign Codex.app after patching.");
+  if (resign && localSigning) {
+    requireCommand("openssl", "macOS openssl is required to create Codex++'s local signing identity.");
+    requireCommand("security", "macOS security is required to create and find Codex++'s local signing identity.");
+  }
   if (hasPlist) requireCommand("plutil", "macOS plutil is required to update Codex.app's Info.plist.");
 }
 

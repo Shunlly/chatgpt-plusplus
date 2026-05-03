@@ -48,7 +48,7 @@ That's it. The installer:
 3. Patches `app.asar` to require our loader.
 4. Recomputes the asar header SHA-256 and writes it into `Info.plist` (`ElectronAsarIntegrity`).
 5. Flips `EnableEmbeddedAsarIntegrityValidation` in the Electron Framework binary as a belt-and-suspenders.
-6. Re-signs the app ad-hoc on macOS (`codesign --force --deep --sign -`).
+6. Re-signs the app on macOS with a stable per-machine "Codex++ Local Signing" identity, creating it in the user keychain if needed.
 7. Installs a launch agent / login item that detects app updates and re-runs `repair --quiet`.
 8. Installs the default tweak set from their latest GitHub releases unless `--no-default-tweaks` is passed.
 
@@ -77,7 +77,7 @@ Other commands: `status`, `doctor`, `repair`, `tweaks list`, `tweaks open` (open
 
 ### Updating Codex on macOS
 
-Codex++ modifies and ad-hoc signs `Codex.app`, so Sparkle cannot safely install an
+Codex++ modifies and re-signs `Codex.app`, so Sparkle cannot safely install an
 official Codex update while the app is patched. Use:
 
 ```sh
