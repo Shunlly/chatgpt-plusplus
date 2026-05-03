@@ -1259,6 +1259,10 @@ function tweakStoreCard(entry) {
     if (entry.installed && entry.installed.version === entry.manifest.version) {
         actions.appendChild(storeStatusPill("Installed"));
     }
+    else if (entry.platform && !entry.platform.compatible) {
+        actions.appendChild(storeStatusPill(platformLockedLabel(entry.platform)));
+        showStoreCardMessage(card, entry.platform.reason ?? `${entry.manifest.name} is not available on this platform.`);
+    }
     else {
         const installLabel = entry.installed ? "Update" : "Install";
         actions.appendChild(storeInstallButton(installLabel, () => {
@@ -1284,6 +1288,16 @@ function tweakStoreCard(entry) {
         }));
     }
     return card;
+}
+function platformLockedLabel(platform) {
+    const supported = platform.supported ?? [];
+    if (supported.includes("win32"))
+        return "Windows only";
+    if (supported.includes("darwin"))
+        return "macOS only";
+    if (supported.includes("linux"))
+        return "Linux only";
+    return "Unavailable";
 }
 function showStoreCardMessage(card, message) {
     card.querySelector("[data-codexpp-store-card-message]")?.remove();
@@ -1488,7 +1502,7 @@ function storeInstallButton(label, onClick) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
-        "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center justify-center whitespace-nowrap rounded-lg border border-blue-500/40 bg-blue-500 px-3 py-0 text-sm font-medium text-white shadow-sm enabled:hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
+        "border-token-border user-select-none no-drag cursor-interaction flex h-8 items-center justify-center whitespace-nowrap rounded-lg border border-blue-500/40 bg-blue-500 px-3 py-0 text-sm font-medium text-token-foreground shadow-sm enabled:hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
     btn.textContent = label;
     btn.addEventListener("click", (e) => {
         e.preventDefault();

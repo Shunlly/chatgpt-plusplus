@@ -33,6 +33,7 @@ import {
   type TweakStorePublishSubmission,
   type TweakStoreEntry,
   type TweakStoreRegistry,
+  type TweakStorePlatform,
 } from "./tweak-store";
 
 const userRoot = process.env.CODEX_PLUSPLUS_USER_ROOT;
@@ -582,8 +583,10 @@ ipcMain.handle("codexpp:get-tweak-store", async () => {
     fetchedAt: store.fetchedAt,
     entries: registry.entries.map((entry) => {
       const local = installed.get(entry.id);
+      const platform = storeEntryPlatformCompatibility(entry);
       return {
         ...entry,
+        platform,
         installed: local
           ? {
               version: local.manifest.version,
@@ -599,6 +602,7 @@ ipcMain.handle("codexpp:install-store-tweak", async (_e, id: string) => {
   const { registry } = await fetchTweakStoreRegistry();
   const entry = registry.entries.find((candidate) => candidate.id === id);
   if (!entry) throw new Error(`Tweak store entry not found: ${id}`);
+  assertStoreEntryPlatformCompatible(entry);
   await installStoreTweak(entry);
   reloadTweaks("store-install", tweakLifecycleDeps);
   return { installed: entry.id };
@@ -969,6 +973,13 @@ interface StoreInstallMetadata {
   files?: Record<string, string>;
 }
 
+interface StoreEntryPlatformCompatibility {
+  current: NodeJS.Platform;
+  supported: TweakStorePlatform[] | null;
+  compatible: boolean;
+  reason: string | null;
+}
+
 class StoreTweakModifiedError extends Error {
   constructor(tweakName: string) {
     super(
@@ -976,6 +987,33 @@ class StoreTweakModifiedError extends Error {
     );
     this.name = "StoreTweakModifiedError";
   }
+}
+
+function storeEntryPlatformCompatibility(entry: TweakStoreEntry): StoreEntryPlatformCompatibility {
+  const supported = entry.platforms ?? null;
+  const compatible = !supported || supported.includes(process.platform as TweakStorePlatform);
+  return {
+    current: process.platform,
+    supported,
+    compatible,
+    reason: compatible ? null : `${entry.manifest.name} is only available on ${formatStorePlatforms(supported)}.`,
+  };
+}
+
+function assertStoreEntryPlatformCompatible(entry: TweakStoreEntry): void {
+  const platform = storeEntryPlatformCompatibility(entry);
+  if (!platform.compatible) {
+    throw new Error(platform.reason ?? `${entry.manifest.name} is not available on this platform.`);
+  }
+}
+
+function formatStorePlatforms(platforms: TweakStorePlatform[] | null): string {
+  if (!platforms || platforms.length === 0) return "supported platforms";
+  return platforms.map((platform) => {
+    if (platform === "darwin") return "macOS";
+    if (platform === "win32") return "Windows";
+    return "Linux";
+  }).join(", ");
 }
 
 async function fetchTweakStoreRegistry(): Promise<TweakStoreFetchResult> {

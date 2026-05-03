@@ -237,7 +237,10 @@
       "approvedCommitSha": "1bb59c73f16f2ec3c3797168163d48d759eac706",
       "approvedAt": "2026-05-02T10:11:36+09:00",
       "approvedBy": "bennett",
-      "screenshots": []
+      "screenshots": [],
+      "platforms": [
+        "win32"
+      ]
     }
   ]
 }

@@ -68,6 +68,7 @@ function normalizeStoreEntry(input) {
         approvedAt: typeof entry.approvedAt === "string" ? entry.approvedAt : "",
         approvedBy: typeof entry.approvedBy === "string" ? entry.approvedBy : "",
         screenshots,
+        platforms: normalizeStorePlatforms(entry.platforms),
         releaseUrl: optionalGithubUrl(entry.releaseUrl),
         reviewUrl: optionalGithubUrl(entry.reviewUrl),
     };
@@ -138,6 +139,20 @@ function normalizeStoreScreenshot(input) {
         height: 1080,
         alt: typeof shot.alt === "string" ? shot.alt : undefined,
     };
+}
+function normalizeStorePlatforms(input) {
+    if (input === undefined)
+        return undefined;
+    if (!Array.isArray(input))
+        throw new Error("Store entry platforms must be an array");
+    const allowed = new Set(["darwin", "win32", "linux"]);
+    const platforms = Array.from(new Set(input.map((value) => {
+        if (typeof value !== "string" || !allowed.has(value)) {
+            throw new Error(`Unsupported store platform: ${String(value)}`);
+        }
+        return value;
+    })));
+    return platforms.length > 0 ? platforms : undefined;
 }
 function optionalGithubUrl(value) {
     if (typeof value !== "string" || !value.trim())

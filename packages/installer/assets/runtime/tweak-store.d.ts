@@ -14,9 +14,11 @@ export interface TweakStoreEntry {
     approvedAt: string;
     approvedBy: string;
     screenshots: TweakStoreScreenshot[];
+    platforms?: TweakStorePlatform[];
     releaseUrl?: string;
     reviewUrl?: string;
 }
+export type TweakStorePlatform = "darwin" | "win32" | "linux";
 export interface TweakStoreScreenshot {
     url: string;
     width: 1920;

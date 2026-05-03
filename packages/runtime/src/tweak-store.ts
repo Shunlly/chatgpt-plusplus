@@ -19,9 +19,12 @@ export interface TweakStoreEntry {
   approvedAt: string;
   approvedBy: string;
   screenshots: TweakStoreScreenshot[];
+  platforms?: TweakStorePlatform[];
   releaseUrl?: string;
   reviewUrl?: string;
 }
+
+export type TweakStorePlatform = "darwin" | "win32" | "linux";
 
 export interface TweakStoreScreenshot {
   url: string;
@@ -103,6 +106,7 @@ export function normalizeStoreEntry(input: unknown): TweakStoreEntry {
     approvedAt: typeof entry.approvedAt === "string" ? entry.approvedAt : "",
     approvedBy: typeof entry.approvedBy === "string" ? entry.approvedBy : "",
     screenshots,
+    platforms: normalizeStorePlatforms((entry as { platforms?: unknown }).platforms),
     releaseUrl: optionalGithubUrl(entry.releaseUrl),
     reviewUrl: optionalGithubUrl(entry.reviewUrl),
   };
@@ -177,6 +181,19 @@ function normalizeStoreScreenshot(input: unknown): TweakStoreScreenshot {
     height: 1080,
     alt: typeof shot.alt === "string" ? shot.alt : undefined,
   };
+}
+
+function normalizeStorePlatforms(input: unknown): TweakStorePlatform[] | undefined {
+  if (input === undefined) return undefined;
+  if (!Array.isArray(input)) throw new Error("Store entry platforms must be an array");
+  const allowed = new Set<TweakStorePlatform>(["darwin", "win32", "linux"]);
+  const platforms = Array.from(new Set(input.map((value) => {
+    if (typeof value !== "string" || !allowed.has(value as TweakStorePlatform)) {
+      throw new Error(`Unsupported store platform: ${String(value)}`);
+    }
+    return value as TweakStorePlatform;
+  })));
+  return platforms.length > 0 ? platforms : undefined;
 }
 
 function optionalGithubUrl(value: unknown): string | undefined {
