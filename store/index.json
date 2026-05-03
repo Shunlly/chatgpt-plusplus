@@ -1,7 +1,115 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-02T00:00:00.000Z",
+  "generatedAt": "2026-05-03T01:50:37.593Z",
   "entries": [
+    {
+      "id": "co.bennett.ui-improvements",
+      "manifest": {
+        "id": "co.bennett.ui-improvements",
+        "name": "Bennett's UI Improvements",
+        "version": "0.1.2",
+        "githubRepo": "b-nnett/codex-plusplus-bennett-ui",
+        "description": "Quality-of-life UI tweaks for Codex: hide upgrade prompts, surface usage and message metrics.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "ui",
+          "usage",
+          "upgrade"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/quag.webp"
+      },
+      "repo": "b-nnett/codex-plusplus-bennett-ui",
+      "approvedCommitSha": "7f9107c65d9bb8c2cda0bc95d2d742bdb7dca0a9",
+      "approvedAt": "2026-05-02T09:50:47+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
+    {
+      "id": "co.bennett.better-browser",
+      "manifest": {
+        "id": "co.bennett.better-browser",
+        "name": "Better Browser",
+        "version": "0.1.2",
+        "githubRepo": "b-nnett/codex-plusplus-better-browser",
+        "description": "Improves Codex's browser side panel with more tabs, inline devtools, and browser navigation shortcuts.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "browser",
+          "tabs",
+          "devtools",
+          "shortcuts"
+        ],
+        "scope": "main",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/better-browser.png"
+      },
+      "repo": "b-nnett/codex-plusplus-better-browser",
+      "approvedCommitSha": "dfcc75ec0d8e980698974a3a2b80531cd553af77",
+      "approvedAt": "2026-05-02T16:50:54+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
+    {
+      "id": "co.bennett.codex-tab-switcher",
+      "manifest": {
+        "id": "co.bennett.codex-tab-switcher",
+        "name": "Codex Tab Switcher",
+        "version": "1.0.0",
+        "githubRepo": "b-nnett/codex-plusplus-tab-switcher",
+        "description": "Switch between recent Codex chats with a Ctrl-Tab overlay and tiny chat previews.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/b-nnett"
+        },
+        "homepage": "https://github.com/b-nnett/codex-plusplus-tab-switcher",
+        "tags": [
+          "ui",
+          "shortcuts",
+          "productivity"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/tab-switcher.png"
+      },
+      "repo": "b-nnett/codex-plusplus-tab-switcher",
+      "approvedCommitSha": "97b1226fb264dfebe7dbf5286497b99613981287",
+      "approvedAt": "2026-04-29T12:30:38+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
+    {
+      "id": "co.bennett.custom-keyboard-shortcuts",
+      "manifest": {
+        "id": "co.bennett.custom-keyboard-shortcuts",
+        "name": "Custom Keyboard Shortcuts",
+        "version": "0.1.1",
+        "githubRepo": "b-nnett/codex-plusplus-keyboard-shortcuts",
+        "description": "Discover, remap, and disable Codex's keyboard shortcuts.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "ui",
+          "shortcuts",
+          "productivity"
+        ],
+        "scope": "renderer"
+      },
+      "repo": "b-nnett/codex-plusplus-keyboard-shortcuts",
+      "approvedCommitSha": "2fa2e5beeda1766b53288a6e28662443889e1f5b",
+      "approvedAt": "2026-05-01T13:10:25+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
     {
       "id": "co.bennett.file-editor",
       "manifest": {
@@ -10,7 +118,7 @@
         "version": "0.1.0",
         "githubRepo": "b-nnett/codex-plusplus-file-editor",
         "description": "Makes Codex right-panel file tabs editable with debounced autosave.",
-        "iconUrl": "./.codexpp-store/icon.png",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/file-editor.png",
         "author": {
           "name": "bennett",
           "url": "https://github.com/anomalyco/codex-plusplus"
@@ -30,7 +138,103 @@
       },
       "repo": "b-nnett/codex-plusplus-file-editor",
       "approvedCommitSha": "672e21d955b636ec88c6e8c67de5431341f146dc",
-      "approvedAt": "2026-05-02T13:25:48.000Z",
+      "approvedAt": "2026-05-02T22:25:48+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
+    {
+      "id": "co.bennett.ios-simulator",
+      "manifest": {
+        "id": "co.bennett.ios-simulator",
+        "name": "iOS Simulator",
+        "version": "1.0.0",
+        "githubRepo": "b-nnett/codex-plusplus-ios-simulator",
+        "description": "Adds an iOS Simulator tab to Codex's right panel. Mirrors the booted simulator headlessly via CoreSimulator IOSurface and forwards taps/swipes through SimulatorKit's HID client.",
+        "author": {
+          "name": "b-nnett",
+          "url": "https://github.com/b-nnett/codex-plusplus-ios-simulator"
+        },
+        "tags": [
+          "ios",
+          "simulator",
+          "right-panel"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/ios-simulator.png"
+      },
+      "repo": "b-nnett/codex-plusplus-ios-simulator",
+      "approvedCommitSha": "0ec57f6b7f0f1faee7be891e7be06a9682ddcba2",
+      "approvedAt": "2026-04-30T14:22:08+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
+    {
+      "id": "co.bennett.project-home",
+      "manifest": {
+        "id": "co.bennett.project-home",
+        "name": "Project Home",
+        "version": "1.0.0",
+        "githubRepo": "b-nnett/codex-plusplus-project-home",
+        "description": "Adds a Project Home kanban board with per-project Linear-style issues.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "ui",
+          "projects",
+          "productivity",
+          "kanban",
+          "mcp"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "mcp": {
+          "command": "node",
+          "args": [
+            "mcp-server.js"
+          ]
+        },
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/project-home.png"
+      },
+      "repo": "b-nnett/codex-plusplus-project-home",
+      "approvedCommitSha": "1d97062f707caafdac5ed2af8bd9a986341dc912",
+      "approvedAt": "2026-04-30T20:44:58+09:00",
+      "approvedBy": "bennett",
+      "screenshots": []
+    },
+    {
+      "id": "co.bennett.windows-computer-use",
+      "manifest": {
+        "id": "co.bennett.windows-computer-use",
+        "name": "Windows Computer Use",
+        "version": "0.1.0",
+        "githubRepo": "b-nnett/codex-plusplus-windows-computer-use",
+        "description": "Windows Computer Use MCP surface for Codex++.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "mcp",
+          "windows",
+          "computer-use",
+          "automation"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "mcp": {
+          "command": "node",
+          "args": [
+            "mcp-server.js"
+          ]
+        },
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/windows-computer-use.png"
+      },
+      "repo": "b-nnett/codex-plusplus-windows-computer-use",
+      "approvedCommitSha": "1bb59c73f16f2ec3c3797168163d48d759eac706",
+      "approvedAt": "2026-05-02T10:11:36+09:00",
       "approvedBy": "bennett",
       "screenshots": []
     }

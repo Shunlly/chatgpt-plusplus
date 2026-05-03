@@ -10,6 +10,7 @@
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import chokidar from "chokidar";
@@ -960,6 +961,23 @@ interface TweakStoreFetchResult {
   fetchedAt: string;
 }
 
+interface StoreInstallMetadata {
+  repo: string;
+  approvedCommitSha: string;
+  installedAt: string;
+  storeIndexUrl: string;
+  files?: Record<string, string>;
+}
+
+class StoreTweakModifiedError extends Error {
+  constructor(tweakName: string) {
+    super(
+      `${tweakName} has local source changes, so Codex++ can't auto-update it. Revert your local changes or reinstall the tweak manually.`,
+    );
+    this.name = "StoreTweakModifiedError";
+  }
+}
+
 async function fetchTweakStoreRegistry(): Promise<TweakStoreFetchResult> {
   const fetchedAt = new Date().toISOString();
   try {
@@ -1012,6 +1030,7 @@ async function installStoreTweak(entry: TweakStoreEntry): Promise<void> {
     validateStoreTweakSource(entry, source);
     rmSync(stagedTarget, { recursive: true, force: true });
     copyTweakSource(source, stagedTarget);
+    const stagedFiles = hashTweakSource(stagedTarget);
     writeFileSync(
       join(stagedTarget, ".codexpp-store.json"),
       JSON.stringify(
@@ -1020,11 +1039,13 @@ async function installStoreTweak(entry: TweakStoreEntry): Promise<void> {
           approvedCommitSha: entry.approvedCommitSha,
           installedAt: new Date().toISOString(),
           storeIndexUrl: TWEAK_STORE_INDEX_URL,
+          files: stagedFiles,
         },
         null,
         2,
       ),
     );
+    await assertStoreTweakCleanForAutoUpdate(entry, target, work);
     rmSync(target, { recursive: true, force: true });
     cpSync(stagedTarget, target, { recursive: true });
   } finally {
@@ -1139,6 +1160,98 @@ function copyTweakSource(source: string, target: string): void {
     recursive: true,
     filter: (src) => !/(^|[/\\])(?:\.git|node_modules)(?:[/\\]|$)/.test(src),
   });
+}
+
+async function assertStoreTweakCleanForAutoUpdate(
+  entry: TweakStoreEntry,
+  target: string,
+  work: string,
+): Promise<void> {
+  if (!existsSync(target)) return;
+  const metadata = readStoreInstallMetadata(target);
+  if (!metadata) return;
+  if (metadata.repo !== entry.repo) {
+    throw new StoreTweakModifiedError(entry.manifest.name);
+  }
+  const currentFiles = hashTweakSource(target);
+  const baselineFiles = metadata.files ?? await fetchBaselineStoreTweakHashes(metadata, work);
+  if (!sameFileHashes(currentFiles, baselineFiles)) {
+    throw new StoreTweakModifiedError(entry.manifest.name);
+  }
+}
+
+function readStoreInstallMetadata(target: string): StoreInstallMetadata | null {
+  const metadataPath = join(target, ".codexpp-store.json");
+  if (!existsSync(metadataPath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(metadataPath, "utf8")) as Partial<StoreInstallMetadata>;
+    if (typeof parsed.repo !== "string" || typeof parsed.approvedCommitSha !== "string") return null;
+    return {
+      repo: parsed.repo,
+      approvedCommitSha: parsed.approvedCommitSha,
+      installedAt: typeof parsed.installedAt === "string" ? parsed.installedAt : "",
+      storeIndexUrl: typeof parsed.storeIndexUrl === "string" ? parsed.storeIndexUrl : "",
+      files: isHashRecord(parsed.files) ? parsed.files : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBaselineStoreTweakHashes(
+  metadata: StoreInstallMetadata,
+  work: string,
+): Promise<Record<string, string>> {
+  const baselineDir = join(work, "baseline");
+  const archive = join(work, "baseline.tar.gz");
+  const res = await fetch(`https://codeload.github.com/${metadata.repo}/tar.gz/${metadata.approvedCommitSha}`, {
+    headers: { "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}` },
+    redirect: "follow",
+  });
+  if (!res.ok) throw new Error(`Could not verify local tweak changes before update: ${res.status}`);
+  writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+  mkdirSync(baselineDir, { recursive: true });
+  extractTarArchive(archive, baselineDir);
+  const source = findTweakRoot(baselineDir);
+  if (!source) throw new Error("Could not verify local tweak changes before update: baseline manifest missing");
+  return hashTweakSource(source);
+}
+
+function hashTweakSource(root: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  collectTweakFileHashes(root, root, out);
+  return out;
+}
+
+function collectTweakFileHashes(root: string, dir: string, out: Record<string, string>): void {
+  for (const name of readdirSync(dir).sort()) {
+    if (name === ".git" || name === "node_modules" || name === ".codexpp-store.json") continue;
+    const full = join(dir, name);
+    const rel = relative(root, full).split("\\").join("/");
+    const stat = statSync(full);
+    if (stat.isDirectory()) {
+      collectTweakFileHashes(root, full, out);
+      continue;
+    }
+    if (!stat.isFile()) continue;
+    out[rel] = createHash("sha256").update(readFileSync(full)).digest("hex");
+  }
+}
+
+function sameFileHashes(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ak = Object.keys(a).sort();
+  const bk = Object.keys(b).sort();
+  if (ak.length !== bk.length) return false;
+  for (let i = 0; i < ak.length; i++) {
+    const key = ak[i];
+    if (key !== bk[i] || a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
+function isHashRecord(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value as Record<string, unknown>).every((v) => typeof v === "string");
 }
 
 function normalizeVersion(v: string): string {
