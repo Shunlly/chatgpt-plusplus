@@ -21,7 +21,7 @@
         ],
         "scope": "both",
         "main": "index.js",
-        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/quag.webp"
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/ui-improvements.png"
       },
       "repo": "b-nnett/codex-plusplus-bennett-ui",
       "approvedCommitSha": "7f9107c65d9bb8c2cda0bc95d2d742bdb7dca0a9",
@@ -102,7 +102,8 @@
           "shortcuts",
           "productivity"
         ],
-        "scope": "renderer"
+        "scope": "renderer",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/keyboard-shortcuts.png"
       },
       "repo": "b-nnett/codex-plusplus-keyboard-shortcuts",
       "approvedCommitSha": "2fa2e5beeda1766b53288a6e28662443889e1f5b",
