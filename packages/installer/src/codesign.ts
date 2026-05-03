@@ -31,6 +31,13 @@ export interface CodeSigningResult {
 export interface CodeSigningOptions {
   useLocalIdentity?: boolean;
   identityName?: string;
+  preparedIdentity?: PreparedSigningIdentity | null;
+}
+
+export interface PreparedSigningIdentity {
+  name: string;
+  hash: string;
+  created: boolean;
 }
 
 const MACHO_MAGICS = new Set([
@@ -46,7 +53,7 @@ export function signCodexApp(appRoot: string, opts: CodeSigningOptions = {}): Co
 
   const useLocalIdentity = opts.useLocalIdentity !== false;
   const localIdentity = useLocalIdentity
-    ? ensureLocalSigningIdentity(opts.identityName ?? DEFAULT_LOCAL_SIGNING_IDENTITY)
+    ? opts.preparedIdentity ?? ensureLocalSigningIdentity(opts.identityName ?? DEFAULT_LOCAL_SIGNING_IDENTITY)
     : null;
   const signingIdentity = localIdentity?.hash ?? "-";
 
@@ -85,6 +92,22 @@ export function adHocSign(appRoot: string): void {
   signCodexApp(appRoot, { useLocalIdentity: false });
 }
 
+export function prepareCodeSigning(opts: CodeSigningOptions = {}): PreparedSigningIdentity | null {
+  if (platform() !== "darwin") return null;
+
+  requireExecutable("codesign", "macOS codesign is required to re-sign Codex.app after patching.");
+  if (opts.useLocalIdentity === false) return null;
+
+  requireExecutable("security", "macOS security is required to find Codex++'s local signing identity.");
+
+  const identityName = opts.identityName ?? DEFAULT_LOCAL_SIGNING_IDENTITY;
+  const existing = findCodeSigningIdentity(identityName);
+  if (existing) return { ...existing, created: false };
+
+  requireExecutable("openssl", "macOS openssl is required to create Codex++'s local signing identity.");
+  return createLocalSigningIdentity(identityName);
+}
+
 function walkAndSign(root: string, signingIdentity: string): void {
   let entries: string[];
   try {
@@ -118,28 +141,13 @@ function walkAndSign(root: string, signingIdentity: string): void {
   }
 }
 
-interface LocalSigningIdentity {
-  name: string;
-  hash: string;
-  created: boolean;
+function ensureLocalSigningIdentity(identityName: string): PreparedSigningIdentity {
+  return prepareCodeSigning({ identityName }) ?? (() => {
+    throw new Error(`Local signing identity "${identityName}" is only available on macOS.`);
+  })();
 }
 
-function ensureLocalSigningIdentity(identityName: string): LocalSigningIdentity {
-  const existing = findCodeSigningIdentity(identityName);
-  if (existing) return { ...existing, created: false };
-
-  createLocalSigningIdentity(identityName);
-
-  const created = findCodeSigningIdentity(identityName);
-  if (!created) {
-    throw new Error(
-      `Created local signing certificate "${identityName}", but it was not found as a valid code signing identity.`,
-    );
-  }
-  return { ...created, created: true };
-}
-
-function findCodeSigningIdentity(identityName: string): Omit<LocalSigningIdentity, "created"> | null {
+function findCodeSigningIdentity(identityName: string): Omit<PreparedSigningIdentity, "created"> | null {
   const result = spawnSync("security", ["find-identity", "-v", "-p", "codesigning"], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -148,13 +156,14 @@ function findCodeSigningIdentity(identityName: string): Omit<LocalSigningIdentit
   return parseCodeSigningIdentities(output).find((identity) => identity.name === identityName) ?? null;
 }
 
-function createLocalSigningIdentity(identityName: string): void {
+function createLocalSigningIdentity(identityName: string): PreparedSigningIdentity {
   const dir = mkdtempSync(join(tmpdir(), "codex-plusplus-signing-"));
   try {
     const configPath = join(dir, "openssl.cnf");
     const keyPath = join(dir, "identity.key");
     const certPath = join(dir, "identity.crt");
     const p12Path = join(dir, "identity.p12");
+    const keychain = defaultUserKeychain();
 
     writeFileSync(
       configPath,
@@ -217,6 +226,8 @@ function createLocalSigningIdentity(identityName: string): void {
     execFileSync("security", [
       "import",
       p12Path,
+      "-k",
+      keychain,
       "-P",
       "",
       "-T",
@@ -229,13 +240,42 @@ function createLocalSigningIdentity(identityName: string): void {
       "trustRoot",
       "-p",
       "codeSign",
+      "-k",
+      keychain,
       certPath,
     ], { stdio: "ignore" });
+
+    const created = findCodeSigningIdentity(identityName);
+    if (!created) {
+      throw new Error("created certificate was not found as a valid code signing identity");
+    }
+    return { ...created, created: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     throw new Error(`Failed to create local signing identity "${identityName}": ${message}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function defaultUserKeychain(): string {
+  const result = spawnSync("security", ["default-keychain", "-d", "user"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+  if (result.status !== 0 || !output) {
+    throw new Error("could not determine the user default keychain");
+  }
+  return output.replace(/^"|"$/g, "");
+}
+
+function requireExecutable(command: string, message: string): void {
+  const result = spawnSync("/bin/sh", ["-c", `command -v ${command}`], {
+    stdio: "ignore",
+  });
+  if (result.status !== 0) {
+    throw new Error(`[!] ${command} not installed\n\n${message}\nPaste this error into Codex if you need help.`);
   }
 }
 

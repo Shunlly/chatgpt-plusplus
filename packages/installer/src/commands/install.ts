@@ -8,7 +8,7 @@ import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
-import { clearQuarantine, signCodexApp, signatureInfo } from "../codesign.js";
+import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
 import { readPlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
@@ -44,7 +44,10 @@ export async function install(opts: Opts = {}): Promise<void> {
   const step = makeStepper(opts.quiet === true);
   const codex = locateCodex(opts.app);
   step(`Located Codex at ${kleur.cyan(codex.appRoot)}`);
-  preflightSystemTools(codex.platform, resign, localSigning, codex.metaPath !== null);
+  preflightSystemTools(codex.platform, resign, codex.metaPath !== null);
+  const preparedSigning = resign && codex.platform === "darwin"
+    ? prepareCodeSigning({ useLocalIdentity: localSigning })
+    : null;
 
   // Pre-flight: try to create+remove a probe file inside the app bundle. This
   // surfaces macOS App Management TCC denials BEFORE we touch anything, and
@@ -115,7 +118,10 @@ export async function install(opts: Opts = {}): Promise<void> {
   let signingIdentityHash: string | undefined;
   if (resign && codex.platform === "darwin") {
     clearQuarantine(codex.appRoot);
-    const signing = signCodexApp(codex.appRoot, { useLocalIdentity: localSigning });
+    const signing = signCodexApp(codex.appRoot, {
+      useLocalIdentity: localSigning,
+      preparedIdentity: preparedSigning,
+    });
     resigned = true;
     signingMode = signing?.mode;
     signingIdentity = signing?.identity;
@@ -321,13 +327,9 @@ function preflightWritable(targetDir: string, platform: string): void {
   }
 }
 
-function preflightSystemTools(platform: string, resign: boolean, localSigning: boolean, hasPlist: boolean): void {
+function preflightSystemTools(platform: string, resign: boolean, hasPlist: boolean): void {
   if (platform !== "darwin") return;
   if (resign) requireCommand("codesign", "macOS codesign is required to re-sign Codex.app after patching.");
-  if (resign && localSigning) {
-    requireCommand("openssl", "macOS openssl is required to create Codex++'s local signing identity.");
-    requireCommand("security", "macOS security is required to create and find Codex++'s local signing identity.");
-  }
   if (hasPlist) requireCommand("plutil", "macOS plutil is required to update Codex.app's Info.plist.");
 }
 

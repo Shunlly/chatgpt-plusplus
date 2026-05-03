@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { locateCodex } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { readState } from "../state.js";
-import { signCodexApp } from "../codesign.js";
+import { prepareCodeSigning, signCodexApp } from "../codesign.js";
 import { uninstallWatcher } from "../watcher.js";
 
 interface Opts {
@@ -20,6 +20,10 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   const backupAsarUnpacked = join(paths.backup, "app.asar.unpacked");
   const backupPlist = codex.metaPath ? join(paths.backup, "Info.plist") : null;
   const backupFramework = join(paths.backup, "Electron Framework");
+  const useLocalIdentity = state?.signingMode !== "adhoc";
+  const preparedSigning = codex.platform === "darwin"
+    ? prepareCodeSigning({ useLocalIdentity })
+    : null;
 
   if (!existsSync(backupAsar)) {
     console.error(
@@ -41,7 +45,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   console.log(kleur.green("Restored Codex.app from backup."));
 
   if (codex.platform === "darwin") {
-    signCodexApp(codex.appRoot, { useLocalIdentity: state?.signingMode !== "adhoc" });
+    signCodexApp(codex.appRoot, { useLocalIdentity, preparedIdentity: preparedSigning });
     console.log(kleur.green("Re-signed restored bundle."));
   }
 
