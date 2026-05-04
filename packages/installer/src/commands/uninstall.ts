@@ -20,10 +20,6 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   const backupAsarUnpacked = join(paths.backup, "app.asar.unpacked");
   const backupPlist = codex.metaPath ? join(paths.backup, "Info.plist") : null;
   const backupFramework = join(paths.backup, "Electron Framework");
-  const useLocalIdentity = state?.signingMode !== "adhoc";
-  const preparedSigning = codex.platform === "darwin"
-    ? prepareCodeSigning({ useLocalIdentity })
-    : null;
 
   if (!existsSync(backupAsar)) {
     console.error(
@@ -31,6 +27,11 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
     );
     process.exit(1);
   }
+
+  const useLocalIdentity = state?.signingMode === "local-identity";
+  const preparedSigning = codex.platform === "darwin"
+    ? prepareCodeSigning({ useLocalIdentity })
+    : null;
 
   cpSync(backupAsar, codex.asarPath);
   if (existsSync(backupAsarUnpacked)) {
