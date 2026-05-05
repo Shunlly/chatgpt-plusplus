@@ -176,6 +176,10 @@ Windows also keeps the managed patched Codex app mirror in
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for details.
 
+## Contributors
+
+- [Alex Naidis (@TheCrazyLex)](https://github.com/TheCrazyLex) — macOS permission hardening and sudo install handling.
+
 ## Legal
 
 This is an unofficial project. Not affiliated with OpenAI. Modifying Codex.app violates its code signature; on macOS you may need to allow the re-signed app on first launch. Auto-updates from Sparkle overwrite the patch, so `codex-plusplus` installs a watcher that re-applies it.

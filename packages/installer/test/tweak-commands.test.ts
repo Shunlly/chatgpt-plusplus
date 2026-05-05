@@ -381,6 +381,14 @@ test("watcher runs self-update and app repair as separate steps", () => {
   assert.match(script, /update[\s\S]+\|\| true;[\s\S]+repair/);
 });
 
+test("launchd watcher script clears stale log entries before each run", () => {
+  const script = watcherShellScript("/tmp/codex plusplus/watch'er.log");
+
+  assert.match(script, /^: > '\/tmp\/codex plusplus\/watch'\\''er\.log'; sleep 3; /);
+  assert.match(script, /update --watcher --quiet --no-repair/);
+  assert.match(script, /repair --watcher --quiet/);
+});
+
 test("self-update marks the installed CLI executable on unix", () => {
   if (process.platform === "win32") return;
 

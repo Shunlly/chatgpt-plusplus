@@ -22,6 +22,7 @@ import {
   patchCodexWindowServicesSource,
 } from "../codex-window-services.js";
 import { patchCodexStartupPerformance } from "../codex-startup-performance.js";
+import { chownForTargetUser } from "../ownership.js";
 
 interface Opts {
   app?: string;
@@ -51,10 +52,9 @@ export async function install(opts: Opts = {}): Promise<void> {
   preflightSystemTools(codex.platform, resign, codex.metaPath !== null);
   preflightAppClosed(codex);
 
-  // Pre-flight: try to create+remove a probe file inside the app bundle. This
-  // surfaces macOS App Management TCC denials BEFORE we touch anything, and
-  // also tickles the system into showing the permission prompt on first run.
-  preflightWritable(codex.resourcesDir, codex.platform);
+  // Pre-flight every app-bundle target we will mutate so permission failures
+  // surface before we patch app.asar or touch backups.
+  preflightWritableTargets(codex, { fuseFlip });
   step("Bundle is writable");
 
   const preparedSigning = resign && codex.platform === "darwin"
@@ -178,6 +178,7 @@ export async function install(opts: Opts = {}): Promise<void> {
     watcher,
     sourceRoot,
   });
+  chownForTargetUser(paths.root, { recursive: true });
 
   if (!opts.quiet) {
     console.log();
@@ -292,12 +293,14 @@ export function stageAssets(runtimeDir: string): void {
   const src = join(assetsDir, "runtime");
   if (existsSync(src)) {
     cpSync(src, runtimeDir, { recursive: true });
+    chownForTargetUser(runtimeDir, { recursive: true });
     return;
   }
   // Dev fallback: copy from the in-tree built runtime.
   const devSrc = resolve(here, "..", "..", "..", "..", "runtime", "dist");
   if (existsSync(devSrc)) {
     cpSync(devSrc, runtimeDir, { recursive: true });
+    chownForTargetUser(runtimeDir, { recursive: true });
     return;
   }
   throw new Error(
@@ -313,11 +316,21 @@ function makeStepper(quiet = false) {
   };
 }
 
+export function preflightWritableTargets(
+  codex: Pick<CodexInstall, "resourcesDir" | "asarPath" | "metaPath" | "electronBinary" | "platform">,
+  opts: { fuseFlip: boolean },
+): void {
+  preflightWritableDirectory(codex.resourcesDir, codex.platform);
+  preflightWritableFile(codex.asarPath, codex.platform);
+  if (codex.metaPath) preflightWritableFile(codex.metaPath, codex.platform);
+  if (opts.fuseFlip) preflightWritableFile(codex.electronBinary, codex.platform);
+}
+
 /**
  * Touch a probe file inside the app bundle to surface (and trigger) macOS
  * App Management TCC denials before we begin destructive work.
  */
-function preflightWritable(targetDir: string, platform: string): void {
+function preflightWritableDirectory(targetDir: string, platform: string): void {
   const probe = join(targetDir, ".codexpp-write-probe");
   const copyProbe = join(targetDir, ".codexpp-copy-probe");
   try {
@@ -333,41 +346,60 @@ function preflightWritable(targetDir: string, platform: string): void {
     try {
       unlinkSync(copyProbe);
     } catch {}
-    const err = e as NodeJS.ErrnoException;
-    if (err.code === "EPERM" || err.code === "EACCES") {
-      const inApps = platform === "darwin" && targetDir.startsWith("/Applications/");
-      const inWindowsApps =
-        platform === "win32" && /\\WindowsApps\\/i.test(`${targetDir}\\`);
-      const msg =
-        `Cannot write to ${targetDir}.\n\n` +
-        (inApps
-          ? macAppManagementFix(targetDir)
-          : inWindowsApps
-            ? `Windows Store installs live under WindowsApps and Windows is blocking the patch write.\n` +
-              `Fix:\n` +
-              `  1. Quit Codex completely\n` +
-              `  2. Re-open PowerShell as Administrator\n` +
-              `  3. Re-run this command.\n\n` +
-              `If Administrator still cannot write here, this Store install is locked by Windows package protections.\n` +
-              `Use a writable Codex install folder and rerun with --app pointing at it.\n`
-          : `Check filesystem permissions for the Codex install folder.\n`) +
-        `\nOriginal error: ${err.message}`;
-      throw new Error(msg);
-    }
-    throw e;
+    throw writableError(e, targetDir, platform);
   }
 }
 
-function macAppManagementFix(targetDir: string): string {
+function preflightWritableFile(targetFile: string, platform: string): void {
+  try {
+    const fd = openSync(targetFile, "r+");
+    closeSync(fd);
+  } catch (e) {
+    throw writableError(e, targetFile, platform);
+  }
+}
+
+function writableError(e: unknown, target: string, platform: string): unknown {
+  const err = e as NodeJS.ErrnoException;
+  if (err.code !== "EPERM" && err.code !== "EACCES") return e;
+
+  const isMac = platform === "darwin";
+  const inWindowsApps =
+    platform === "win32" && /\\WindowsApps\\/i.test(`${target}\\`);
+  const msg =
+    `Cannot write to ${target}.\n\n` +
+    (isMac
+      ? macAppManagementFix(target, err.code)
+      : inWindowsApps
+        ? `Windows Store installs live under WindowsApps and Windows is blocking the patch write.\n` +
+          `Fix:\n` +
+          `  1. Quit Codex completely\n` +
+          `  2. Re-open PowerShell as Administrator\n` +
+          `  3. Re-run this command.\n\n` +
+          `If Administrator still cannot write here, this Store install is locked by Windows package protections.\n` +
+          `Use a writable Codex install folder and rerun with --app pointing at it.\n`
+        : `Check filesystem permissions for the Codex install folder.\n`) +
+    `\nOriginal error: ${err.message}`;
+  return new Error(msg);
+}
+
+function macAppManagementFix(target: string, code: string | undefined): string {
   const watcher = process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === "com.codexplusplus.watcher";
   const permissionSteps =
-    `macOS App Management is blocking modification of ${targetDir}.\n` +
+    `macOS App Management or file ownership is blocking modification of ${target}.\n` +
     `Fix:\n` +
     `  Open Terminal and run: codexplusplus repair\n`;
+  const sudoFallback =
+    code === "EACCES"
+      ? `\nIf Codex.app is root-owned and repair still cannot write to it, run: sudo codexplusplus repair\n` +
+        `For source bootstrap installs, rerun: curl -fsSL ${installScriptUrl()} | sudo bash\n` +
+        `Avoid \`sudo curl ... | bash\`; that only runs curl as root, not the installer.\n`
+      : "";
 
   if (watcher) {
     return (
       permissionSteps +
+      sudoFallback +
       `\nThe background watcher cannot complete this repair directly. Terminal can finish it with your user-approved app permissions.\n` +
       `(If macOS asks for permission, click Allow, then let the repair finish.)\n`
     );
@@ -375,8 +407,15 @@ function macAppManagementFix(targetDir: string): string {
 
   return (
     permissionSteps +
+    sudoFallback +
     `\nIf macOS asks for permission, click Allow, then re-run the command.\n`
   );
+}
+
+function installScriptUrl(): string {
+  const repo = process.env.CODEX_PLUSPLUS_REPO ?? "b-nnett/codex-plusplus";
+  const ref = process.env.CODEX_PLUSPLUS_REF ?? "main";
+  return `https://raw.githubusercontent.com/${repo}/${ref}/install.sh`;
 }
 
 function preflightAppClosed(codex: CodexInstall): void {

@@ -3,7 +3,6 @@ set -euo pipefail
 
 REPO="${CODEX_PLUSPLUS_REPO:-b-nnett/codex-plusplus}"
 REF="${CODEX_PLUSPLUS_REF:-main}"
-INSTALL_DIR="${CODEX_PLUSPLUS_SOURCE_DIR:-$HOME/.codex-plusplus/source}"
 
 fail() {
   echo "[!] $1" >&2
@@ -18,6 +17,34 @@ require_command() {
     fail "$message"
   fi
 }
+
+chown_to_sudo_user() {
+  local path="$1"
+  if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
+    chown -R "$SUDO_UID:$SUDO_GID" "$path" 2>/dev/null || true
+  fi
+}
+
+resolve_sudo_home() {
+  if [ "$(id -u)" -ne 0 ] || [ -z "${SUDO_USER:-}" ] || [ "$SUDO_USER" = "root" ]; then
+    return 0
+  fi
+
+  local sudo_home=""
+  if command -v dscl >/dev/null 2>&1; then
+    sudo_home="$(dscl . -read "/Users/$SUDO_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+  elif command -v getent >/dev/null 2>&1; then
+    sudo_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  fi
+
+  if [ -n "$sudo_home" ] && [ -d "$sudo_home" ]; then
+    HOME="$sudo_home"
+    export HOME
+  fi
+}
+
+resolve_sudo_home
+INSTALL_DIR="${CODEX_PLUSPLUS_SOURCE_DIR:-$HOME/.codex-plusplus/source}"
 
 if ! command -v node >/dev/null 2>&1; then
   fail "Node.js 20+ is required but node was not found."
@@ -75,6 +102,7 @@ if [ -d "$INSTALL_DIR" ]; then
   mv "$INSTALL_DIR" "$INSTALL_DIR.previous"
 fi
 mv "$NEXT" "$INSTALL_DIR"
+chown_to_sudo_user "$INSTALL_DIR"
 
 echo "Running installer..."
 node "$INSTALL_DIR/packages/installer/dist/cli.js" install "$@" ||

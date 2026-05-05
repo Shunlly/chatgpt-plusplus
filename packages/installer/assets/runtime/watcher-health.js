@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getWatcherHealth = getWatcherHealth;
+exports.analyzeWatcherLogTail = analyzeWatcherLogTail;
 const node_child_process_1 = require("node:child_process");
 const node_fs_1 = require("node:fs");
 const node_os_1 = require("node:os");
@@ -178,11 +179,20 @@ function watcherLogCheck() {
         return { name: "watcher log", status: "warn", detail: "no watcher log yet" };
     }
     const tail = readFileSafe(WATCHER_LOG).split(/\r?\n/).slice(-40).join("\n");
+    return analyzeWatcherLogTail(tail);
+}
+function analyzeWatcherLogTail(tail) {
     const hasError = /✗ codex-plusplus failed|codex-plusplus failed|error|failed/i.test(tail);
+    const needsManualRepair = hasError &&
+        /Cannot write to .*Codex.*\.app|App Management|file ownership|sudo codexplusplus (?:install|repair)|EACCES|EPERM/i.test(tail);
     return {
         name: "watcher log",
         status: hasError ? "warn" : "ok",
-        detail: hasError ? "recent watcher log contains an error" : WATCHER_LOG,
+        detail: hasError
+            ? needsManualRepair
+                ? "auto-repair needs app permissions; run `codexplusplus repair` from Terminal"
+                : "recent watcher log contains an error"
+            : WATCHER_LOG,
     };
 }
 function summarize(watcher, checks) {
