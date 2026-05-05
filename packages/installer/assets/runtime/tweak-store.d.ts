@@ -33,6 +33,7 @@ export interface TweakStorePublishSubmission {
 }
 export declare function normalizeGitHubRepo(input: string): string;
 export declare function normalizeStoreRegistry(input: unknown): TweakStoreRegistry;
+export declare function shuffleStoreEntries<T>(entries: readonly T[], randomIndex?: (exclusiveMax: number) => number): T[];
 export declare function normalizeStoreEntry(input: unknown): TweakStoreEntry;
 export declare function storeArchiveUrl(entry: TweakStoreEntry): string;
 export declare function buildTweakPublishIssueUrl(submission: TweakStorePublishSubmission): string;

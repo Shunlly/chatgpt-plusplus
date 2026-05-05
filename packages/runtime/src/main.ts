@@ -10,7 +10,7 @@
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import chokidar from "chokidar";
@@ -29,6 +29,7 @@ import {
   DEFAULT_TWEAK_STORE_INDEX_URL,
   normalizeGitHubRepo,
   normalizeStoreRegistry,
+  shuffleStoreEntries,
   storeArchiveUrl,
   type TweakStorePublishSubmission,
   type TweakStoreEntry,
@@ -582,11 +583,12 @@ ipcMain.handle("codexpp:get-tweak-store", async () => {
   const store = await fetchTweakStoreRegistry();
   const registry = store.registry;
   const installed = new Map(tweakState.discovered.map((t) => [t.manifest.id, t]));
+  const entries = shuffleStoreEntries(registry.entries, randomInt);
   return {
     ...registry,
     sourceUrl: TWEAK_STORE_INDEX_URL,
     fetchedAt: store.fetchedAt,
-    entries: registry.entries.map((entry) => {
+    entries: entries.map((entry) => {
       const local = installed.get(entry.id);
       const platform = storeEntryPlatformCompatibility(entry);
       return {

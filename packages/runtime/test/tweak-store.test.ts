@@ -4,6 +4,7 @@ import {
   buildTweakPublishIssueUrl,
   normalizeGitHubRepo,
   normalizeStoreRegistry,
+  shuffleStoreEntries,
   storeArchiveUrl,
 } from "../src/tweak-store";
 
@@ -44,6 +45,25 @@ test("storeArchiveUrl installs from the approved commit archive", () => {
   assert.equal(
     storeArchiveUrl(entry),
     `https://codeload.github.com/example/good/tar.gz/${entry.approvedCommitSha}`,
+  );
+});
+
+test("shuffleStoreEntries randomizes presentation order without mutating the registry", () => {
+  const entries = ["a", "b", "c", "d"];
+  const draws = [0, 1, 1];
+  const shuffled = shuffleStoreEntries(entries, (exclusiveMax) => {
+    assert.ok(exclusiveMax >= 2);
+    return draws.shift() ?? 0;
+  });
+
+  assert.deepEqual(shuffled, ["d", "c", "b", "a"]);
+  assert.deepEqual(entries, ["a", "b", "c", "d"]);
+});
+
+test("shuffleStoreEntries rejects biased out-of-range random indexes", () => {
+  assert.throws(
+    () => shuffleStoreEntries(["a", "b"], () => 2),
+    /expected an integer from 0 to 1/,
   );
 });
 

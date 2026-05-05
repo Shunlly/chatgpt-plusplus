@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-05T18:19:59Z",
+  "generatedAt": "2026-05-05T19:19:59Z",
   "entries": [
     {
       "id": "co.bennett.ui-improvements",
@@ -83,6 +83,32 @@
       "approvedBy": "bennett"
     },
     {
+      "id": "co.Arconte112.followup",
+      "manifest": {
+        "id": "co.Arconte112.followup",
+        "name": "Context Follow Up",
+        "version": "0.3.0",
+        "githubRepo": "Arconte112/codex-plusplus-followup",
+        "description": "Adds clickable, context-aware next-step prompts below assistant messages and can sync a managed AGENTS.md instruction for follow-up payloads.",
+        "author": {
+          "name": "Arconte112",
+          "url": "https://github.com/Arconte112"
+        },
+        "tags": [
+          "ui",
+          "followups",
+          "productivity"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/followup.png"
+      },
+      "repo": "Arconte112/codex-plusplus-followup",
+      "approvedCommitSha": "3d169c4f2f6508c3cf6a89a6531ed939209b5d6c",
+      "approvedAt": "2026-05-05T19:19:59Z",
+      "approvedBy": "bennett"
+    },
+    {
       "id": "co.bennett.custom-keyboard-shortcuts",
       "manifest": {
         "id": "co.bennett.custom-keyboard-shortcuts",
@@ -105,6 +131,60 @@
       "repo": "b-nnett/codex-plusplus-keyboard-shortcuts",
       "approvedCommitSha": "2fa2e5beeda1766b53288a6e28662443889e1f5b",
       "approvedAt": "2026-05-01T13:10:25+09:00",
+      "approvedBy": "bennett"
+    },
+    {
+      "id": "co.qoli.disable-escape",
+      "manifest": {
+        "id": "co.qoli.disable-escape",
+        "name": "Disable Escape",
+        "version": "0.1.0",
+        "githubRepo": "qoli/codex-disable-escape-tweak",
+        "description": "Blocks Escape key events in Codex renderer windows so CJK IME composition does not interrupt running responses.",
+        "author": {
+          "name": "qoli",
+          "url": "https://github.com/qoli"
+        },
+        "tags": [
+          "ui",
+          "keyboard",
+          "ime",
+          "escape"
+        ],
+        "scope": "renderer",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/esc.png"
+      },
+      "repo": "qoli/codex-disable-escape-tweak",
+      "approvedCommitSha": "241f066ab315c98ff1df15a884f50d72328c8630",
+      "approvedAt": "2026-05-05T19:19:59Z",
+      "approvedBy": "bennett"
+    },
+    {
+      "id": "me.erkin.codex-plusplus-account-switcher",
+      "manifest": {
+        "id": "me.erkin.codex-plusplus-account-switcher",
+        "name": "Easy Account Switcher",
+        "version": "1.0.0",
+        "githubRepo": "erknvl/codex-plusplus-account-switcher",
+        "description": "Save, switch, and manage local Codex auth sessions from the account menu, with cached usage status in Settings.",
+        "author": {
+          "name": "erknvl",
+          "url": "https://github.com/erknvl"
+        },
+        "tags": [
+          "auth",
+          "accounts",
+          "settings",
+          "productivity"
+        ],
+        "scope": "both",
+        "main": "index.bundled.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/auth-switcher.png"
+      },
+      "repo": "erknvl/codex-plusplus-account-switcher",
+      "approvedCommitSha": "a37737530532170802262009af376da1a9fc25d6",
+      "approvedAt": "2026-05-05T19:19:59Z",
       "approvedBy": "bennett"
     },
     {
@@ -196,6 +276,34 @@
       "repo": "b-nnett/codex-plusplus-project-home",
       "approvedCommitSha": "1d97062f707caafdac5ed2af8bd9a986341dc912",
       "approvedAt": "2026-04-30T20:44:58+09:00",
+      "approvedBy": "bennett"
+    },
+    {
+      "id": "co.shivam94.reasoning-fixes",
+      "manifest": {
+        "id": "co.shivam94.reasoning-fixes",
+        "name": "Reasoning & Exploration Fixes",
+        "version": "1.1.0",
+        "githubRepo": "shivam2014/codex-plusplus-reasoning-fixes",
+        "description": "Shows reasoning steps, tool calls, file edits, and exploration activity as standalone chat items, with a floating control to collapse or expand them together.",
+        "author": {
+          "name": "shivam94",
+          "url": "https://github.com/shivam2014/codex-plusplus-reasoning-fixes"
+        },
+        "tags": [
+          "ui",
+          "reasoning",
+          "exploration",
+          "tool-output"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "minRuntime": "0.1.0",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/thought-fixer.png"
+      },
+      "repo": "shivam2014/codex-plusplus-reasoning-fixes",
+      "approvedCommitSha": "2766527ef1b159ee29d338fc7475372010ed7f6f",
+      "approvedAt": "2026-05-05T19:19:59Z",
       "approvedBy": "bennett"
     },
     {

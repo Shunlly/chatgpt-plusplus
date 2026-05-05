@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TWEAK_STORE_REVIEW_ISSUE_URL = exports.DEFAULT_TWEAK_STORE_INDEX_URL = void 0;
 exports.normalizeGitHubRepo = normalizeGitHubRepo;
 exports.normalizeStoreRegistry = normalizeStoreRegistry;
+exports.shuffleStoreEntries = shuffleStoreEntries;
 exports.normalizeStoreEntry = normalizeStoreEntry;
 exports.storeArchiveUrl = storeArchiveUrl;
 exports.buildTweakPublishIssueUrl = buildTweakPublishIssueUrl;
@@ -41,6 +42,17 @@ function normalizeStoreRegistry(input) {
         generatedAt: typeof registry.generatedAt === "string" ? registry.generatedAt : undefined,
         entries,
     };
+}
+function shuffleStoreEntries(entries, randomIndex = (exclusiveMax) => Math.floor(Math.random() * exclusiveMax)) {
+    const shuffled = [...entries];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const j = randomIndex(i + 1);
+        if (!Number.isInteger(j) || j < 0 || j > i) {
+            throw new Error(`shuffle randomIndex returned ${j}; expected an integer from 0 to ${i}`);
+        }
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
 }
 function normalizeStoreEntry(input) {
     const entry = input;

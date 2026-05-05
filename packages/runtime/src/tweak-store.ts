@@ -74,6 +74,21 @@ export function normalizeStoreRegistry(input: unknown): TweakStoreRegistry {
   };
 }
 
+export function shuffleStoreEntries<T>(
+  entries: readonly T[],
+  randomIndex: (exclusiveMax: number) => number = (exclusiveMax) => Math.floor(Math.random() * exclusiveMax),
+): T[] {
+  const shuffled = [...entries];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = randomIndex(i + 1);
+    if (!Number.isInteger(j) || j < 0 || j > i) {
+      throw new Error(`shuffle randomIndex returned ${j}; expected an integer from 0 to ${i}`);
+    }
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export function normalizeStoreEntry(input: unknown): TweakStoreEntry {
   const entry = input as Partial<TweakStoreEntry> | null;
   if (!entry || typeof entry !== "object") throw new Error("Invalid tweak store entry");
