@@ -18,17 +18,14 @@ Publishing flow:
 3. Codex++ resolves the repo's current default-branch commit SHA.
 4. Codex++ opens a GitHub issue for admin review with that exact SHA.
 5. An admin reviews the repo at that exact commit SHA.
-6. The admin validates 1-3 screenshots committed at `.codexpp-store/screenshots/`.
+6. The admin confirms the manifest includes an icon URL suitable for the store.
 7. The admin adds or updates an `index.json` entry pinned to that SHA.
 
 Admin acceptance:
 
 1. Open the submitted commit URL.
 2. Review source and `manifest.json` at that exact commit.
-3. Confirm `.codexpp-store/screenshots/` contains 1-3 images.
-4. Confirm each screenshot is exactly 1920x1080.
-5. Add a `store/index.json` entry with `approvedCommitSha` set to the reviewed
+3. Confirm the manifest includes a usable `iconUrl`.
+4. Add a `store/index.json` entry with `approvedCommitSha` set to the reviewed
    full SHA.
-6. Use immutable screenshot URLs that include the same SHA, for example:
-   `https://raw.githubusercontent.com/owner/repo/<sha>/.codexpp-store/screenshots/overview.png`
-7. Commit the registry change to `gh-pages`; GitHub Pages publishes it.
+5. Commit the registry change to `gh-pages`; GitHub Pages publishes it.

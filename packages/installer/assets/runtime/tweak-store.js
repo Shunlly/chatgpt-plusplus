@@ -57,9 +57,6 @@ function normalizeStoreEntry(input) {
     if (!isFullCommitSha(String(entry.approvedCommitSha ?? ""))) {
         throw new Error(`Store entry ${manifest.id} must pin a full approved commit SHA`);
     }
-    const screenshots = Array.isArray(entry.screenshots)
-        ? entry.screenshots.map(normalizeStoreScreenshot)
-        : [];
     return {
         id: manifest.id,
         manifest,
@@ -67,7 +64,6 @@ function normalizeStoreEntry(input) {
         approvedCommitSha: String(entry.approvedCommitSha),
         approvedAt: typeof entry.approvedAt === "string" ? entry.approvedAt : "",
         approvedBy: typeof entry.approvedBy === "string" ? entry.approvedBy : "",
-        screenshots,
         platforms: normalizeStorePlatforms(entry.platforms),
         releaseUrl: optionalGithubUrl(entry.releaseUrl),
         reviewUrl: optionalGithubUrl(entry.reviewUrl),
@@ -100,18 +96,13 @@ function buildTweakPublishIssueUrl(submission) {
         `- name: ${submission.manifest?.name ?? "(not detected)"}`,
         `- version: ${submission.manifest?.version ?? "(not detected)"}`,
         `- description: ${submission.manifest?.description ?? "(not detected)"}`,
-        "",
-        "## Screenshots",
-        "Screenshots must be committed in the repo at the reviewed commit.",
-        "Expected location: `.codexpp-store/screenshots/`",
-        "Required: 1-3 images, each exactly 1920x1080.",
+        `- iconUrl: ${submission.manifest?.iconUrl ?? "(not detected)"}`,
         "",
         "## Admin checklist",
         "- [ ] manifest.json is valid",
-        "- [ ] screenshots exist at the reviewed commit and are exactly 1920x1080",
+        "- [ ] manifest.iconUrl is usable as the store icon",
         "- [ ] source was reviewed at the exact commit above",
         "- [ ] `store/index.json` entry pins `approvedCommitSha` to the exact commit above",
-        "- [ ] screenshot URLs in `store/index.json` point at immutable raw URLs for the exact commit above",
     ].join("\n");
     const url = new URL(exports.TWEAK_STORE_REVIEW_ISSUE_URL);
     url.searchParams.set("template", "tweak-store-review.md");
@@ -127,18 +118,6 @@ function normalizeRepoPart(value) {
     if (!GITHUB_REPO_RE.test(repo))
         throw new Error("GitHub repo must be in owner/repo form");
     return repo;
-}
-function normalizeStoreScreenshot(input) {
-    const shot = input;
-    if (!shot || shot.width !== 1920 || shot.height !== 1080 || typeof shot.url !== "string") {
-        throw new Error("Store screenshots must be exactly 1920x1080");
-    }
-    return {
-        url: shot.url,
-        width: 1920,
-        height: 1080,
-        alt: typeof shot.alt === "string" ? shot.alt : undefined,
-    };
 }
 function normalizeStorePlatforms(input) {
     if (input === undefined)

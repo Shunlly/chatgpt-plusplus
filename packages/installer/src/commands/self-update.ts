@@ -325,6 +325,7 @@ function runRepairIfRequested(opts: Opts, sourceRoot: string, cwd: string): void
   if (opts.repair === false) return;
   const cli = join(sourceRoot, "packages", "installer", "dist", "cli.js");
   const args = [cli, "repair"];
+  if (opts.watcher) args.push("--watcher");
   if (opts.quiet) args.push("--quiet");
   run(process.execPath, args, cwd);
 }

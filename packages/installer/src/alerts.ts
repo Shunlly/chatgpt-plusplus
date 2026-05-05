@@ -1,13 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
-import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { readPlist } from "./plist.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
+import { ensureUserPaths } from "./paths.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
 const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
-const APP_MANAGEMENT_SETTINGS_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_AppManagement";
+const TERMINAL_REPAIR_THROTTLE_MS = 10 * 60 * 1000;
 
 export function showPatchFailedAlert(errorMessage: string): void {
   if (isMacAppManagementError(errorMessage)) {
@@ -32,22 +33,27 @@ export function showPatchFailedAlert(errorMessage: string): void {
 }
 
 function showAppManagementPatchFailedAlert(errorMessage: string): void {
+  const watcher = isWatcherContext();
+  const launchedTerminalRepair = watcher ? tryOpenTerminalRepair() : false;
   const button = showAlert({
-    title: "Codex++ needs App Management permission",
+    title: watcher ? "Codex++ needs Terminal to finish repair" : "Codex++ needs app repair",
     message:
-      "Codex was updated, but macOS blocked Codex++ from modifying the app.\n\n" +
-      "To finish the repair:\n" +
-      "1. Open System Settings > Privacy & Security > App Management\n" +
-      "2. Enable the app running the repair command (Codex, Terminal, iTerm2, etc.)\n" +
-      "3. Run: codexplusplus repair\n\n" +
-      "Codex will stay unpatched until that permission is granted.",
-    buttons: ["Dismiss", "Open Settings", "Report on GitHub"],
-    defaultButton: "Open Settings",
+      (watcher
+        ? "Codex was updated, but the background watcher could not modify the app directly.\n\n"
+        : "Codex was updated, but macOS blocked this repair command from modifying the app.\n\n") +
+      (launchedTerminalRepair
+        ? "Codex++ opened Terminal to finish the repair. Let that command complete.\n\n"
+        : "") +
+      "If the repair is not already running, open Terminal and run:\n\n" +
+      "codexplusplus repair\n\n" +
+      "Codex will stay unpatched until that command completes.",
+    buttons: ["Dismiss", "Run Repair in Terminal", "Report on GitHub"],
+    defaultButton: launchedTerminalRepair ? "Dismiss" : "Run Repair in Terminal",
     critical: true,
   });
 
-  if (button === "Open Settings") {
-    openUrl(APP_MANAGEMENT_SETTINGS_URL);
+  if (button === "Run Repair in Terminal") {
+    tryOpenTerminalRepair(true);
   } else if (button === "Report on GitHub") {
     openUrl(buildPatchFailureIssueUrl(errorMessage));
   }
@@ -311,11 +317,74 @@ export function isMacAppManagementError(errorMessage: string): boolean {
   return /macOS App Management is blocking modification/.test(errorMessage);
 }
 
+function isWatcherContext(): boolean {
+  return process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === "com.codexplusplus.watcher";
+}
+
+function tryOpenTerminalRepair(force = false): boolean {
+  if (platform() !== "darwin") return false;
+  try {
+    const paths = ensureUserPaths();
+    const marker = join(paths.root, "terminal-repair-launched.json");
+    if (!force && recentlyTouched(marker, TERMINAL_REPAIR_THROTTLE_MS)) return false;
+    const commandPath = join(paths.binDir, "repair-from-terminal.command");
+    mkdirSync(dirname(commandPath), { recursive: true });
+    writeFileSync(commandPath, terminalRepairScript(), { mode: 0o755 });
+    chmodSync(commandPath, 0o755);
+    writeFileSync(marker, JSON.stringify({ launchedAt: new Date().toISOString() }, null, 2));
+    execFileSync("open", ["-a", "Terminal", commandPath], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function recentlyTouched(path: string, maxAgeMs: number): boolean {
+  try {
+    return Date.now() - statSync(path).mtimeMs < maxAgeMs;
+  } catch {
+    return false;
+  }
+}
+
+function terminalRepairScript(): string {
+  const cli = process.argv[1] ?? "codexplusplus";
+  const execArgs = cli.endsWith(".ts") ? process.execArgv : [];
+  const repairCommand = [
+    shellQuote(process.execPath),
+    ...execArgs.map(shellQuote),
+    shellQuote(cli),
+    "repair",
+    "--force",
+  ].join(" ");
+  return [
+    "#!/bin/zsh",
+    "clear",
+    "echo 'Codex++ is finishing the app repair from Terminal.'",
+    "echo ''",
+    repairCommand,
+    "status=$?",
+    "echo ''",
+    "if [ \"$status\" -eq 0 ]; then",
+    "  echo 'Codex++ repair complete. You can close this window.'",
+    "else",
+    "  echo \"Codex++ repair failed with exit code $status.\"",
+    "  echo 'If macOS asked for permission, click Allow and run: codexplusplus repair'",
+    "fi",
+    "exit \"$status\"",
+    "",
+  ].join("\n");
+}
+
 function openUrl(url: string): void {
   if (platform() !== "darwin") return;
   try {
     execFileSync("open", [url], { stdio: "ignore" });
   } catch {}
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function codexBundleId(appRoot: string): string {

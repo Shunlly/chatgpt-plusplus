@@ -55,7 +55,7 @@ const INSTALLER_STATE_FILE = join(userRoot, "state.json");
 const UPDATE_MODE_FILE = join(userRoot, "update-mode.json");
 const SELF_UPDATE_STATE_FILE = join(userRoot, "self-update-state.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
-const CODEX_PLUSPLUS_VERSION = "0.1.4";
+const CODEX_PLUSPLUS_VERSION = "0.1.5";
 const CODEX_PLUSPLUS_REPO = "b-nnett/codex-plusplus";
 const TWEAK_STORE_INDEX_URL = process.env.CODEX_PLUSPLUS_STORE_INDEX_URL ?? DEFAULT_TWEAK_STORE_INDEX_URL;
 const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
@@ -456,10 +456,15 @@ function registerPreload(s: Electron.Session, label: string): void {
 
 app.whenReady().then(() => {
   log("info", "app ready fired");
+  if (isCodexPlusPlusSafeModeEnabled()) {
+    log("warn", "safe mode is enabled; preload will not be registered");
+    return;
+  }
   registerPreload(session.defaultSession, "defaultSession");
 });
 
 app.on("session-created", (s) => {
+  if (isCodexPlusPlusSafeModeEnabled()) return;
   registerPreload(s, "session-created");
 });
 
@@ -1119,6 +1124,7 @@ async function prepareTweakStoreSubmission(repoInput: string): Promise<TweakStor
           name: typeof manifest.name === "string" ? manifest.name : undefined,
           version: typeof manifest.version === "string" ? manifest.version : undefined,
           description: typeof manifest.description === "string" ? manifest.description : undefined,
+          iconUrl: typeof manifest.iconUrl === "string" ? manifest.iconUrl : undefined,
         }
       : undefined,
   };

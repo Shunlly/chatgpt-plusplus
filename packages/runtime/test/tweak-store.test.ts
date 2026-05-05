@@ -58,13 +58,14 @@ test("publish issue URL pins the commit admins must review", () => {
       name: "Good",
       version: "1.0.0",
       description: "A useful tweak.",
+      iconUrl: "https://example.com/icon.png",
     },
   }));
   assert.equal(url.origin + url.pathname, "https://github.com/b-nnett/codex-plusplus/issues/new");
   assert.equal(url.searchParams.get("title"), "Tweak store review: example/good");
   assert.match(url.searchParams.get("body") ?? "", /1234567890abcdef1234567890abcdef12345678/);
   assert.match(url.searchParams.get("body") ?? "", /Do not approve a different commit/);
-  assert.match(url.searchParams.get("body") ?? "", /\.codexpp-store\/screenshots/);
+  assert.match(url.searchParams.get("body") ?? "", /iconUrl: https:\/\/example\.com\/icon\.png/);
 });
 
 function storeEntry(id: string, name: string) {
@@ -75,12 +76,12 @@ function storeEntry(id: string, name: string) {
     approvedCommitSha: "1234567890abcdef1234567890abcdef12345678",
     approvedAt: "2026-05-02T00:00:00.000Z",
     approvedBy: "bennett",
-    screenshots: [],
     manifest: {
       id,
       name,
       version: "1.0.0",
       githubRepo: repo,
+      iconUrl: "https://example.com/icon.png",
     },
   };
 }

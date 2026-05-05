@@ -29,6 +29,7 @@ import {
 } from "../src/codex-window-services";
 import { readSelfUpdateState, writeSelfUpdateState } from "../src/self-update-state";
 import { describeInstallationSource } from "../src/source-root";
+import { watcherShellScript } from "../src/watcher";
 
 test("createTweak scaffolds a both-scope tweak", () => {
   withTempDir((root) => {
@@ -370,6 +371,14 @@ test("watcher self-update checks stay hourly while repair can run more often", (
     assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 5 * 60_000), false);
     assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 60 * 60_000), true);
   });
+});
+
+test("watcher runs self-update and app repair as separate steps", () => {
+  const script = watcherShellScript();
+
+  assert.match(script, /update --watcher --quiet --no-repair/);
+  assert.match(script, /repair --watcher --quiet/);
+  assert.match(script, /update[\s\S]+\|\| true;[\s\S]+repair/);
 });
 
 test("self-update marks the installed CLI executable on unix", () => {

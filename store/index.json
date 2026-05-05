@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-03T01:50:37.593Z",
+  "generatedAt": "2026-05-05T18:19:59Z",
   "entries": [
     {
       "id": "co.bennett.ui-improvements",
       "manifest": {
         "id": "co.bennett.ui-improvements",
         "name": "Bennett's UI Improvements",
-        "version": "0.1.2",
+        "version": "0.1.5",
         "githubRepo": "b-nnett/codex-plusplus-bennett-ui",
         "description": "Quality-of-life UI tweaks for Codex: hide upgrade prompts, surface usage and message metrics.",
         "author": {
@@ -24,10 +24,9 @@
         "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/ui-improvements.png"
       },
       "repo": "b-nnett/codex-plusplus-bennett-ui",
-      "approvedCommitSha": "7f9107c65d9bb8c2cda0bc95d2d742bdb7dca0a9",
-      "approvedAt": "2026-05-02T09:50:47+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedCommitSha": "05a401e90db8b8ca1a5872ea639cce0624df7f60",
+      "approvedAt": "2026-05-05T18:19:59Z",
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.better-browser",
@@ -54,8 +53,7 @@
       "repo": "b-nnett/codex-plusplus-better-browser",
       "approvedCommitSha": "dfcc75ec0d8e980698974a3a2b80531cd553af77",
       "approvedAt": "2026-05-02T16:50:54+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.codex-tab-switcher",
@@ -82,8 +80,7 @@
       "repo": "b-nnett/codex-plusplus-tab-switcher",
       "approvedCommitSha": "97b1226fb264dfebe7dbf5286497b99613981287",
       "approvedAt": "2026-04-29T12:30:38+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.custom-keyboard-shortcuts",
@@ -108,8 +105,7 @@
       "repo": "b-nnett/codex-plusplus-keyboard-shortcuts",
       "approvedCommitSha": "2fa2e5beeda1766b53288a6e28662443889e1f5b",
       "approvedAt": "2026-05-01T13:10:25+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.file-editor",
@@ -140,8 +136,7 @@
       "repo": "b-nnett/codex-plusplus-file-editor",
       "approvedCommitSha": "672e21d955b636ec88c6e8c67de5431341f146dc",
       "approvedAt": "2026-05-02T22:25:48+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.ios-simulator",
@@ -167,8 +162,7 @@
       "repo": "b-nnett/codex-plusplus-ios-simulator",
       "approvedCommitSha": "0ec57f6b7f0f1faee7be891e7be06a9682ddcba2",
       "approvedAt": "2026-04-30T14:22:08+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.project-home",
@@ -202,8 +196,7 @@
       "repo": "b-nnett/codex-plusplus-project-home",
       "approvedCommitSha": "1d97062f707caafdac5ed2af8bd9a986341dc912",
       "approvedAt": "2026-04-30T20:44:58+09:00",
-      "approvedBy": "bennett",
-      "screenshots": []
+      "approvedBy": "bennett"
     },
     {
       "id": "co.bennett.windows-computer-use",
@@ -237,7 +230,6 @@
       "approvedCommitSha": "1bb59c73f16f2ec3c3797168163d48d759eac706",
       "approvedAt": "2026-05-02T10:11:36+09:00",
       "approvedBy": "bennett",
-      "screenshots": [],
       "platforms": [
         "win32"
       ]

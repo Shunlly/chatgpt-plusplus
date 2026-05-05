@@ -23,19 +23,11 @@ Do not approve a different commit. If the author pushes changes, ask them to res
 - name:
 - version:
 - description:
-
-## Screenshots
-
-Screenshots must be committed in the repo at the reviewed commit.
-
-Expected location: `.codexpp-store/screenshots/`
-
-Required: 1-3 images, each exactly 1920x1080.
+- iconUrl:
 
 ## Admin checklist
 
 - [ ] `manifest.json` is valid
-- [ ] screenshots exist at the reviewed commit and are exactly 1920x1080
+- [ ] `manifest.iconUrl` is usable as the store icon
 - [ ] source was reviewed at the exact commit above
 - [ ] `store/index.json` entry pins `approvedCommitSha` to the exact commit above
-- [ ] screenshot URLs in `store/index.json` point at immutable raw URLs for the exact commit above

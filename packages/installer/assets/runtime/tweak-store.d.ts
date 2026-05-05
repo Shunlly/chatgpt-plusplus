@@ -13,18 +13,11 @@ export interface TweakStoreEntry {
     approvedCommitSha: string;
     approvedAt: string;
     approvedBy: string;
-    screenshots: TweakStoreScreenshot[];
     platforms?: TweakStorePlatform[];
     releaseUrl?: string;
     reviewUrl?: string;
 }
 export type TweakStorePlatform = "darwin" | "win32" | "linux";
-export interface TweakStoreScreenshot {
-    url: string;
-    width: 1920;
-    height: 1080;
-    alt?: string;
-}
 export interface TweakStorePublishSubmission {
     repo: string;
     defaultBranch: string;
@@ -35,6 +28,7 @@ export interface TweakStorePublishSubmission {
         name?: string;
         version?: string;
         description?: string;
+        iconUrl?: string;
     };
 }
 export declare function normalizeGitHubRepo(input: string): string;

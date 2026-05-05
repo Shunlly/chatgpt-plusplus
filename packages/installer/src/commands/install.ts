@@ -21,6 +21,7 @@ import {
   CODEX_WINDOW_SERVICES_KEY,
   patchCodexWindowServicesSource,
 } from "../codex-window-services.js";
+import { patchCodexStartupPerformance } from "../codex-startup-performance.js";
 
 interface Opts {
   app?: string;
@@ -229,6 +230,9 @@ async function injectLoader(asarPath: string, userRoot: string): Promise<string>
     }
 
     patchCodexWindowServices(dir, originalMain);
+    if (process.env.CODEXPP_PATCH_STARTUP_PERF !== "0") {
+      patchCodexStartupPerformance(dir);
+    }
   });
   return originalMain;
 }
@@ -335,22 +339,19 @@ function macAppManagementFix(targetDir: string): string {
   const permissionSteps =
     `macOS App Management is blocking modification of ${targetDir}.\n` +
     `Fix:\n` +
-    `  1. Open System Settings > Privacy & Security > App Management\n` +
-    `  2. Enable the app running this command (Terminal, iTerm2, Codex, etc.)\n`;
+    `  Open Terminal and run: codexplusplus repair\n`;
 
   if (watcher) {
     return (
       permissionSteps +
-      `  3. Open Terminal and run: codexplusplus repair\n\n` +
-      `The automatic watcher cannot complete this repair until a user-approved terminal has permission.\n` +
-      `(If macOS just showed a permission dialog, click Allow, then run codexplusplus repair.)\n`
+      `\nThe background watcher cannot complete this repair directly. Terminal can finish it with your user-approved app permissions.\n` +
+      `(If macOS asks for permission, click Allow, then let the repair finish.)\n`
     );
   }
 
   return (
     permissionSteps +
-    `  3. Re-run this command.\n\n` +
-    `(If macOS just showed a permission dialog, click Allow and re-run.)\n`
+    `\nIf macOS asks for permission, click Allow, then re-run the command.\n`
   );
 }
 

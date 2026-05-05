@@ -61,9 +61,7 @@ function installLaunchd(appRoot: string): WatcherKind {
   // Trigger on login + when Codex.app's asar changes. Run this installed CLI
   // directly so auto-repair does not depend on npm availability. The CLI
   // throttles GitHub release checks, so this interval keeps app repair prompt.
-  const repair = xmlEscape(
-    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
-  );
+  const repair = xmlEscape(watcherShellScript());
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -145,9 +143,7 @@ function launchdGuiDomain(): string | null {
 function installSystemd(appRoot: string): WatcherKind {
   const dir = join(homedir(), ".config", "systemd", "user");
   mkdirSync(dir, { recursive: true });
-  const repair = shellSingleQuote(
-    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
-  );
+  const repair = shellSingleQuote(watcherShellScript());
   const unit = `[Unit]
 Description=codex-plusplus repair watcher
 
@@ -255,14 +251,23 @@ function installScheduledTask(_appRoot: string): WatcherKind {
 }
 
 function cliShellCommand(command: string, args: string[] = []): string {
+  const cli = currentCliPath();
   return [
     "CODEX_PLUSPLUS_WATCHER=1",
     shellQuote(process.execPath),
-    ...process.execArgv.map(shellQuote),
-    shellQuote(currentCliPath()),
+    ...nodeExecArgsForCli(cli).map(shellQuote),
+    shellQuote(cli),
     command,
     ...args,
   ].join(" ");
+}
+
+export function watcherShellScript(): string {
+  return [
+    "sleep 3",
+    `${cliShellCommand("update", ["--watcher", "--quiet", "--no-repair"])} || true`,
+    `${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
+  ].join("; ");
 }
 
 function currentCliPath(): string {
@@ -287,13 +292,18 @@ function xmlEscape(value: string): string {
 }
 
 function windowsCommand(command: string, args: string[] = []): string {
+  const cli = currentCliPath();
   return [
     windowsQuote(process.execPath),
-    ...process.execArgv.map(windowsQuote),
-    windowsQuote(currentCliPath()),
+    ...nodeExecArgsForCli(cli).map(windowsQuote),
+    windowsQuote(cli),
     command,
     ...args,
   ].join(" ");
+}
+
+function nodeExecArgsForCli(cliPath: string): string[] {
+  return cliPath.endsWith(".ts") ? process.execArgv : [];
 }
 
 function windowsWatcherTaskCommand(): string {
@@ -304,8 +314,8 @@ function windowsWatcherTaskCommand(): string {
     [
       "@echo off",
       "set CODEX_PLUSPLUS_WATCHER=1",
-      `${windowsCommand("update", ["--watcher", "--quiet"])}`,
-      `if errorlevel 1 ${windowsCommand("repair", ["--watcher", "--quiet"])}`,
+      `${windowsCommand("update", ["--watcher", "--quiet", "--no-repair"])}`,
+      `${windowsCommand("repair", ["--watcher", "--quiet"])}`,
       "exit /b 0",
       "",
     ].join("\r\n"),
