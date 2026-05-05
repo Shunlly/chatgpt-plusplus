@@ -21,8 +21,14 @@ export interface InstallerState {
   codexBundleId?: string | null;
   /** Whether we flipped the Electron fuse. */
   fuseFlipped: boolean;
-  /** Whether we re-signed ad-hoc. */
+  /** Whether we re-signed the patched app. */
   resigned: boolean;
+  /** Signing mode used for the patched app. Older installs may not have this. */
+  signingMode?: "local-identity" | "adhoc";
+  /** Common name or ad-hoc marker used for the last signing pass. */
+  signingIdentity?: string;
+  /** SHA-1 hash of the local code signing identity, when applicable. */
+  signingIdentityHash?: string;
   /** Original entry point ("main" field) of the asar's package.json. */
   originalEntryPoint: string;
   /** Watcher install method, if any. */

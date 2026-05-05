@@ -80,9 +80,9 @@ The installer seeds the default tweak set from external GitHub release tarballs 
 
 The fuse alone would let us swap in a new asar, but Codex's asar is large (~115 MB) — pointlessly recopying it every install/update is slow. Patching the entry adds ~1 KB. We do flip the fuse anyway as a safety net: if a future Codex update brings asar integrity back via a different mechanism, the fuse still neutralizes it.
 
-### Why ad-hoc re-sign instead of disabling SIP?
+### Why local re-signing instead of disabling SIP?
 
-Re-signing is local-only, reversible, and doesn't compromise system security. Ad-hoc signatures are accepted by Gatekeeper for apps the user already approved. We never touch SIP, hardened runtime, or kernel-level protections.
+Re-signing is local-only, reversible, and doesn't compromise system security. On macOS, Codex++ creates and reuses a per-machine "Codex++ Local Signing" identity so privacy grants have a stable signer across repair runs. Users can still opt into ad-hoc signing with `--no-local-signing`. We never touch SIP, hardened runtime, or kernel-level protections.
 
 ### Why a preload, not source-patching the React tree?
 

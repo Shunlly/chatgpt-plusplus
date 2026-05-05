@@ -9,7 +9,7 @@ import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
-import { adHocSign, clearQuarantine, signatureInfo } from "../codesign.js";
+import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
 import { readPlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
@@ -27,6 +27,7 @@ interface Opts {
   app?: string;
   fuse?: boolean; // sade --no-fuse → fuse: false
   resign?: boolean;
+  localSigning?: boolean;
   watcher?: boolean;
   watcherKind?: WatcherKind;
   quiet?: boolean;
@@ -40,6 +41,7 @@ const sourceRoot = findSourceRoot(here);
 export async function install(opts: Opts = {}): Promise<void> {
   const fuseFlip = opts.fuse !== false;
   const resign = opts.resign !== false;
+  const localSigning = opts.localSigning !== false;
   const wantWatcher = opts.watcher !== false;
   const wantDefaultTweaks = opts.defaultTweaks !== false;
 
@@ -54,6 +56,10 @@ export async function install(opts: Opts = {}): Promise<void> {
   // also tickles the system into showing the permission prompt on first run.
   preflightWritable(codex.resourcesDir, codex.platform);
   step("Bundle is writable");
+
+  const preparedSigning = resign && codex.platform === "darwin"
+    ? prepareCodeSigning({ useLocalIdentity: localSigning })
+    : null;
 
   const codexVersion = readCodexVersion(codex.metaPath);
   if (codexVersion) step(`Codex version: ${kleur.cyan(codexVersion)}`);
@@ -115,11 +121,26 @@ export async function install(opts: Opts = {}): Promise<void> {
 
   // 6. Re-sign on macOS.
   let resigned = false;
+  let signingMode: "local-identity" | "adhoc" | undefined;
+  let signingIdentity: string | undefined;
+  let signingIdentityHash: string | undefined;
   if (resign && codex.platform === "darwin") {
     clearQuarantine(codex.appRoot);
-    adHocSign(codex.appRoot);
+    const signing = signCodexApp(codex.appRoot, {
+      useLocalIdentity: localSigning,
+      preparedIdentity: preparedSigning,
+    });
     resigned = true;
-    step("Re-signed ad-hoc");
+    signingMode = signing?.mode;
+    signingIdentity = signing?.identity;
+    signingIdentityHash = signing?.identityHash;
+    if (signing?.mode === "local-identity") {
+      step(
+        `${signing.createdIdentity ? "Created and used" : "Used"} local signing identity ${kleur.cyan(signing.identity)}`,
+      );
+    } else {
+      step("Re-signed ad-hoc");
+    }
   }
 
   // 7. Auto-repair watcher.
@@ -150,6 +171,9 @@ export async function install(opts: Opts = {}): Promise<void> {
     codexBundleId: codex.bundleId,
     fuseFlipped,
     resigned,
+    signingMode,
+    signingIdentity,
+    signingIdentityHash,
     originalEntryPoint: originalEntry,
     watcher,
     sourceRoot,

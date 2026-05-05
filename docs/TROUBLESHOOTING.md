@@ -11,9 +11,13 @@ codex-plusplus doctor
 If the signature check fails, manually re-sign:
 
 ```sh
-codesign --force --deep --sign - /Applications/Codex.app
+codex-plusplus repair --force
 xattr -dr com.apple.quarantine /Applications/Codex.app
 ```
+
+On macOS, Codex++ normally creates and reuses a local "Codex++ Local Signing"
+identity so privacy grants can survive future repair runs. To force the old
+ad-hoc behavior, run `codex-plusplus install --no-local-signing`.
 
 ## App launches but nothing about codex-plusplus appears
 

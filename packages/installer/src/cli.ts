@@ -17,6 +17,8 @@ interface InstallCliOpts {
   app?: string;
   fuse?: boolean;
   resign?: boolean;
+  localSigning?: boolean;
+  "local-signing"?: boolean;
   watcher?: boolean;
   defaultTweaks?: boolean;
   "default-tweaks"?: boolean;
@@ -45,6 +47,7 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
 function runInstall(opts: InstallCliOpts): Promise<void> {
   return install({
     ...opts,
+    localSigning: opts.localSigning ?? opts["local-signing"],
     defaultTweaks: opts.defaultTweaks ?? opts["default-tweaks"],
   });
 }
@@ -81,7 +84,8 @@ prog
   .describe("Patch Codex.app to load the tweak runtime")
   .option("--app", "Path to Codex.app / install dir (auto-detected if omitted)")
   .option("--fuse", "Flip Electron's embedded asar integrity fuse", true)
-  .option("--resign", "Ad-hoc code sign Codex.app on macOS", true)
+  .option("--resign", "Code sign Codex.app on macOS", true)
+  .option("--local-signing", "Use a stable local signing identity on macOS", true)
   .option("--watcher", "Install the auto-repair watcher", true)
   .option("--default-tweaks", "Install the default tweak set from latest GitHub releases", true)
   .action(wrap(runInstall));

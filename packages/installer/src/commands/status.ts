@@ -34,6 +34,8 @@ export async function status(): Promise<void> {
   if (state.codexBundleId) console.log(`  bundle id:    ${state.codexBundleId}`);
   console.log(`  fuse flipped: ${state.fuseFlipped}`);
   console.log(`  resigned:     ${state.resigned}`);
+  if (state.signingMode) console.log(`  sign mode:    ${state.signingMode}`);
+  if (state.signingIdentity) console.log(`  sign identity: ${state.signingIdentity}`);
   console.log(`  watcher:      ${state.watcher}`);
   console.log();
 
