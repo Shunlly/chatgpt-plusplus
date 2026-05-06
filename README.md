@@ -73,7 +73,8 @@ To revert:
 codexplusplus uninstall
 ```
 
-Other commands: `status`, `doctor`, `repair`, `tweaks list`, `tweaks open` (opens user tweaks dir).
+Other commands: `status`, `doctor`, `repair`, `update-codex`, `create-tweak`,
+`validate-tweak`, `dev`, and `safe-mode`.
 
 ### Updating Codex on macOS
 
