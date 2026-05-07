@@ -1,27 +1,35 @@
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildCliFailureIssueUrl, buildPatchFailureIssueUrl } from "../src/alerts";
+import { buildCliFailureIssueUrl, buildPatchFailureIssueUrl, isMacAppManagementError } from "../src/alerts";
+import { findCodexMainCandidates } from "../src/commands/install";
 import { createTweak } from "../src/commands/create-tweak";
 import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
 import {
+  ensureCliExecutable,
   releaseVersionFromTag,
   shouldDownloadSelfUpdate,
+  shouldRunWatcherSelfUpdate,
 } from "../src/commands/self-update";
 import { validateTweak } from "../src/commands/validate-tweak";
 import {
   CODEX_WINDOW_SERVICES_KEY,
   patchCodexWindowServicesSource,
 } from "../src/codex-window-services";
+import { readSelfUpdateState, writeSelfUpdateState } from "../src/self-update-state";
+import { describeInstallationSource } from "../src/source-root";
+import { watcherShellScript } from "../src/watcher";
 
 test("createTweak scaffolds a both-scope tweak", () => {
   withTempDir((root) => {
@@ -265,6 +273,21 @@ test("window services patch ignores unrelated buildFlavor factories", () => {
   assert.equal(patchCodexWindowServicesSource(source), null);
 });
 
+test("Codex main candidates include nested recovered Vite bundle files", () => {
+  withTempDir((root) => {
+    const buildDir = join(root, ".vite", "build");
+    mkdirSync(buildDir, { recursive: true });
+    writeFileSync(join(root, "bootstrap.js"), "");
+    writeFileSync(join(buildDir, "main-abc123.js"), "");
+    writeFileSync(join(buildDir, "renderer-abc123.js"), "");
+
+    assert.deepEqual(findCodexMainCandidates(root, "bootstrap.js"), [
+      join(root, "bootstrap.js"),
+      join(buildDir, "main-abc123.js"),
+    ]);
+  });
+});
+
 test("patch failure report URL includes a prefilled GitHub issue", () => {
   const url = new URL(buildPatchFailureIssueUrl("Codex window services hook point not found"));
 
@@ -285,6 +308,14 @@ test("CLI failure report URL includes command and environment details", () => {
   assert.match(url.searchParams.get("body") ?? "", /Node:/);
 });
 
+test("App Management failures use the dedicated repair alert path", () => {
+  assert.equal(
+    isMacAppManagementError("macOS App Management is blocking modification of /Applications/Codex.app."),
+    true,
+  );
+  assert.equal(isMacAppManagementError("Codex window services hook point not found"), false);
+});
+
 test("self-update release tags only download newer semver releases", () => {
   assert.equal(releaseVersionFromTag("v0.1.3"), "0.1.3");
   assert.equal(releaseVersionFromTag("0.1.3"), "0.1.3");
@@ -294,6 +325,94 @@ test("self-update release tags only download newer semver releases", () => {
   assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.1"), false);
   assert.equal(shouldDownloadSelfUpdate("0.1.2", "main"), true);
   assert.equal(shouldDownloadSelfUpdate("0.1.2", "v0.1.2", true), true);
+});
+
+test("self-update state persists human-readable diagnostics", () => {
+  withTempDir((root) => {
+    const file = join(root, "self-update-state.json");
+    writeSelfUpdateState(file, {
+      checkedAt: "2026-05-01T00:00:00.000Z",
+      completedAt: "2026-05-01T00:00:01.000Z",
+      status: "failed",
+      currentVersion: "0.1.3",
+      latestVersion: "0.1.4",
+      targetRef: "v0.1.4",
+      releaseUrl: "https://github.com/b-nnett/codex-plusplus/releases/tag/v0.1.4",
+      repo: "b-nnett/codex-plusplus",
+      channel: "stable",
+      sourceRoot: root,
+      error: "download failed",
+    });
+
+    const state = readSelfUpdateState(file);
+    assert.equal(state?.status, "failed");
+    assert.equal(state?.latestVersion, "0.1.4");
+    assert.equal(state?.error, "download failed");
+  });
+});
+
+test("watcher self-update checks stay hourly while repair can run more often", () => {
+  withTempDir((root) => {
+    const file = join(root, "self-update-state.json");
+    const checkedAt = Date.parse("2026-05-01T00:00:00.000Z");
+    writeSelfUpdateState(file, {
+      checkedAt: new Date(checkedAt).toISOString(),
+      completedAt: new Date(checkedAt + 1_000).toISOString(),
+      status: "up-to-date",
+      currentVersion: "0.1.4",
+      latestVersion: "0.1.4",
+      targetRef: "v0.1.4",
+      releaseUrl: "https://github.com/b-nnett/codex-plusplus/releases/tag/v0.1.4",
+      repo: "b-nnett/codex-plusplus",
+      channel: "stable",
+      sourceRoot: root,
+    });
+
+    assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 5 * 60_000), false);
+    assert.equal(shouldRunWatcherSelfUpdate(file, checkedAt + 60 * 60_000), true);
+  });
+});
+
+test("watcher runs self-update and app repair as separate steps", () => {
+  const script = watcherShellScript();
+
+  assert.match(script, /update --watcher --quiet --no-repair/);
+  assert.match(script, /repair --watcher --quiet/);
+  assert.match(script, /update[\s\S]+\|\| true;[\s\S]+repair/);
+});
+
+test("launchd watcher script clears stale log entries before each run", () => {
+  const script = watcherShellScript("/tmp/codex plusplus/watch'er.log");
+
+  assert.match(script, /^: > '\/tmp\/codex plusplus\/watch'\\''er\.log'; sleep 3; /);
+  assert.match(script, /update --watcher --quiet --no-repair/);
+  assert.match(script, /repair --watcher --quiet/);
+});
+
+test("self-update marks the installed CLI executable on unix", () => {
+  if (process.platform === "win32") return;
+
+  withTempDir((root) => {
+    const dist = join(root, "packages", "installer", "dist");
+    mkdirSync(dist, { recursive: true });
+    const cli = join(dist, "cli.js");
+    writeFileSync(cli, "#!/usr/bin/env node\n", { mode: 0o644 });
+
+    ensureCliExecutable(root);
+
+    assert.equal(statSync(cli).mode & 0o111, 0o111);
+  });
+});
+
+test("installation source labels local checkouts", () => {
+  withTempDir((root) => {
+    mkdirSync(join(root, ".git"));
+    assert.equal(describeInstallationSource(root).kind, "local-dev");
+  });
+  assert.equal(
+    describeInstallationSource("/opt/homebrew/Cellar/codexplusplus/0.1.4").kind,
+    "homebrew",
+  );
 });
 
 function withTempDir(fn: (root: string) => void): void {

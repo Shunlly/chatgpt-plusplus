@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getWatcherHealth = getWatcherHealth;
+exports.analyzeWatcherLogTail = analyzeWatcherLogTail;
 const node_child_process_1 = require("node:child_process");
 const node_fs_1 = require("node:fs");
 const node_os_1 = require("node:os");
@@ -11,6 +12,7 @@ function getWatcherHealth(userRoot) {
     const checks = [];
     const state = readJson((0, node_path_1.join)(userRoot, "state.json"));
     const config = readJson((0, node_path_1.join)(userRoot, "config.json")) ?? {};
+    const selfUpdate = readJson((0, node_path_1.join)(userRoot, "self-update-state.json"));
     checks.push({
         name: "Install state",
         status: state ? "ok" : "error",
@@ -29,6 +31,9 @@ function getWatcherHealth(userRoot) {
         status: state.watcher && state.watcher !== "none" ? "ok" : "error",
         detail: state.watcher ?? "none",
     });
+    if (selfUpdate) {
+        checks.push(selfUpdateCheck(selfUpdate));
+    }
     const appRoot = state.appRoot ?? "";
     checks.push({
         name: "Codex app",
@@ -53,6 +58,26 @@ function getWatcherHealth(userRoot) {
             });
     }
     return summarize(state.watcher ?? "none", checks);
+}
+function selfUpdateCheck(state) {
+    const at = state.completedAt ?? state.checkedAt ?? "unknown time";
+    if (state.status === "failed") {
+        return {
+            name: "last Codex++ update",
+            status: "warn",
+            detail: state.error ? `failed ${at}: ${state.error}` : `failed ${at}`,
+        };
+    }
+    if (state.status === "disabled") {
+        return { name: "last Codex++ update", status: "warn", detail: `skipped ${at}: automatic refresh disabled` };
+    }
+    if (state.status === "updated") {
+        return { name: "last Codex++ update", status: "ok", detail: `updated ${at} to ${state.latestVersion ?? "new release"}` };
+    }
+    if (state.status === "up-to-date") {
+        return { name: "last Codex++ update", status: "ok", detail: `up to date ${at}` };
+    }
+    return { name: "last Codex++ update", status: "warn", detail: `checking since ${at}` };
 }
 function checkLaunchdWatcher(appRoot) {
     const checks = [];
@@ -154,11 +179,20 @@ function watcherLogCheck() {
         return { name: "watcher log", status: "warn", detail: "no watcher log yet" };
     }
     const tail = readFileSafe(WATCHER_LOG).split(/\r?\n/).slice(-40).join("\n");
+    return analyzeWatcherLogTail(tail);
+}
+function analyzeWatcherLogTail(tail) {
     const hasError = /✗ codex-plusplus failed|codex-plusplus failed|error|failed/i.test(tail);
+    const needsManualRepair = hasError &&
+        /Cannot write to .*Codex.*\.app|App Management|file ownership|sudo codexplusplus (?:install|repair)|EACCES|EPERM/i.test(tail);
     return {
         name: "watcher log",
         status: hasError ? "warn" : "ok",
-        detail: hasError ? "recent watcher log contains an error" : WATCHER_LOG,
+        detail: hasError
+            ? needsManualRepair
+                ? "auto-repair needs app permissions; run `codexplusplus repair` from Terminal"
+                : "recent watcher log contains an error"
+            : WATCHER_LOG,
     };
 }
 function summarize(watcher, checks) {

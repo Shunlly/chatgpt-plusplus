@@ -19,6 +19,7 @@ import { homedir, platform, userInfo } from "node:os";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chownForTargetUser, targetUserHome, targetUserOwnership } from "./ownership.js";
 
 export type WatcherKind = "launchd" | "login-item" | "scheduled-task" | "systemd" | "none";
 
@@ -47,9 +48,14 @@ export function uninstallWatcher(): void {
 }
 
 const LABEL = "com.codexplusplus.watcher";
+const WATCHER_INTERVAL_SECONDS = 5 * 60;
 
 function launchdPath(): string {
-  return join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
+  return join(targetUserHome(), "Library", "LaunchAgents", `${LABEL}.plist`);
+}
+
+function launchdLogPath(): string {
+  return join(targetUserHome(), "Library", "Logs", "codex-plusplus-watcher.log");
 }
 
 function installLaunchd(appRoot: string): WatcherKind {
@@ -57,11 +63,12 @@ function installLaunchd(appRoot: string): WatcherKind {
 
   const plPath = launchdPath();
   mkdirSync(dirname(plPath), { recursive: true });
+  const logPath = launchdLogPath();
+  mkdirSync(dirname(logPath), { recursive: true });
   // Trigger on login + when Codex.app's asar changes. Run this installed CLI
-  // directly so auto-repair does not depend on npm availability.
-  const repair = xmlEscape(
-    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
-  );
+  // directly so auto-repair does not depend on npm availability. The CLI
+  // throttles GitHub release checks, so this interval keeps app repair prompt.
+  const repair = xmlEscape(watcherShellScript(logPath));
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -77,7 +84,7 @@ function installLaunchd(appRoot: string): WatcherKind {
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>3600</integer>
+  <integer>${WATCHER_INTERVAL_SECONDS}</integer>
   <key>WatchPaths</key>
   <array>
     <string>${appRoot}/Contents/Resources/app.asar</string>
@@ -85,17 +92,20 @@ function installLaunchd(appRoot: string): WatcherKind {
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>${join(homedir(), "Library", "Logs", "codex-plusplus-watcher.log")}</string>
+  <string>${logPath}</string>
   <key>StandardErrorPath</key>
-  <string>${join(homedir(), "Library", "Logs", "codex-plusplus-watcher.log")}</string>
+  <string>${logPath}</string>
   </dict>
 </plist>`;
   writeFileSync(plPath, xml);
+  writeFileSync(logPath, "", { flag: "a" });
+  chownForTargetUser(plPath);
+  chownForTargetUser(logPath);
   if (!bootstrapLaunchd(plPath)) {
     try {
-      execFileSync("launchctl", ["unload", plPath], { stdio: "ignore" });
+      execLaunchctlForTargetUser(["unload", plPath]);
     } catch {}
-    execFileSync("launchctl", ["load", plPath], { stdio: "ignore" });
+    execLaunchctlForTargetUser(["load", plPath]);
   }
   return "launchd";
 }
@@ -109,7 +119,7 @@ function uninstallLaunchd(): void {
   if (!existsSync(plPath)) return;
   bootoutLaunchd(plPath);
   try {
-    execFileSync("launchctl", ["unload", plPath], { stdio: "ignore" });
+    execLaunchctlForTargetUser(["unload", plPath]);
   } catch {}
   rmSync(plPath, { force: true });
 }
@@ -136,16 +146,26 @@ function bootoutLaunchd(plPath: string): void {
 }
 
 function launchdGuiDomain(): string | null {
-  const uid = typeof process.getuid === "function" ? process.getuid() : userInfo().uid;
+  const uid = targetUserOwnership()?.uid ?? (typeof process.getuid === "function" ? process.getuid() : userInfo().uid);
   return typeof uid === "number" ? `gui/${uid}` : null;
+}
+
+function execLaunchctlForTargetUser(args: string[]): void {
+  const owner = targetUserOwnership();
+  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
+  if (owner && currentUid === 0 && owner.uid !== 0) {
+    execFileSync("launchctl", ["asuser", String(owner.uid), "launchctl", ...args], {
+      stdio: "ignore",
+    });
+    return;
+  }
+  execFileSync("launchctl", args, { stdio: "ignore" });
 }
 
 function installSystemd(appRoot: string): WatcherKind {
   const dir = join(homedir(), ".config", "systemd", "user");
   mkdirSync(dir, { recursive: true });
-  const repair = shellSingleQuote(
-    `sleep 3; ${cliShellCommand("update", ["--watcher", "--quiet"])} || ${cliShellCommand("repair", ["--quiet"])} || true`,
-  );
+  const repair = shellSingleQuote(watcherShellScript());
   const unit = `[Unit]
 Description=codex-plusplus repair watcher
 
@@ -158,11 +178,11 @@ WantedBy=default.target
 `;
   writeFileSync(join(dir, "codex-plusplus-watcher.service"), unit);
   writeFileSync(join(dir, "codex-plusplus-watcher.timer"), `[Unit]
-Description=codex-plusplus hourly self-update check
+Description=codex-plusplus repair watcher interval
 
 [Timer]
 OnBootSec=5m
-OnUnitActiveSec=1h
+OnUnitActiveSec=${Math.round(WATCHER_INTERVAL_SECONDS / 60)}m
 Persistent=true
 
 [Install]
@@ -232,15 +252,17 @@ function installScheduledTask(_appRoot: string): WatcherKind {
       "/TR",
       repair,
     ]);
+    deleteScheduledTask("codex-plusplus-watcher-hourly");
+    deleteScheduledTask("codex-plusplus-watcher-interval");
     execFileSync("schtasks.exe", [
       "/Create",
       "/F",
       "/SC",
-      "HOURLY",
+      "MINUTE",
       "/MO",
-      "1",
+      String(Math.round(WATCHER_INTERVAL_SECONDS / 60)),
       "/TN",
-      "codex-plusplus-watcher-hourly",
+      "codex-plusplus-watcher-interval",
       "/TR",
       repair,
     ]);
@@ -251,14 +273,25 @@ function installScheduledTask(_appRoot: string): WatcherKind {
 }
 
 function cliShellCommand(command: string, args: string[] = []): string {
+  const cli = currentCliPath();
   return [
     "CODEX_PLUSPLUS_WATCHER=1",
     shellQuote(process.execPath),
-    ...process.execArgv.map(shellQuote),
-    shellQuote(currentCliPath()),
+    ...nodeExecArgsForCli(cli).map(shellQuote),
+    shellQuote(cli),
     command,
     ...args,
   ].join(" ");
+}
+
+export function watcherShellScript(logPath?: string): string {
+  const commands = [
+    "sleep 3",
+    `${cliShellCommand("update", ["--watcher", "--quiet", "--no-repair"])} || true`,
+    `${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
+  ];
+  if (logPath) commands.unshift(`: > ${shellSingleQuote(logPath)}`);
+  return commands.join("; ");
 }
 
 function currentCliPath(): string {
@@ -283,26 +316,48 @@ function xmlEscape(value: string): string {
 }
 
 function windowsCommand(command: string, args: string[] = []): string {
+  const cli = currentCliPath();
   return [
     windowsQuote(process.execPath),
-    ...process.execArgv.map(windowsQuote),
-    windowsQuote(currentCliPath()),
+    ...nodeExecArgsForCli(cli).map(windowsQuote),
+    windowsQuote(cli),
     command,
     ...args,
   ].join(" ");
 }
 
+function nodeExecArgsForCli(cliPath: string): string[] {
+  return cliPath.endsWith(".ts") ? process.execArgv : [];
+}
+
 function windowsWatcherTaskCommand(): string {
-  const comspec = process.env.ComSpec || "cmd.exe";
-  return `"${comspec}" /d /s /c "${windowsCommand("update", ["--watcher", "--quiet"])} || ${windowsCommand("repair", ["--quiet"])}"`;
+  const scriptPath = join(windowsCodexPlusPlusDir(), "bin", "watcher.cmd");
+  mkdirSync(dirname(scriptPath), { recursive: true });
+  writeFileSync(
+    scriptPath,
+    [
+      "@echo off",
+      "set CODEX_PLUSPLUS_WATCHER=1",
+      `${windowsCommand("update", ["--watcher", "--quiet", "--no-repair"])}`,
+      `${windowsCommand("repair", ["--watcher", "--quiet"])}`,
+      "exit /b 0",
+      "",
+    ].join("\r\n"),
+  );
+  return windowsQuote(scriptPath);
 }
 
 function windowsQuote(value: string): string {
   return `"${value.replace(/"/g, `\\"`)}"`;
 }
 
+function windowsCodexPlusPlusDir(): string {
+  return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "codex-plusplus");
+}
+
 function uninstallScheduledTask(): void {
   deleteScheduledTask("codex-plusplus-watcher");
+  deleteScheduledTask("codex-plusplus-watcher-interval");
   deleteScheduledTask("codex-plusplus-watcher-hourly");
   deleteScheduledTask("codex-plusplus-watcher-daily");
 }

@@ -1,5 +1,6 @@
 import kleur from "kleur";
 import {
+  chmodSync,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -9,13 +10,20 @@ import {
   renameSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { spawnSync } from "node:child_process";
 import { extract as extractTar } from "tar";
 import { ensureUserPaths } from "../paths.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
+import { describeInstallationSource, findSourceRoot } from "../source-root.js";
+import {
+  readSelfUpdateState,
+  type SelfUpdateChannel,
+  type SelfUpdateState,
+  writeSelfUpdateState,
+} from "../self-update-state.js";
 
 interface Opts {
   repo?: string;
@@ -29,6 +37,7 @@ interface Opts {
 interface GitHubRelease {
   tag_name?: string;
   html_url?: string;
+  body?: string;
   draft?: boolean;
   prerelease?: boolean;
 }
@@ -36,6 +45,9 @@ interface GitHubRelease {
 interface RuntimeConfig {
   codexPlusPlus?: {
     autoUpdate?: boolean;
+    updateChannel?: SelfUpdateChannel;
+    updateRepo?: string;
+    updateRef?: string;
   };
 }
 
@@ -44,52 +56,103 @@ interface UpdateTarget {
   version: string | null;
   releaseUrl: string | null;
   source: "explicit-ref" | "latest-release";
+  channel: SelfUpdateChannel;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
+const WATCHER_SELF_UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 
 export async function selfUpdate(opts: Opts = {}): Promise<void> {
-  const repo = opts.repo ?? process.env.CODEX_PLUSPLUS_REPO ?? "b-nnett/codex-plusplus";
   const paths = ensureUserPaths();
+  const config = readRuntimeConfig(paths.configFile);
+  const repo = opts.repo ?? process.env.CODEX_PLUSPLUS_REPO ?? config.updateRepo ?? "b-nnett/codex-plusplus";
   const sourceRoot = findSourceRoot(here);
   const parent = dirname(sourceRoot);
   const work = mkdtempSync(join(tmpdir(), "codexpp-update-"));
   const archive = join(work, "source.tar.gz");
   const next = join(work, "source");
   const previous = `${sourceRoot}.previous`;
+  let target: UpdateTarget | null = null;
 
   try {
-    if (opts.watcher && !isAutoUpdateEnabled(paths.configFile)) {
-      log(opts, "Codex++ auto-update is disabled; running repair only.");
-      runRepairIfRequested(opts, sourceRoot, parent);
-      return;
-    }
-
-    const target = await resolveUpdateTarget(repo, opts);
-    if (!shouldDownloadSelfUpdate(CODEX_PLUSPLUS_VERSION, target.ref, opts.force === true)) {
-      log(opts, `Codex++ is already up to date (${CODEX_PLUSPLUS_VERSION}).`);
-      runRepairIfRequested(opts, sourceRoot, parent);
-      return;
-    }
-
-    log(opts, `Downloading codex-plusplus from https://github.com/${repo} (${target.ref})...`);
-    await download(`https://codeload.github.com/${repo}/tar.gz/${target.ref}`, archive);
-    mkdirSync(next, { recursive: true });
-    await extractTar({ file: archive, cwd: next, strip: 1 });
-
-    verifyDownloadedVersion(next, target);
-    installDependencies(next);
-    run("npm", ["run", "build"], next);
-
-    rmSync(previous, { recursive: true, force: true });
-    if (existsSync(sourceRoot)) renameSync(sourceRoot, previous);
-    renameSync(next, sourceRoot);
-    log(opts, kleur.green(`Updated codex-plusplus source at ${sourceRoot}`));
-
     try {
-      runRepairIfRequested(opts, sourceRoot, parent);
+      if (opts.watcher && config.autoUpdate === false) {
+        writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
+          status: "disabled",
+          repo,
+          channel: config.updateChannel ?? "stable",
+          sourceRoot,
+        }));
+        log(opts, "Codex++ auto-update is disabled; running repair only.");
+        runRepairIfRequested(opts, sourceRoot, parent);
+        return;
+      }
+
+      if (opts.watcher && !opts.force && !shouldRunWatcherSelfUpdate(paths.selfUpdateStateFile)) {
+        log(opts, "Codex++ release check skipped; running repair only.");
+        runRepairIfRequested(opts, sourceRoot, parent);
+        return;
+      }
+
+      writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
+        status: "checking",
+        repo,
+        channel: config.updateChannel ?? "stable",
+        sourceRoot,
+      }));
+
+      target = await resolveUpdateTarget(repo, opts, config);
+      if (!shouldDownloadSelfUpdate(CODEX_PLUSPLUS_VERSION, target.ref, opts.force === true)) {
+        writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
+          status: "up-to-date",
+          repo,
+          channel: target.channel,
+          sourceRoot,
+          target,
+        }));
+        log(opts, `Codex++ is already up to date (${CODEX_PLUSPLUS_VERSION}).`);
+        runRepairIfRequested(opts, sourceRoot, parent);
+        return;
+      }
+
+      log(opts, `Downloading codex-plusplus from https://github.com/${repo} (${target.ref})...`);
+      await download(`https://codeload.github.com/${repo}/tar.gz/${target.ref}`, archive);
+      mkdirSync(next, { recursive: true });
+      await extractTar({ file: archive, cwd: next, strip: 1 });
+
+      verifyDownloadedVersion(next, target);
+      installDependencies(next);
+      run(npmCommand(), ["run", "build"], next);
+
+      rmSync(previous, { recursive: true, force: true });
+      if (existsSync(sourceRoot)) renameSync(sourceRoot, previous);
+      renameSync(next, sourceRoot);
+      ensureCliExecutable(sourceRoot);
+      refreshMovedWorkspaceLinks(sourceRoot);
+      writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
+        status: "updated",
+        repo,
+        channel: target.channel,
+        sourceRoot,
+        target,
+      }));
+      log(opts, kleur.green(`Updated codex-plusplus source at ${sourceRoot}`));
+
+      try {
+        runRepairIfRequested(opts, sourceRoot, parent);
+      } catch (e) {
+        rollbackSource(sourceRoot, previous);
+        throw e;
+      }
     } catch (e) {
-      rollbackSource(sourceRoot, previous);
+      writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
+        status: "failed",
+        repo,
+        channel: target?.channel ?? config.updateChannel ?? "stable",
+        sourceRoot,
+        target,
+        error: e instanceof Error ? e.message : String(e),
+      }));
       throw e;
     }
   } finally {
@@ -97,24 +160,34 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
   }
 }
 
-async function resolveUpdateTarget(repo: string, opts: Opts): Promise<UpdateTarget> {
-  const explicitRef = opts.ref ?? process.env.CODEX_PLUSPLUS_REF;
+async function resolveUpdateTarget(
+  repo: string,
+  opts: Opts,
+  config: NonNullable<RuntimeConfig["codexPlusPlus"]>,
+): Promise<UpdateTarget> {
+  const explicitRef =
+    opts.ref ?? process.env.CODEX_PLUSPLUS_REF ?? (config.updateChannel === "custom" ? config.updateRef : undefined);
   if (explicitRef) {
     return {
       ref: explicitRef,
       version: releaseVersionFromTag(explicitRef),
       releaseUrl: null,
       source: "explicit-ref",
+      channel: "custom",
     };
   }
 
-  const latest = await fetchLatestRelease(repo);
+  const channel = config.updateChannel === "prerelease" ? "prerelease" : "stable";
+  const latest = channel === "prerelease"
+    ? await fetchLatestAnyRelease(repo)
+    : await fetchLatestRelease(repo);
   if (!latest.tag_name) throw new Error(`Latest release for ${repo} did not include a tag`);
   return {
     ref: latest.tag_name,
     version: releaseVersionFromTag(latest.tag_name),
     releaseUrl: latest.html_url ?? null,
     source: "latest-release",
+    channel,
   };
 }
 
@@ -124,6 +197,17 @@ async function fetchLatestRelease(repo: string): Promise<GitHubRelease> {
   });
   if (!res.ok) throw new Error(`Release check failed: ${res.status} ${res.statusText}`);
   return (await res.json()) as GitHubRelease;
+}
+
+async function fetchLatestAnyRelease(repo: string): Promise<GitHubRelease> {
+  const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=20`, {
+    headers: { "User-Agent": "codex-plusplus-self-update" },
+  });
+  if (!res.ok) throw new Error(`Release check failed: ${res.status} ${res.statusText}`);
+  const releases = (await res.json()) as GitHubRelease[];
+  const release = releases.find((r) => !r.draft);
+  if (!release) throw new Error(`No published releases found for ${repo}`);
+  return release;
 }
 
 async function download(url: string, target: string): Promise<void> {
@@ -143,6 +227,18 @@ export function shouldDownloadSelfUpdate(
   const targetVersion = releaseVersionFromTag(targetRef);
   if (!targetVersion) return true;
   return compareSemver(targetVersion, currentVersion) > 0;
+}
+
+export function shouldRunWatcherSelfUpdate(stateFile: string, now = Date.now()): boolean {
+  const state = readSelfUpdateState(stateFile);
+  if (!state) return true;
+  const checkedAt = Date.parse(state.checkedAt);
+  return !Number.isFinite(checkedAt) || now - checkedAt >= WATCHER_SELF_UPDATE_INTERVAL_MS;
+}
+
+export function ensureCliExecutable(sourceRoot: string): void {
+  if (process.platform === "win32") return;
+  chmodSync(join(sourceRoot, "packages", "installer", "dist", "cli.js"), 0o755);
 }
 
 export function releaseVersionFromTag(ref: string): string | null {
@@ -171,20 +267,65 @@ function readPackageVersion(sourceDir: string): string | null {
   }
 }
 
+function readRuntimeConfig(configFile: string): NonNullable<RuntimeConfig["codexPlusPlus"]> {
+  if (!existsSync(configFile)) return {};
+  try {
+    const config = JSON.parse(readFileSync(configFile, "utf8")) as RuntimeConfig;
+    return config.codexPlusPlus ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function selfUpdateState(opts: {
+  status: SelfUpdateState["status"];
+  repo: string;
+  channel: SelfUpdateChannel;
+  sourceRoot: string;
+  target?: UpdateTarget | null;
+  error?: string;
+}): SelfUpdateState {
+  const now = new Date().toISOString();
+  return {
+    checkedAt: now,
+    completedAt: opts.status === "checking" ? undefined : now,
+    status: opts.status,
+    currentVersion: CODEX_PLUSPLUS_VERSION,
+    latestVersion: opts.target?.version ?? null,
+    targetRef: opts.target?.ref ?? null,
+    releaseUrl: opts.target?.releaseUrl ?? null,
+    repo: opts.repo,
+    channel: opts.channel,
+    sourceRoot: opts.sourceRoot,
+    installationSource: describeInstallationSource(opts.sourceRoot),
+    ...(opts.error ? { error: opts.error } : {}),
+  };
+}
+
 function installDependencies(cwd: string): void {
   if (existsSync(join(cwd, "package-lock.json"))) {
-    const ci = runMaybe("npm", ["ci", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+    const ci = runMaybe(npmCommand(), ["ci", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
     if (ci === 0) return;
     console.warn(kleur.yellow("npm ci failed; regenerating lockfile for downloaded source."));
     rmSync(join(cwd, "package-lock.json"), { force: true });
   }
-  run("npm", ["install", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+  run(npmCommand(), ["install", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+}
+
+function npmCommand(): string {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+function refreshMovedWorkspaceLinks(sourceRoot: string): void {
+  if (process.platform !== "win32") return;
+  installDependencies(sourceRoot);
 }
 
 function runRepairIfRequested(opts: Opts, sourceRoot: string, cwd: string): void {
   if (opts.repair === false) return;
   const cli = join(sourceRoot, "packages", "installer", "dist", "cli.js");
   const args = [cli, "repair"];
+  if (opts.watcher) args.push("--watcher");
   if (opts.quiet) args.push("--quiet");
   run(process.execPath, args, cwd);
 }
@@ -201,23 +342,6 @@ function runMaybe(command: string, args: string[], cwd: string): number {
     shell: process.platform === "win32",
   });
   return result.status ?? 1;
-}
-
-function findSourceRoot(start: string): string {
-  let dir = resolve(start);
-  for (let i = 0; i < 10; i++) {
-    const pkgPath = join(dir, "package.json");
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { workspaces?: unknown };
-        if (Array.isArray(pkg.workspaces)) return dir;
-      } catch {}
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return resolve(here, "..", "..", "..", "..");
 }
 
 function rollbackSource(sourceRoot: string, previous: string): void {

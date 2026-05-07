@@ -15,8 +15,9 @@
  *   CODEX++                       (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
+ *   ◇ Tweak Store
  *
- * Clicking Config / Tweaks hides Codex's content panel children and renders
+ * Clicking Config / Tweaks / Tweak Store hides Codex's content panel children and renders
  * our own `main-surface` panel in their place. Clicking any of Codex's
  * sidebar items restores the original view.
  */

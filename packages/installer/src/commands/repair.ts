@@ -1,7 +1,7 @@
 import kleur from "kleur";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { platform } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { install, readCodexVersion, stageAssets } from "./install.js";
 import { ensureUserPaths } from "../paths.js";
@@ -11,6 +11,7 @@ import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
 import { clearUpdateMode, isUpdateModeFresh, readUpdateMode, writeUpdateMode } from "../update-mode.js";
+import { findSourceRoot } from "../source-root.js";
 import {
   isCodexRunning,
   openCodex,
@@ -20,12 +21,22 @@ import {
   showCodexUpdateDetectedNotification,
   showUpdateModePausedAlert,
 } from "../alerts.js";
+import { fileURLToPath } from "node:url";
 
 interface Opts {
   app?: string;
   quiet?: boolean;
   force?: boolean;
+  watcher?: boolean;
 }
+
+const here = dirname(fileURLToPath(import.meta.url));
+const sourceRoot = findSourceRoot(here);
+const SETTLE_TIMEOUT_MS = 120_000;
+const WATCHER_SETTLE_TIMEOUT_MS = 15 * 60_000;
+const SETTLE_SAMPLE_MS = 2_000;
+const SETTLE_STABLE_SAMPLES = 2;
+const WATCHER_RETRY_NOTICE_MS = 30_000;
 
 /**
  * `repair` is essentially `install` rerun, but it preserves the user's
@@ -49,7 +60,8 @@ export async function repair(opts: Opts = {}): Promise<void> {
   let settledBeforeHashCheck = false;
   if (state && !opts.force) {
     announceCodexUpdateDetected(paths.updateModeFile, opts.app ?? state.appRoot);
-    await waitForMacAppUpdateToSettle(opts.app ?? state.appRoot, opts.quiet);
+    notifyUpdateModePaused(paths.updateModeFile, opts.app ?? state.appRoot);
+    await waitForMacAppUpdateToSettle(opts.app ?? state.appRoot, settleOptions(opts, paths.updateModeFile));
     settledBeforeHashCheck = true;
     const codex = locateCodex(opts.app ?? state.appRoot);
     const updateMode = readUpdateMode(paths.updateModeFile);
@@ -57,7 +69,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
       const codexVersion = readCodexVersion(codex.metaPath);
       if (codexVersion === updateMode.codexVersion && isUpdateModeFresh(updateMode)) {
         const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
-        writeState(paths.stateFile, { ...state, watcher });
+        writeState(paths.stateFile, { ...state, watcher, sourceRoot });
         if (!updateMode.notifiedAt) {
           showUpdateModePausedAlert(codex.appRoot, codexVersion);
           writeUpdateMode(paths.updateModeFile, {
@@ -88,6 +100,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
           ...state,
           watcher,
           version: CODEX_PLUSPLUS_VERSION,
+          sourceRoot,
           runtimeUpdatedAt: new Date().toISOString(),
         });
         if (!opts.quiet) {
@@ -100,14 +113,14 @@ export async function repair(opts: Opts = {}): Promise<void> {
         }
         return;
       }
-      writeState(paths.stateFile, { ...state, watcher });
+      writeState(paths.stateFile, { ...state, watcher, sourceRoot });
       if (!opts.quiet) console.log(kleur.green("Patch already intact."));
       return;
     }
   }
 
   if (!settledBeforeHashCheck) {
-    await waitForMacAppUpdateToSettle(opts.app ?? state?.appRoot, opts.quiet);
+    await waitForMacAppUpdateToSettle(opts.app ?? state?.appRoot, settleOptions(opts, paths.updateModeFile));
   }
 
   let codexWasRunning = false;
@@ -134,6 +147,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
     app: opts.app ?? state?.appRoot,
     fuse: state?.fuseFlipped ?? true,
     resign: state?.resigned ?? true,
+    localSigning: state ? state.signingMode === "local-identity" : true,
     watcher: state?.watcher === "none" ? false : true,
     watcherKind: state?.watcher,
     quiet: opts.quiet,
@@ -164,6 +178,18 @@ function announceCodexUpdateDetected(updateModeFile: string, appRoot: string): v
   }
 }
 
+function notifyUpdateModePaused(updateModeFile: string, fallbackAppRoot: string): void {
+  const updateMode = readUpdateMode(updateModeFile);
+  if (!updateMode || updateMode.notifiedAt || !isUpdateModeFresh(updateMode)) return;
+
+  const appRoot = updateMode.appRoot || fallbackAppRoot;
+  showUpdateModePausedAlert(appRoot, updateMode.codexVersion);
+  writeUpdateMode(updateModeFile, {
+    ...updateMode,
+    notifiedAt: new Date().toISOString(),
+  });
+}
+
 function isAutoUpdateEnabled(configFile: string): boolean {
   if (!existsSync(configFile)) return true;
   try {
@@ -176,48 +202,70 @@ function isAutoUpdateEnabled(configFile: string): boolean {
   }
 }
 
-async function waitForMacAppUpdateToSettle(appRoot: string | undefined, quiet?: boolean): Promise<void> {
+interface SettleOptions {
+  quiet?: boolean;
+  timeoutMs?: number;
+  retryNoticeMs?: number;
+}
+
+function settleOptions(opts: Opts, updateModeFile: string): SettleOptions {
+  const updateMode = readUpdateMode(updateModeFile);
+  const watcherRetry = isWatcherRepair(opts) && updateMode !== null && isUpdateModeFresh(updateMode);
+  return {
+    quiet: opts.quiet,
+    timeoutMs: watcherRetry ? WATCHER_SETTLE_TIMEOUT_MS : SETTLE_TIMEOUT_MS,
+    retryNoticeMs: watcherRetry ? WATCHER_RETRY_NOTICE_MS : undefined,
+  };
+}
+
+function isWatcherRepair(opts: Opts): boolean {
+  return opts.watcher === true || process.env.CODEX_PLUSPLUS_WATCHER === "1";
+}
+
+async function waitForMacAppUpdateToSettle(appRoot: string | undefined, opts: SettleOptions = {}): Promise<void> {
   if (platform() !== "darwin" || !appRoot) return;
 
   const paths = [
     join(appRoot, "Contents", "Info.plist"),
     join(appRoot, "Contents", "Resources", "app.asar"),
-    join(
-      appRoot,
-      "Contents",
-      "Frameworks",
-      "Electron Framework.framework",
-      "Versions",
-      "A",
-      "Electron Framework",
-    ),
   ];
 
   let previous = bundleSnapshot(paths);
   let stableSamples = 0;
   let announced = previous.includes(":missing:");
   const started = Date.now();
-  const timeoutMs = 120_000;
-  if (announced && !quiet) {
+  const timeoutMs = opts.timeoutMs ?? SETTLE_TIMEOUT_MS;
+  let lastRetryNotice = started;
+  if (announced && !opts.quiet) {
     console.log(kleur.dim("Waiting for Codex.app update files to appear..."));
   }
 
   while (Date.now() - started < timeoutMs) {
-    await delay(2_000);
+    await delay(SETTLE_SAMPLE_MS);
     const snapshot = bundleSnapshot(paths);
-    if (!snapshot.includes(":missing:") && snapshot === previous) {
+    if (!snapshot.includes(":missing:") && snapshot === previous && patchInputsReadable(appRoot)) {
       stableSamples += 1;
-      if (stableSamples >= 3) return;
+      if (stableSamples >= SETTLE_STABLE_SAMPLES) return;
     } else {
       stableSamples = 0;
       previous = snapshot;
-      if (!quiet && !announced) {
+      if (!opts.quiet && !announced) {
         console.log(kleur.dim("Waiting for Codex.app update files to settle..."));
         announced = true;
       }
     }
+    if (
+      opts.retryNoticeMs &&
+      !opts.quiet &&
+      Date.now() - started > SETTLE_TIMEOUT_MS &&
+      Date.now() - lastRetryNotice >= opts.retryNoticeMs
+    ) {
+      console.log(kleur.dim("Codex.app still appears to be updating; retrying repair shortly..."));
+      lastRetryNotice = Date.now();
+    }
   }
-  throw new Error("Codex.app still appears to be updating; retry repair after the update finishes.");
+  const minutes = Math.max(1, Math.round(timeoutMs / 60_000));
+  throw new Error(`Codex.app still appears to be updating after ${minutes}m; retry repair after the update finishes.`);
 }
 
 function bundleSnapshot(paths: string[]): string {
@@ -231,6 +279,17 @@ function bundleSnapshot(paths: string[]): string {
       }
     })
     .join("|");
+}
+
+function patchInputsReadable(appRoot: string): boolean {
+  try {
+    const codex = locateCodex(appRoot);
+    if (!readCodexVersion(codex.metaPath)) return false;
+    readHeaderHash(codex.asarPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function refreshWatcher(

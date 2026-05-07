@@ -10,6 +10,7 @@ export interface CliShimResult {
   shimDir: string;
   pathDir: string | null;
   commands: readonly string[];
+  managedBy?: "homebrew";
 }
 
 export function installCliShims(shimDir: string): CliShimResult {
@@ -18,12 +19,19 @@ export function installCliShims(shimDir: string): CliShimResult {
     writeShim(join(shimDir, command));
   }
 
+  if (isHomebrewCli()) {
+    return { shimDir, pathDir: null, commands: COMMANDS, managedBy: "homebrew" };
+  }
+
   const pathDir = installIntoPath(shimDir);
   return { shimDir, pathDir, commands: COMMANDS };
 }
 
 export function formatCliShimResult(result: CliShimResult): string {
   const command = kleur.cyan("codexplusplus");
+  if (result.managedBy === "homebrew") {
+    return `Installed CLI: ${command} (Homebrew)`;
+  }
   if (result.pathDir) {
     return `Installed CLI: ${command} (${result.pathDir})`;
   }
@@ -141,4 +149,8 @@ function replaceSymlink(source: string, target: string): void {
 
 function currentCliPath(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "cli.js");
+}
+
+function isHomebrewCli(): boolean {
+  return /\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(currentCliPath());
 }

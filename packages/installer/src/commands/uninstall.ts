@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { locateCodex } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { readState } from "../state.js";
-import { adHocSign } from "../codesign.js";
+import { prepareCodeSigning, signCodexApp } from "../codesign.js";
 import { uninstallWatcher } from "../watcher.js";
 
 interface Opts {
@@ -28,6 +28,11 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
     process.exit(1);
   }
 
+  const useLocalIdentity = state?.signingMode === "local-identity";
+  const preparedSigning = codex.platform === "darwin"
+    ? prepareCodeSigning({ useLocalIdentity })
+    : null;
+
   cpSync(backupAsar, codex.asarPath);
   if (existsSync(backupAsarUnpacked)) {
     cpSync(backupAsarUnpacked, `${codex.asarPath}.unpacked`, { recursive: true });
@@ -41,7 +46,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   console.log(kleur.green("Restored Codex.app from backup."));
 
   if (codex.platform === "darwin") {
-    adHocSign(codex.appRoot);
+    signCodexApp(codex.appRoot, { useLocalIdentity, preparedIdentity: preparedSigning });
     console.log(kleur.green("Re-signed restored bundle."));
   }
 

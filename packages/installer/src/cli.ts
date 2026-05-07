@@ -8,9 +8,6 @@ import { updateCodex } from "./commands/update-codex.js";
 import { selfUpdate } from "./commands/self-update.js";
 import { status } from "./commands/status.js";
 import { doctor } from "./commands/doctor.js";
-import { createTweak } from "./commands/create-tweak.js";
-import { validateTweak } from "./commands/validate-tweak.js";
-import { devTweak } from "./commands/dev-tweak.js";
 import { safeMode } from "./commands/safe-mode.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
 import { buildCliFailureIssueUrl, showPatchFailedAlert } from "./alerts.js";
@@ -20,6 +17,8 @@ interface InstallCliOpts {
   app?: string;
   fuse?: boolean;
   resign?: boolean;
+  localSigning?: boolean;
+  "local-signing"?: boolean;
   watcher?: boolean;
   defaultTweaks?: boolean;
   "default-tweaks"?: boolean;
@@ -48,8 +47,24 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
 function runInstall(opts: InstallCliOpts): Promise<void> {
   return install({
     ...opts,
+    localSigning: opts.localSigning ?? opts["local-signing"],
     defaultTweaks: opts.defaultTweaks ?? opts["default-tweaks"],
   });
+}
+
+async function runCreateTweak(target: string, opts: never): Promise<void> {
+  const { createTweak } = await import("./commands/create-tweak.js");
+  return createTweak(target, opts);
+}
+
+async function runValidateTweak(target?: string): Promise<void> {
+  const { validateTweak } = await import("./commands/validate-tweak.js");
+  return validateTweak(target);
+}
+
+async function runDevTweak(target: string | undefined, opts: never): Promise<void> {
+  const { devTweak } = await import("./commands/dev-tweak.js");
+  return devTweak(target, opts);
 }
 
 function maybeShowPatchFailedAlert(message: string): void {
@@ -69,7 +84,8 @@ prog
   .describe("Patch Codex.app to load the tweak runtime")
   .option("--app", "Path to Codex.app / install dir (auto-detected if omitted)")
   .option("--fuse", "Flip Electron's embedded asar integrity fuse", true)
-  .option("--resign", "Ad-hoc code sign Codex.app on macOS", true)
+  .option("--resign", "Code sign Codex.app on macOS", true)
+  .option("--local-signing", "Use a stable local signing identity on macOS", true)
   .option("--watcher", "Install the auto-repair watcher", true)
   .option("--default-tweaks", "Install the default tweak set from latest GitHub releases", true)
   .action(wrap(runInstall));
@@ -86,6 +102,7 @@ prog
   .option("--app", "Path to Codex.app / install dir")
   .option("--quiet", "Suppress non-error output")
   .option("--force", "Re-apply even if the patch appears intact")
+  .option("--watcher", "Run from the auto-repair watcher")
   .action(wrap(repair));
 
 prog
@@ -134,12 +151,12 @@ prog
   .option("--repo", "GitHub repo in owner/repo form")
   .option("--scope", "renderer, main, or both")
   .option("--force", "Write into an existing empty directory")
-  .action(wrap(createTweak));
+  .action(wrap(runCreateTweak));
 
 prog
   .command("validate-tweak [target]")
   .describe("Validate a tweak manifest and entry point")
-  .action(wrap(validateTweak));
+  .action(wrap(runValidateTweak));
 
 prog
   .command("dev [target]")
@@ -147,7 +164,7 @@ prog
   .option("--name", "Override linked directory name; defaults to manifest id")
   .option("--replace", "Replace an existing symlink at the target tweak id")
   .option("--no-watch", "Link once and exit instead of watching for changes")
-  .action(wrap(devTweak));
+  .action(wrap(runDevTweak));
 
 prog
   .command("safe-mode")
@@ -157,7 +174,9 @@ prog
   .option("--status", "Print current safe mode status")
   .action(wrap(safeMode));
 
-prog.parse(process.argv, {
+const argv = process.argv.length <= 2 ? [...process.argv, "--help"] : process.argv;
+
+prog.parse(argv, {
   unknown: (flag) => {
     console.error(kleur.red(`Unknown flag: ${flag}`));
     process.exit(1);

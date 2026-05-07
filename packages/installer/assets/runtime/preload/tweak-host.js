@@ -43,6 +43,10 @@ async function startTweakHost() {
         }
         catch (e) {
             console.error("[codex-plusplus] tweak load failed:", t.manifest.id, e);
+            try {
+                electron_1.ipcRenderer.send("codexpp:preload-log", "error", "tweak load failed: " + t.manifest.id + ": " + String(e?.stack ?? e));
+            }
+            catch { }
         }
     }
     console.info(`[codex-plusplus] renderer host loaded ${loaded.size} tweak(s):`, [...loaded.keys()].join(", ") || "(none)");

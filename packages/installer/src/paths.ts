@@ -1,6 +1,7 @@
-import { homedir, platform } from "node:os";
+import { platform } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import { chownForTargetUser, targetUserHome } from "./ownership.js";
 
 /**
  * User-data directory layout. Picked per platform conventions; created lazily.
@@ -12,6 +13,7 @@ import { mkdirSync } from "node:fs";
  *     config.json     — installer state + per-tweak enable flags
  *     log/            — runtime + installer logs
  *     state.json      — installer state (paths, hashes, version installed against)
+ *     self-update-state.json — last Codex++ self-update result
  */
 export interface UserPaths {
   root: string;
@@ -21,6 +23,7 @@ export interface UserPaths {
   configFile: string;
   stateFile: string;
   updateModeFile: string;
+  selfUpdateStateFile: string;
   binDir: string;
   logDir: string;
 }
@@ -35,6 +38,7 @@ export function userPaths(): UserPaths {
     configFile: join(root, "config.json"),
     stateFile: join(root, "state.json"),
     updateModeFile: join(root, "update-mode.json"),
+    selfUpdateStateFile: join(root, "self-update-state.json"),
     binDir: join(root, "bin"),
     logDir: join(root, "log"),
   };
@@ -45,6 +49,7 @@ export function ensureUserPaths(): UserPaths {
   const p = userPaths();
   for (const dir of [p.root, p.runtime, p.tweaks, p.backup, p.binDir, p.logDir]) {
     mkdirSync(dir, { recursive: true });
+    chownForTargetUser(dir);
   }
   return p;
 }
@@ -52,7 +57,7 @@ export function ensureUserPaths(): UserPaths {
 function userRoot(): string {
   if (process.env.CODEX_PLUSPLUS_HOME) return process.env.CODEX_PLUSPLUS_HOME;
 
-  const home = homedir();
+  const home = targetUserHome();
   switch (platform()) {
     case "darwin":
       return join(home, "Library", "Application Support", "codex-plusplus");

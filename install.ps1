@@ -17,6 +17,7 @@ function Require-Command($Command, $Message) {
 }
 
 Require-Command node "Node.js 20+ is required but node was not found."
+Require-Command npm.cmd "npm is required to build codex-plusplus from GitHub source."
 
 $NodeMajorText = & node -p "Number(process.versions.node.split('.')[0])"
 $NodeMajor = [int]$NodeMajorText
@@ -24,8 +25,6 @@ if ($NodeMajor -lt 20) {
   $NodeVersion = & node -v
   Fail "Node.js 20+ is required; found $NodeVersion."
 }
-
-Require-Command npm "npm is required to build codex-plusplus from GitHub source."
 
 $Work = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-plusplus." + [System.Guid]::NewGuid().ToString("N"))
 $Archive = Join-Path $Work "source.zip"
@@ -58,17 +57,17 @@ try {
   Push-Location $Next
   try {
     if (Test-Path "package-lock.json") {
-      & npm ci --workspaces --include-workspace-root --ignore-scripts
+      & npm.cmd ci --workspaces --include-workspace-root --ignore-scripts
       if ($LASTEXITCODE -ne 0) {
         [Console]::Error.WriteLine("npm ci failed; regenerating the downloaded lockfile and installing workspace dependencies.")
         Remove-Item -Force "package-lock.json"
-        & npm install --workspaces --include-workspace-root --ignore-scripts
+        & npm.cmd install --workspaces --include-workspace-root --ignore-scripts
         if ($LASTEXITCODE -ne 0) {
           Fail "npm install failed while installing codex-plusplus dependencies."
         }
       }
     } else {
-      & npm install --workspaces --include-workspace-root --ignore-scripts
+      & npm.cmd install --workspaces --include-workspace-root --ignore-scripts
       if ($LASTEXITCODE -ne 0) {
         Fail "npm install failed while installing codex-plusplus dependencies."
       }
@@ -80,7 +79,7 @@ try {
   Write-Host "Building codex-plusplus..."
   Push-Location $Next
   try {
-    & npm run build
+    & npm.cmd run build
     if ($LASTEXITCODE -ne 0) {
       Fail "codex-plusplus build failed."
     }
@@ -98,6 +97,17 @@ try {
     Move-Item -Path $InstallDir -Destination $Previous
   }
   Move-Item -Path $Next -Destination $InstallDir
+
+  Write-Host "Finalizing workspace links..."
+  Push-Location $InstallDir
+  try {
+    & npm.cmd install --workspaces --include-workspace-root --ignore-scripts
+    if ($LASTEXITCODE -ne 0) {
+      Fail "npm install failed while finalizing codex-plusplus workspace links."
+    }
+  } finally {
+    Pop-Location
+  }
 
   Write-Host "Running installer..."
   & node (Join-Path $InstallDir "packages\installer\dist\cli.js") install @args
