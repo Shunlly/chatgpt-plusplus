@@ -18,6 +18,7 @@ import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
 import {
   ensureCliExecutable,
+  formatCommandFailure,
   releaseVersionFromTag,
   shouldDownloadSelfUpdate,
   shouldRunWatcherSelfUpdate,
@@ -257,6 +258,31 @@ test("window services patch does not depend on Codex minified function names", (
   );
 });
 
+test("window services patch handles reordered factory object properties", () => {
+  const source =
+    "let M=FM({allowDevtools:p,allowDebugMenu:h,globalState:j.globalState,getGlobalStateForHost:j.getGlobalStateForHost,desktopRoot:j.desktopRoot,preloadPath:j.preloadPath,repoRoot:j.repoRoot,disposables:k,buildFlavor:a}),N=e=>M.isTrustedIpcSender(e.sender);wD({buildFlavor:a,isTrustedIpcEvent:N})";
+
+  const patched = patchCodexWindowServicesSource(source);
+
+  assert.ok(patched);
+  assert.equal(patched.serviceVar, "M");
+  assert.match(
+    patched.source,
+    /;globalThis\.__codexpp_window_services__=M;wD\(\{buildFlavor:a/,
+  );
+});
+
+test("window services patch handles quoted factory object properties", () => {
+  const source =
+    "let M=FM({'buildFlavor':a,'allowDevtools':p,'allowDebugMenu':h,'globalState':j.globalState,'getGlobalStateForHost':j.getGlobalStateForHost,'desktopRoot':j.desktopRoot,'preloadPath':j.preloadPath,'repoRoot':j.repoRoot,'disposables':k});next()";
+
+  const patched = patchCodexWindowServicesSource(source);
+
+  assert.ok(patched);
+  assert.equal(patched.serviceVar, "M");
+  assert.match(patched.source, /;globalThis\.__codexpp_window_services__=M;next\(\)/);
+});
+
 test("window services patch is idempotent when the marker is already present", () => {
   const source = `let M=FM({buildFlavor:a,allowDevtools:p,globalState:j.globalState,getGlobalStateForHost:j.getGlobalStateForHost,desktopRoot:j.desktopRoot,preloadPath:j.preloadPath,repoRoot:j.repoRoot,disposables:k});globalThis.${CODEX_WINDOW_SERVICES_KEY}=M;wD({buildFlavor:a})`;
 
@@ -402,6 +428,25 @@ test("self-update marks the installed CLI executable on unix", () => {
 
     assert.equal(statSync(cli).mode & 0o111, 0o111);
   });
+});
+
+test("self-update command failures include a bounded output tail", () => {
+  const message = formatCommandFailure("/usr/bin/node", ["/tmp/codex plusplus/cli.js", "repair"], {
+    status: 1,
+    signal: null,
+    stdout: "stdout detail",
+    stderr: "nested repair error",
+  });
+
+  assert.match(message, /'\/tmp\/codex plusplus\/cli\.js' repair failed with exit code 1/);
+  assert.match(message, /stderr:\nnested repair error/);
+  assert.match(message, /stdout:\nstdout detail/);
+});
+
+test("repair preserves the installed signing mode", () => {
+  const source = readFileSync(new URL("../src/commands/repair.ts", import.meta.url), "utf8");
+
+  assert.match(source, /localSigning:\s*state \? state\.signingMode === "local-identity" : true/);
 });
 
 test("installation source labels local checkouts", () => {

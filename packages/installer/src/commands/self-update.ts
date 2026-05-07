@@ -61,6 +61,19 @@ interface UpdateTarget {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WATCHER_SELF_UPDATE_INTERVAL_MS = 60 * 60 * 1000;
+const COMMAND_OUTPUT_TAIL_CHARS = 8_000;
+
+interface RunOptions {
+  quiet?: boolean;
+}
+
+export interface CommandResult {
+  status: number;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+  error?: Error;
+}
 
 export async function selfUpdate(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
@@ -121,8 +134,8 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
       await extractTar({ file: archive, cwd: next, strip: 1 });
 
       verifyDownloadedVersion(next, target);
-      installDependencies(next);
-      run(npmCommand(), ["run", "build"], next);
+      installDependencies(next, opts);
+      run(npmCommand(), ["run", "build"], next, opts);
 
       rmSync(previous, { recursive: true, force: true });
       if (existsSync(sourceRoot)) renameSync(sourceRoot, previous);
@@ -302,14 +315,14 @@ function selfUpdateState(opts: {
   };
 }
 
-function installDependencies(cwd: string): void {
+function installDependencies(cwd: string, opts: RunOptions = {}): void {
   if (existsSync(join(cwd, "package-lock.json"))) {
-    const ci = runMaybe(npmCommand(), ["ci", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
-    if (ci === 0) return;
-    console.warn(kleur.yellow("npm ci failed; regenerating lockfile for downloaded source."));
+    const ci = runMaybe(npmCommand(), ["ci", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd, opts);
+    if (ci.status === 0) return;
+    if (!opts.quiet) console.warn(kleur.yellow("npm ci failed; regenerating lockfile for downloaded source."));
     rmSync(join(cwd, "package-lock.json"), { force: true });
   }
-  run(npmCommand(), ["install", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd);
+  run(npmCommand(), ["install", "--workspaces", "--include-workspace-root", "--ignore-scripts"], cwd, opts);
 }
 
 function npmCommand(): string {
@@ -327,21 +340,70 @@ function runRepairIfRequested(opts: Opts, sourceRoot: string, cwd: string): void
   const args = [cli, "repair"];
   if (opts.watcher) args.push("--watcher");
   if (opts.quiet) args.push("--quiet");
-  run(process.execPath, args, cwd);
+  run(process.execPath, args, cwd, opts);
 }
 
-function run(command: string, args: string[], cwd: string): void {
-  const status = runMaybe(command, args, cwd);
-  if (status !== 0) throw new Error(`${command} ${args.join(" ")} failed with exit code ${status}`);
+function run(command: string, args: string[], cwd: string, opts: RunOptions = {}): void {
+  const result = runMaybe(command, args, cwd, opts);
+  if (result.status !== 0) throw new Error(formatCommandFailure(command, args, result));
 }
 
-function runMaybe(command: string, args: string[], cwd: string): number {
+function runMaybe(command: string, args: string[], cwd: string, opts: RunOptions = {}): CommandResult {
   const result = spawnSync(command, args, {
     cwd,
-    stdio: "inherit",
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
     shell: process.platform === "win32",
   });
-  return result.status ?? 1;
+  const stdout = String(result.stdout ?? "");
+  const stderr = String(result.stderr ?? "");
+  if (!opts.quiet) {
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
+  }
+  return {
+    status: result.status ?? 1,
+    signal: result.signal,
+    stdout,
+    stderr,
+    error: result.error,
+  };
+}
+
+export function formatCommandFailure(command: string, args: string[], result: CommandResult): string {
+  const status = result.signal ? `signal ${result.signal}` : `exit code ${result.status}`;
+  const details = result.error ? ` (${result.error.message})` : "";
+  const output = commandOutputTail(result);
+  return [
+    `${formatCommand(command, args)} failed with ${status}${details}`,
+    output ? `Command output:\n${output}` : null,
+  ].filter(Boolean).join("\n\n");
+}
+
+function commandOutputTail(result: CommandResult): string {
+  const parts = [
+    ["stderr", result.stderr] as const,
+    ["stdout", result.stdout] as const,
+  ].flatMap(([name, value]) => {
+    const text = value.trim();
+    if (!text) return [];
+    return [`${name}:\n${tail(text, COMMAND_OUTPUT_TAIL_CHARS)}`];
+  });
+  return parts.join("\n\n");
+}
+
+function tail(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return `[last ${maxChars} chars]\n${text.slice(-maxChars)}`;
+}
+
+function formatCommand(command: string, args: string[]): string {
+  return [command, ...args].map(shellQuoteArg).join(" ");
+}
+
+function shellQuoteArg(value: string): string {
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function rollbackSource(sourceRoot: string, previous: string): void {

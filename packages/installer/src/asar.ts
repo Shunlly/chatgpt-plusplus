@@ -140,9 +140,7 @@ function annotatePermError(e: unknown, target: string): Error {
     const msg =
       `Permission denied writing to ${target}.\n\n` +
       `macOS App Management is blocking modification of /Applications/Codex.app.\n` +
-      `Grant permission via:\n` +
-      `  System Settings > Privacy & Security > App Management > enable the app running this command\n` +
-      `(macOS may also have shown a permission prompt - click Allow, then re-run install.)\n\n` +
+      `Run "codexplusplus repair" in your terminal.\n\n` +
       `Original error: ${err.message}`;
     const wrapped = new Error(msg);
     (wrapped as NodeJS.ErrnoException).code = err.code;

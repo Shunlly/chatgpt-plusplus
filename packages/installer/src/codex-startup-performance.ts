@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -16,6 +15,25 @@ const STATSIG_LOADING_GATE =
   "if(t[40]!==F||t[41]!==N?(L=()=>{if(F!=null)try{let e=F.getContext().user;(0,vE.default)(e,N)||F.updateUserAsync(N)}catch(e){let t=e;q.error(`Statsig: error while checking/updating user`,{safe:{},sensitive:{error:t}})}},R=[F,N],t[40]=F,t[41]=N,t[42]=L,t[43]=R):(L=t[42],R=t[43]),(0,Q.useEffect)(L,R),I){";
 const STATSIG_LOADING_REPLACEMENT =
   "if(t[40]!==F||t[41]!==N?(L=()=>{if(F!=null)try{let e=F.getContext().user;(0,vE.default)(e,N)||F.updateUserAsync(N)}catch(e){let t=e;q.error(`Statsig: error while checking/updating user`,{safe:{},sensitive:{error:t}})}},R=[F,N],t[40]=F,t[41]=N,t[42]=L,t[43]=R):(L=t[42],R=t[43]),(0,Q.useEffect)(L,R),I&&!F){";
+const RICH_INPUT_EFFECTS =
+  "function _I({composerController:e,placeholder:t,ariaLabel:n,minHeight:r,disableAutoFocus:i=!1,isFocusComposerTarget:a=!1,singleLine:o=!1,onSubmit:s,onMentionHandler:c,onSkillMentionHandler:l,className:u}){let d=(0,J.useRef)(null);return(0,J.useEffect)(()=>{let t=d.current;if(t==null)throw Error(`RichTextInput rootRef is not mounted`);let n=e.view.dom;return t.appendChild(n),e.view.dom.dataset.virtualkeyboard=`true`,n.style.fontSize=`var(--codex-chat-font-size)`,n.style.height=`auto`,n.style.resize=`none`,()=>{n.blur(),n.parentElement===t&&t.removeChild(n)}},[e]),(0,J.useEffect)(()=>{if(a){e.view.dom.dataset.codexComposer=`true`;return}delete e.view.dom.dataset.codexComposer},[e,a]),(0,J.useEffect)(()=>{i||requestAnimationFrame(()=>{e.focus()})},[e,i]),";
+const RICH_INPUT_LAYOUT_EFFECTS =
+  "function _I({composerController:e,placeholder:t,ariaLabel:n,minHeight:r,disableAutoFocus:i=!1,isFocusComposerTarget:a=!1,singleLine:o=!1,onSubmit:s,onMentionHandler:c,onSkillMentionHandler:l,className:u}){let d=(0,J.useRef)(null);return(0,J.useLayoutEffect)(()=>{let t=d.current;if(t==null)throw Error(`RichTextInput rootRef is not mounted`);let n=e.view.dom;return t.appendChild(n),e.view.dom.dataset.virtualkeyboard=`true`,n.style.fontSize=`var(--codex-chat-font-size)`,n.style.height=`auto`,n.style.resize=`none`,()=>{n.blur(),n.parentElement===t&&t.removeChild(n)}},[e]),(0,J.useLayoutEffect)(()=>{if(a){e.view.dom.dataset.codexComposer=`true`;return}delete e.view.dom.dataset.codexComposer},[e,a]),(0,J.useLayoutEffect)(()=>{i||e.focus()},[e,i]),";
+const RICH_INPUT_SIZING_EFFECTS =
+  "(0,J.useEffect)(()=>{let t=e.view.dom;if(n){t.setAttribute(`aria-label`,n);return}t.removeAttribute(`aria-label`)},[n,e]),(0,J.useEffect)(()=>{e.view.dom.style.minHeight=r??`2.5rem`},[e,r]),(0,J.useEffect)(()=>{e.setPlaceholder(t)},[t,e]),";
+const RICH_INPUT_SIZING_LAYOUT_EFFECTS =
+  "(0,J.useLayoutEffect)(()=>{let t=e.view.dom;if(n){t.setAttribute(`aria-label`,n);return}t.removeAttribute(`aria-label`)},[n,e]),(0,J.useLayoutEffect)(()=>{e.view.dom.style.minHeight=r??`2.5rem`},[e,r]),(0,J.useLayoutEffect)(()=>{e.setPlaceholder(t)},[t,e]),";
+const STARTUP_COMPOSER_INPUT_GATE_HELPER_ANCHOR = "var RU=`new-conversation`;";
+const STARTUP_COMPOSER_INPUT_GATE_HELPER =
+  "function __codexStartupInputGate({fallback:e,children:t,delayMs:n=6e3}){let[r,i]=(0,Z.useState)(()=>((globalThis.performance?.now?.()??1/0)>=n));return(0,Z.useEffect)(()=>{if(r)return;let e=setTimeout(()=>i(!0),Math.max(0,n-(globalThis.performance?.now?.()??0)));return()=>clearTimeout(e)},[r,n]),r?t:e}";
+const STARTUP_COMPOSER_CONTROLS =
+  "(0,Q.jsx)(az,{onAddImageDataUrls:ds,onAppendPromptText:e=>{Mn.appendText(e)},getAttachmentGen:()=>va.current,setFileAttachments:si,composerMode:Jn,composerInput:Bs,executionTargetCwd:q.cwd,executionTargetHostId:q.hostId,isSingleLineLayout:as,showHotkeyWindowHomeFooterControls:p,hotkeyWindowHomeOverflowMenu:v,conversationId:G,isAutoContextOn:Ur,setIsAutoContextOn:Br,ideContextStatus:qr,permissionsHostId:lr,permissionsCwdOverride:ur,submitButtonMode:Co,canStopFromEscape:To,isResponseInProgress:u,isQueueingEnabled:Zt,isSubmitting:Nt,onStop:x,submitBlockReason:yo,disabledReason:bo,emptySubmitTooltipNonce:ha,handleSubmit:ns,voiceControls:is})";
+const STARTUP_COMPOSER_INPUT_GATE_CONTROLS =
+  `(0,Q.jsx)(__codexStartupInputGate,{fallback:Bs,children:${STARTUP_COMPOSER_CONTROLS}})`;
+const STARTUP_COMPOSER_STATUS_MENU =
+  "(0,Q.jsx)(nV,{composerMode:Jn,currentLocalExecutionCwd:hr,currentLocalExecutionHostId:or,effectiveIdeContextStatus:qr,effectiveIsAutoContextOn:Ur,resolvedCwd:Cn,setIsAutoContextOn:Br,setIsStatusMenuOpen:at,skillLookupRoots:Wi})";
+const STARTUP_COMPOSER_STATUS_MENU_DEFERRED =
+  `((globalThis.performance?.now?.()??1/0)<6e3?null:${STARTUP_COMPOSER_STATUS_MENU})`;
 const RECOMMENDED_SKILLS_WARMER =
   "t.F({refresh:!1,preferWsl:rv,bundledRepoRoot:this.bundledSkillsRoot,appServerClient:this.appServerClient}).catch(e=>{J().warning(`Failed to warm recommended skills cache`,{safe:{},sensitive:{error:e}})})";
 const RECOMMENDED_SKILLS_WARMER_DEFERRED =
@@ -41,165 +59,10 @@ const LOCAL_CONTEXT_INIT =
   "DD({isWindows:E,disableQuitConfirmationPrompt:process.env.CODEX_ELECTRON_DISABLE_QUIT_CONFIRMATION===`1`,quitState:F,windows:M,applicationMenuManager:z.applicationMenuManager,ensureHostWindow:M.ensureHostWindow,hotkeyWindowLifecycleManager:M.hotkeyWindowLifecycleManager,globalDictationLifecycleManager:M.globalDictationLifecycleManager,globalStatesByHostId:j.globalStatesByHostId,flushAndDisposeContexts:R.flushAndDisposeContexts,disposables:k,appEvent:L.appEvent,errorReporter:g}),A=Date.now(),wN(j.globalState);let he=R.getOrCreateContext(R.localHost);";
 const LOCAL_CONTEXT_INIT_WITH_EARLY_WINDOW =
   "DD({isWindows:E,disableQuitConfirmationPrompt:process.env.CODEX_ELECTRON_DISABLE_QUIT_CONFIRMATION===`1`,quitState:F,windows:M,applicationMenuManager:z.applicationMenuManager,ensureHostWindow:M.ensureHostWindow,hotkeyWindowLifecycleManager:M.hotkeyWindowLifecycleManager,globalDictationLifecycleManager:M.globalDictationLifecycleManager,globalStatesByHostId:j.globalStatesByHostId,flushAndDisposeContexts:R.flushAndDisposeContexts,disposables:k,appEvent:L.appEvent,errorReporter:g}),A=Date.now(),wN(j.globalState);let he=R.getOrCreateContext(R.localHost);M.ensureHostWindow(B).catch(e=>{t.Mr().warning(`Early host window creation failed`,{safe:{},sensitive:{error:e}})});";
-const STRICT_MODE_RENDER =
-  "async function Zj(){await Qj(),Xj.render((0,$.jsx)(Q.StrictMode,{children:(0,$.jsx)(Ij,{})}))}async function Qj(){}";
-const DIRECT_RENDER = "function Zj(){Xj.render((0,$.jsx)(Ij,{}))}function Qj(){}";
 const OPTIMISTIC_STARTUP_MARKER = "codex-optimistic-startup";
 const OPTIMISTIC_COMPOSER_MARKER = 'id="codex-optimistic-composer"';
-const OPTIMISTIC_STARTUP_SCRIPT = `(() => {
-  const composerSelector = "[data-codex-composer]";
-  let draft = "";
-  let movedDraft = false;
-
-  function editableInside(node) {
-    if (!(node instanceof HTMLElement)) return null;
-    if (node.isContentEditable || node.getAttribute("contenteditable") === "true") return node;
-    return node.querySelector('textarea,input,[contenteditable="true"],[contenteditable=true]');
-  }
-
-  function optimisticComposer() {
-    return document.getElementById("codex-optimistic-composer");
-  }
-
-  function focusOptimisticComposer() {
-    const composer = optimisticComposer();
-    if (composer) composer.focus({ preventScroll: true });
-  }
-
-  function transferDraftToRealComposer() {
-    if (movedDraft) return true;
-    const realComposer = Array.from(document.querySelectorAll(composerSelector)).find(
-      (node) => node.id !== "codex-optimistic-composer",
-    );
-    const editable = editableInside(realComposer);
-    if (!editable) return false;
-    movedDraft = true;
-    if (draft && !editable.textContent) editable.textContent = draft;
-    editable.focus({ preventScroll: true });
-    return true;
-  }
-
-  window.addEventListener("DOMContentLoaded", () => {
-    const composer = optimisticComposer();
-    if (composer) {
-      composer.addEventListener("input", () => {
-        draft = composer.innerText || composer.textContent || "";
-      });
-    }
-    focusOptimisticComposer();
-    window.setTimeout(focusOptimisticComposer, 50);
-    window.setTimeout(focusOptimisticComposer, 250);
-    if (transferDraftToRealComposer()) return;
-    const observer = new MutationObserver(() => {
-      if (transferDraftToRealComposer()) observer.disconnect();
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  });
-})();`;
-const OPTIMISTIC_STARTUP_CSS = `
-      .codex-optimistic-startup {
-        box-sizing: border-box;
-        display: grid;
-        min-height: 100%;
-        grid-template-rows: 48px 1fr;
-        background: #f7f7f4;
-        color: #1f1f1f;
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      .codex-optimistic-startup *,
-      .codex-optimistic-startup *::before,
-      .codex-optimistic-startup *::after {
-        box-sizing: border-box;
-      }
-
-      .codex-optimistic-titlebar {
-        display: flex;
-        align-items: center;
-        padding: 0 18px;
-        border-bottom: 1px solid rgb(0 0 0 / 0.08);
-        color: #454541;
-        font-size: 13px;
-        font-weight: 500;
-        -webkit-app-region: drag;
-      }
-
-      .codex-optimistic-stage {
-        display: grid;
-        align-content: end;
-        padding: 24px;
-      }
-
-      .codex-optimistic-composer-shell {
-        width: min(860px, 100%);
-        margin: 0 auto;
-        border: 1px solid rgb(0 0 0 / 0.12);
-        border-radius: 8px;
-        background: #ffffff;
-        box-shadow: 0 8px 28px rgb(0 0 0 / 0.08);
-      }
-
-      #codex-optimistic-composer {
-        min-height: 72px;
-        padding: 16px 18px;
-        color: #1f1f1f;
-        font-size: 15px;
-        line-height: 1.45;
-        outline: none;
-        white-space: pre-wrap;
-        word-break: break-word;
-        -webkit-app-region: no-drag;
-      }
-
-      #codex-optimistic-composer:empty::before {
-        color: #8a8a84;
-        content: attr(data-placeholder);
-      }
-
-      @media (prefers-color-scheme: dark) {
-        .codex-optimistic-startup {
-          background: #171717;
-          color: #f4f4f0;
-        }
-
-        .codex-optimistic-titlebar {
-          border-bottom-color: rgb(255 255 255 / 0.1);
-          color: #c8c8c2;
-        }
-
-        .codex-optimistic-composer-shell {
-          border-color: rgb(255 255 255 / 0.14);
-          background: #242424;
-          box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
-        }
-
-        #codex-optimistic-composer {
-          color: #f4f4f0;
-        }
-
-        #codex-optimistic-composer:empty::before {
-          color: #9d9d96;
-        }
-      }
-`;
-const OPTIMISTIC_STARTUP_BODY = `    <div id="root">
-      <div id="codex-optimistic-shell" class="codex-optimistic-startup">
-        <div class="codex-optimistic-titlebar">Codex</div>
-        <main class="codex-optimistic-stage">
-          <div class="codex-optimistic-composer-shell">
-            <div
-              id="codex-optimistic-composer"
-              data-codex-composer
-              data-placeholder="Ask Codex"
-              contenteditable="true"
-              role="textbox"
-              spellcheck="true"
-              tabindex="0"
-            ></div>
-          </div>
-        </main>
-      </div>
+const STARTUP_LOADER_BODY = `    <div id="root">
+      <div class="startup-loader" aria-hidden="true"></div>
     </div>`;
 
 export function patchCodexStartupPerformance(appDir: string): StartupPerformancePatchResult {
@@ -212,6 +75,26 @@ export function patchCodexStartupPerformance(appDir: string): StartupPerformance
       const path = join(assetsDir, name);
       const source = readFileSync(path, "utf8");
       const patched = patchCodexStartupPerformanceSource(source);
+      if (!patched.changed) continue;
+      writeFileSync(path, patched.source);
+      patchedFiles.push(`webview/assets/${name}`);
+    }
+
+    for (const name of readdirSync(assetsDir)) {
+      if (!/^use-model-settings-[\w-]+\.js$/.test(name)) continue;
+      const path = join(assetsDir, name);
+      const source = readFileSync(path, "utf8");
+      const patched = patchCodexStartupModelSettingsSource(source);
+      if (!patched.changed) continue;
+      writeFileSync(path, patched.source);
+      patchedFiles.push(`webview/assets/${name}`);
+    }
+
+    for (const name of readdirSync(assetsDir)) {
+      if (!/^composer-[\w-]+\.js$/.test(name)) continue;
+      const path = join(assetsDir, name);
+      const source = readFileSync(path, "utf8");
+      const patched = patchCodexStartupComposerSource(source);
       if (!patched.changed) continue;
       writeFileSync(path, patched.source);
       patchedFiles.push(`webview/assets/${name}`);
@@ -252,8 +135,47 @@ export function patchCodexStartupPerformanceSource(source: string): {
     .replace(AUTH_LOADING_GATE, AUTH_LOADING_REPLACEMENT)
     .replace(WORKSPACE_ROOTS_LOADING_GATE, WORKSPACE_ROOTS_LOADING_REPLACEMENT)
     .replace(FRONTEND_METADATA_ACCOUNT_LOADING_GATE, FRONTEND_METADATA_ACCOUNT_LOADING_REPLACEMENT)
-    .replace(STATSIG_LOADING_GATE, STATSIG_LOADING_REPLACEMENT)
-    .replace(STRICT_MODE_RENDER, DIRECT_RENDER);
+    .replace(STATSIG_LOADING_GATE, STATSIG_LOADING_REPLACEMENT);
+
+  return {
+    changed: patched !== source,
+    source: patched,
+  };
+}
+
+export function patchCodexStartupModelSettingsSource(source: string): {
+  changed: boolean;
+  source: string;
+} {
+  const patched = source
+    .replace(RICH_INPUT_EFFECTS, RICH_INPUT_LAYOUT_EFFECTS)
+    .replace(RICH_INPUT_SIZING_EFFECTS, RICH_INPUT_SIZING_LAYOUT_EFFECTS);
+
+  return {
+    changed: patched !== source,
+    source: patched,
+  };
+}
+
+export function patchCodexStartupComposerSource(source: string): {
+  changed: boolean;
+  source: string;
+} {
+  let patched = source;
+  const needsInputGate = !patched.includes(STARTUP_COMPOSER_INPUT_GATE_CONTROLS) && patched.includes(STARTUP_COMPOSER_CONTROLS);
+
+  if (needsInputGate && !patched.includes(STARTUP_COMPOSER_INPUT_GATE_HELPER)) {
+    patched = patched.replace(
+      STARTUP_COMPOSER_INPUT_GATE_HELPER_ANCHOR,
+      `${STARTUP_COMPOSER_INPUT_GATE_HELPER}${STARTUP_COMPOSER_INPUT_GATE_HELPER_ANCHOR}`,
+    );
+  }
+  if (needsInputGate && patched.includes(STARTUP_COMPOSER_INPUT_GATE_HELPER)) {
+    patched = patched.replace(STARTUP_COMPOSER_CONTROLS, STARTUP_COMPOSER_INPUT_GATE_CONTROLS);
+  }
+  if (!patched.includes(STARTUP_COMPOSER_STATUS_MENU_DEFERRED)) {
+    patched = patched.replace(STARTUP_COMPOSER_STATUS_MENU, STARTUP_COMPOSER_STATUS_MENU_DEFERRED);
+  }
 
   return {
     changed: patched !== source,
@@ -265,23 +187,10 @@ export function patchCodexStartupHtmlSource(source: string): {
   changed: boolean;
   source: string;
 } {
-  if (source.includes(OPTIMISTIC_COMPOSER_MARKER)) {
-    const patched = moveRendererAssetsAfterOptimisticBody(
-      addCspScriptHash(restoreStartupStyles(repairOptimisticStartupCsp(source)), OPTIMISTIC_STARTUP_SCRIPT),
-    );
-    return { changed: patched !== source, source: patched };
+  let patched = restoreStartupStyles(source);
+  if (patched.includes(OPTIMISTIC_STARTUP_MARKER) || patched.includes(OPTIMISTIC_COMPOSER_MARKER)) {
+    patched = removeOptimisticStartupArtifacts(patched);
   }
-
-  let patched = restoreStartupStyles(repairOptimisticStartupCsp(source));
-  if (!patched.includes(OPTIMISTIC_STARTUP_MARKER)) {
-    patched = patched.replace("</style>", `${OPTIMISTIC_STARTUP_CSS}\n    </style>`);
-  }
-  if (!patched.includes(OPTIMISTIC_STARTUP_SCRIPT)) {
-    patched = patched.replace("</head>", `    <script>${OPTIMISTIC_STARTUP_SCRIPT}</script>\n</head>`);
-  }
-  patched = patched.replace(/\s*<div id="root">[\s\S]*<\/div>\s*<\/body>/, `\n${OPTIMISTIC_STARTUP_BODY}\n  </body>`);
-  patched = addCspScriptHash(patched, OPTIMISTIC_STARTUP_SCRIPT);
-  patched = moveRendererAssetsAfterOptimisticBody(patched);
 
   return {
     changed: patched !== source,
@@ -322,49 +231,22 @@ export function patchCodexMainStartupResourceSource(source: string): {
   };
 }
 
-function addCspScriptHash(source: string, script: string): string {
-  const hashValue = `sha256-${createHash("sha256").update(script).digest("base64")}`;
-  const rawHash = `'${hashValue}'`;
-  const encodedHash = `&#39;${hashValue}&#39;`;
-  if (source.includes(rawHash) || source.includes(encodedHash)) return source;
-  if (source.includes("script-src &#39;self&#39;")) {
-    return source.replace("script-src &#39;self&#39;", `script-src &#39;self&#39; ${encodedHash}`);
-  }
-  if (source.includes("script-src 'self'")) {
-    return source.replace("script-src 'self'", `script-src 'self' ${rawHash}`);
-  }
-  return source.replace(/(script-src[^;"]*)/, `$1 ${rawHash}`);
-}
-
-function repairOptimisticStartupCsp(source: string): string {
-  const hashValue = `sha256-${createHash("sha256").update(OPTIMISTIC_STARTUP_SCRIPT).digest("base64")}`;
-  const malformed = new RegExp(`script-src &#39 (?:&#39;|')${escapeRegExp(hashValue)}(?:&#39;|');self&#39;`, "g");
-  return source.replace(malformed, "script-src &#39;self&#39;");
-}
-
 function restoreStartupStyles(source: string): string {
-  return source.replace(
-    /<link rel="stylesheet" crossorigin href="([^"]+)" media="print" data-codex-defer-css>/g,
-    '<link rel="stylesheet" crossorigin href="$1">',
-  );
+  return source
+    .replace(
+      /<link rel="stylesheet" crossorigin href="([^"]+)" media="print" data-codex-defer-css>/g,
+      '<link rel="stylesheet" crossorigin href="$1">',
+    )
+    .replace(/\s*<link rel="modulepreload" crossorigin href="\.\/assets\/[^"]+">/g, "")
+    .replace(/\s*<link rel="preload" as="style" crossorigin href="\.\/assets\/[^"]+">/g, "");
 }
 
-function moveRendererAssetsAfterOptimisticBody(source: string): string {
-  const rendererAssets: string[] = [];
-  const withoutRendererAssets = source.replace(
-    /\n\s*(<link rel="modulepreload" crossorigin href="[^"]+">|<script type="module" crossorigin src="[^"]+"><\/script>|<link rel="stylesheet" crossorigin href="[^"]+">)/g,
-    (_match, tag: string) => {
-      rendererAssets.push(tag);
-      return "";
-    },
-  );
-  if (rendererAssets.length === 0) return source;
-  return withoutRendererAssets.replace(
-    "\n  </body>",
-    `\n    ${rendererAssets.join("\n    ")}\n  </body>`,
-  );
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function removeOptimisticStartupArtifacts(source: string): string {
+  return source
+    .replace(
+      /\n\s*<script>\(\(\) => \{\n\s*const composerSelector = "\[data-codex-composer\]";[\s\S]*?<\/script>/,
+      "",
+    )
+    .replace(/\s*<div id="root">\s*<div id="codex-optimistic-shell"[\s\S]*?<\/div>\s*<\/div>\s*<\/body>/, `\n${STARTUP_LOADER_BODY}\n  </body>`)
+    .replace(/codex-optimistic-startup/g, "codex-removed-optimistic-startup");
 }

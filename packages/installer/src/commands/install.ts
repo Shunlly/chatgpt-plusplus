@@ -2,7 +2,7 @@ import kleur from "kleur";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { locateCodex, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
@@ -19,7 +19,9 @@ import { formatCliShimResult, installCliShims } from "../cli-shim.js";
 import { findSourceRoot } from "../source-root.js";
 import {
   CODEX_WINDOW_SERVICES_KEY,
+  describeCodexWindowServicesSource,
   patchCodexWindowServicesSource,
+  type CodexWindowServicesSourceDiagnostics,
 } from "../codex-window-services.js";
 import { patchCodexStartupPerformance } from "../codex-startup-performance.js";
 import { chownForTargetUser } from "../ownership.js";
@@ -93,7 +95,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   step(`Staged runtime to ${kleur.cyan(paths.runtime)}`);
 
   // 3. Patch app.asar entry point to require our loader.
-  const originalEntry = await injectLoader(codex.asarPath, paths.root);
+  const originalEntry = await injectLoader(codex.asarPath, paths.root, step);
   const { headerHash: patchedAsarHash } = readHeaderHash(codex.asarPath);
   step(`Patched app.asar (entry was ${kleur.dim(originalEntry)})`);
 
@@ -217,7 +219,11 @@ function backupPristineApp(appRoot: string, backupPath: string, step: (msg: stri
  * Replace app.asar's package.json `main` with our loader, copying the
  * loader.cjs into the asar so it can resolve. Returns the original entry path.
  */
-async function injectLoader(asarPath: string, userRoot: string): Promise<string> {
+async function injectLoader(
+  asarPath: string,
+  userRoot: string,
+  step: (msg: string) => void = () => {},
+): Promise<string> {
   let originalMain = "";
   await patchAsar(asarPath, (dir) => {
     const pkgPath = join(dir, "package.json");
@@ -254,7 +260,7 @@ async function injectLoader(asarPath: string, userRoot: string): Promise<string>
       cpSync(loaderSrc, join(dir, "codex-plusplus-loader.cjs"));
     }
 
-    patchCodexWindowServices(dir, originalMain);
+    patchCodexWindowServices(dir, originalMain, step);
     if (process.env.CODEXPP_PATCH_STARTUP_PERF !== "0") {
       patchCodexStartupPerformance(dir);
     }
@@ -262,19 +268,57 @@ async function injectLoader(asarPath: string, userRoot: string): Promise<string>
   return originalMain;
 }
 
-function patchCodexWindowServices(appDir: string, originalMain: string): void {
+interface CodexWindowServicesCandidateDiagnostic {
+  relativePath: string;
+  bytes: number;
+  diagnostics: CodexWindowServicesSourceDiagnostics;
+  parserError?: string;
+}
+
+function patchCodexWindowServices(
+  appDir: string,
+  originalMain: string,
+  step: (msg: string) => void = () => {},
+): void {
   const candidates = findCodexMainCandidates(appDir, originalMain);
+  const candidateNames = candidates.map((p) => relative(appDir, p) || basename(p));
+  step(
+    `Scanning Codex window services hook candidates (${candidates.length}): ${
+      candidateNames.length ? candidateNames.map((p) => kleur.dim(p)).join(", ") : kleur.yellow("none")
+    }`,
+  );
+  const diagnostics: CodexWindowServicesCandidateDiagnostic[] = [];
 
   for (const mainPath of candidates) {
     const source = readFileSync(mainPath, "utf8");
-    const patched = patchCodexWindowServicesSource(source, CODEX_WINDOW_SERVICES_KEY);
+    const relativePath = relative(appDir, mainPath) || basename(mainPath);
+    const candidateDiagnostic: CodexWindowServicesCandidateDiagnostic = {
+      relativePath,
+      bytes: source.length,
+      diagnostics: describeCodexWindowServicesSource(source, CODEX_WINDOW_SERVICES_KEY),
+    };
+    diagnostics.push(candidateDiagnostic);
+
+    let patched: ReturnType<typeof patchCodexWindowServicesSource> = null;
+    try {
+      patched = patchCodexWindowServicesSource(source, CODEX_WINDOW_SERVICES_KEY);
+    } catch (e) {
+      candidateDiagnostic.parserError = (e as Error).message;
+      continue;
+    }
+
     if (patched) {
       if (patched.changed) writeFileSync(mainPath, patched.source);
+      step(
+        `Exposed Codex window services from ${kleur.dim(relativePath)} using ${kleur.cyan(patched.strategy)}${
+          patched.serviceVar ? ` (${patched.serviceVar})` : ""
+        }`,
+      );
       return;
     }
   }
 
-  throw new Error("Codex window services hook point not found");
+  throw new Error(formatWindowServicesHookFailure(originalMain, diagnostics));
 }
 
 export function findCodexMainCandidates(appDir: string, originalMain: string): string[] {
@@ -282,10 +326,51 @@ export function findCodexMainCandidates(appDir: string, originalMain: string): s
   const buildDir = resolve(appDir, ".vite", "build");
   try {
     for (const name of readdirSync(buildDir)) {
-      if (/^main-.*\.js$/.test(name)) out.push(resolve(buildDir, name));
+      if (/^main(?:[-.].*)?\.js$/.test(name)) out.push(resolve(buildDir, name));
     }
   } catch {}
   return [...new Set(out)].filter((p) => existsSync(p));
+}
+
+function formatWindowServicesHookFailure(
+  originalMain: string,
+  diagnostics: CodexWindowServicesCandidateDiagnostic[],
+): string {
+  const lines = [
+    "Codex window services hook point not found.",
+    "",
+    "Codex++ could not identify Codex's main-process window services factory.",
+    "This usually means Codex changed its bundled main-process layout or renamed the service object properties.",
+    "",
+    `Original entry point: ${originalMain}`,
+    `Candidate files scanned: ${diagnostics.length}`,
+  ];
+
+  if (diagnostics.length === 0) {
+    lines.push("No candidate files existed inside app.asar.");
+    return lines.join("\n");
+  }
+
+  for (const candidate of diagnostics) {
+    const fingerprints = candidate.diagnostics.matchedFingerprints;
+    lines.push(
+      "",
+      `Candidate: ${candidate.relativePath}`,
+      `  Bytes: ${candidate.bytes}`,
+      `  Marker already present: ${candidate.diagnostics.hasMarker ? "yes" : "no"}`,
+      `  Object factory calls: ${candidate.diagnostics.objectCalls}`,
+      `  buildFlavor properties: ${candidate.diagnostics.buildFlavorProperties}`,
+      `  Window-service fingerprints: ${fingerprints.length ? fingerprints.join(", ") : "none"}`,
+    );
+    if (candidate.parserError) {
+      lines.push(`  Parser error: ${candidate.parserError}`);
+    }
+    if (candidate.diagnostics.snippet) {
+      lines.push(`  Nearby source: ${candidate.diagnostics.snippet}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 export function stageAssets(runtimeDir: string): void {
@@ -384,38 +469,15 @@ function writableError(e: unknown, target: string, platform: string): unknown {
 }
 
 function macAppManagementFix(target: string, code: string | undefined): string {
-  const watcher = process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === "com.codexplusplus.watcher";
   const permissionSteps =
-    `macOS App Management or file ownership is blocking modification of ${target}.\n` +
-    `Fix:\n` +
-    `  Open Terminal and run: codexplusplus repair\n`;
+    `macOS App Management is blocking modification of ${target}.\n` +
+    `Run "codexplusplus repair" in your terminal.\n`;
   const sudoFallback =
     code === "EACCES"
-      ? `\nIf Codex.app is root-owned and repair still cannot write to it, run: sudo codexplusplus repair\n` +
-        `For source bootstrap installs, rerun: curl -fsSL ${installScriptUrl()} | sudo bash\n` +
-        `Avoid \`sudo curl ... | bash\`; that only runs curl as root, not the installer.\n`
+      ? `If Codex.app is root-owned and repair still cannot write to it, run "sudo codexplusplus repair".\n`
       : "";
 
-  if (watcher) {
-    return (
-      permissionSteps +
-      sudoFallback +
-      `\nThe background watcher cannot complete this repair directly. Terminal can finish it with your user-approved app permissions.\n` +
-      `(If macOS asks for permission, click Allow, then let the repair finish.)\n`
-    );
-  }
-
-  return (
-    permissionSteps +
-    sudoFallback +
-    `\nIf macOS asks for permission, click Allow, then re-run the command.\n`
-  );
-}
-
-function installScriptUrl(): string {
-  const repo = process.env.CODEX_PLUSPLUS_REPO ?? "b-nnett/codex-plusplus";
-  const ref = process.env.CODEX_PLUSPLUS_REF ?? "main";
-  return `https://raw.githubusercontent.com/${repo}/${ref}/install.sh`;
+  return permissionSteps + sudoFallback;
 }
 
 function preflightAppClosed(codex: CodexInstall): void {

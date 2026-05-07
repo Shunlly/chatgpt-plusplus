@@ -239,6 +239,16 @@ function tryInject() {
         state.activePage = null;
         state.panelHost = null;
     }
+    const existingCodexPpNavGroup = outer.querySelector(':scope > [data-codexpp="nav-group"]') ??
+        outer.querySelector('[data-codexpp="nav-group"]');
+    if (existingCodexPpNavGroup) {
+        state.navGroup = existingCodexPpNavGroup;
+        state.sidebarRoot = outer;
+        syncPagesGroup();
+        if (state.activePage !== null)
+            syncCodexNativeNavActive(true);
+        return;
+    }
     // ── Group container ───────────────────────────────────────────────────
     const group = document.createElement("div");
     group.dataset.codexpp = "nav-group";
@@ -302,14 +312,89 @@ function scheduleSettingsSurfaceHidden() {
     }, 1500);
 }
 function isSettingsTextVisible() {
-    const text = compactSettingsText(document.body?.textContent || "").toLowerCase();
-    return (text.includes("back to app") &&
-        text.includes("general") &&
-        text.includes("appearance") &&
-        (text.includes("configuration") || text.includes("default permissions")));
+    return isCodexPpSettingsLabelSet(codexPpSettingsLabelsFrom(document));
 }
 function compactSettingsText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+}
+const CODEXPP_CORE_SETTINGS_LABELS = [
+    "General",
+    "Appearance",
+    "Configuration",
+    "Personalization",
+].map(normalizeCodexPpSettingsLabel);
+const CODEXPP_EXTENDED_SETTINGS_LABELS = [
+    "Account",
+    "General",
+    "Appearance",
+    "Configuration",
+    "Personalization",
+    "Keyboard shortcuts",
+    "Archived chats",
+    "Usage",
+    "Computer use",
+    "Browser use",
+    "MCP servers",
+    "Git",
+    "Environments",
+    "Cloud Environments",
+    "Worktrees",
+    "Connections",
+    "Plugins",
+    "Skills",
+].map(normalizeCodexPpSettingsLabel);
+function normalizeCodexPpSettingsLabel(value) {
+    return compactSettingsText(value)
+        .toLocaleLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[’‘`´]/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function codexPpControlLabel(el) {
+    return normalizeCodexPpSettingsLabel(el.getAttribute("aria-label") ||
+        el.getAttribute("title") ||
+        el.textContent ||
+        "");
+}
+function codexPpSettingsLabelsFrom(root) {
+    const controls = Array.from(root.querySelectorAll("button,a,[role='button'],[role='link']"));
+    return [
+        ...new Set(controls
+            .map(codexPpControlLabel)
+            .filter(Boolean)),
+    ];
+}
+function codexPpSettingsLabelScore(labels) {
+    const core = new Set();
+    const total = new Set();
+    for (const label of labels) {
+        for (const marker of CODEXPP_CORE_SETTINGS_LABELS) {
+            if (label === marker || label.includes(marker))
+                core.add(marker);
+        }
+        for (const marker of CODEXPP_EXTENDED_SETTINGS_LABELS) {
+            if (label === marker || label.includes(marker))
+                total.add(marker);
+        }
+    }
+    return { core: core.size, total: total.size };
+}
+function isCodexPpSettingsLabelSet(labels) {
+    const score = codexPpSettingsLabelScore(labels);
+    return score.core >= 2 && score.total >= 3;
+}
+function codexPpVisibleBox(el) {
+    if (!el.isConnected)
+        return null;
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden")
+        return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0)
+        return null;
+    return rect;
 }
 function setSettingsSurfaceVisible(visible, reason) {
     if (state.settingsSurfaceVisible === visible)
@@ -2204,55 +2289,27 @@ async function resolveIconUrl(url, tweakDir) {
 }
 // ─────────────────────────────────────────────────────── DOM heuristics ──
 function findSidebarItemsGroup() {
-    // Anchor strategy first (would be ideal if Codex switches to <a>).
-    const links = Array.from(document.querySelectorAll("a[href*='/settings/']"));
-    if (links.length >= 2) {
-        let node = links[0].parentElement;
-        while (node) {
-            const inside = node.querySelectorAll("a[href*='/settings/']");
-            if (inside.length >= Math.max(2, links.length - 1) &&
-                isSettingsSidebarCandidate(node))
-                return node;
-            node = node.parentElement;
+    const candidates = Array.from(document.querySelectorAll("aside,nav,[role='navigation'],div"));
+    let best = null;
+    let bestScore = -1;
+    let bestArea = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+        if (candidate.dataset.codexpp)
+            continue;
+        if (!isSettingsSidebarCandidate(candidate))
+            continue;
+        const labels = codexPpSettingsLabelsFrom(candidate);
+        const score = codexPpSettingsLabelScore(labels);
+        const rect = candidate.getBoundingClientRect();
+        const area = rect.width * rect.height;
+        const weighted = score.core * 100 + score.total;
+        if (weighted > bestScore || (weighted === bestScore && area < bestArea)) {
+            best = candidate;
+            bestScore = weighted;
+            bestArea = area;
         }
     }
-    // Text-content match against Codex's known sidebar labels.
-    const KNOWN = [
-        "General",
-        "Appearance",
-        "Configuration",
-        "Personalization",
-        "MCP servers",
-        "MCP Servers",
-        "Git",
-        "Environments",
-    ];
-    const matches = [];
-    const all = document.querySelectorAll("button, a, [role='button'], li, div");
-    for (const el of Array.from(all)) {
-        if (isForbiddenSettingsSidebarSurface(el))
-            continue;
-        const t = (el.textContent ?? "").trim();
-        if (t.length > 30)
-            continue;
-        if (KNOWN.some((k) => t === k))
-            matches.push(el);
-        if (matches.length > 50)
-            break;
-    }
-    if (matches.length >= 2) {
-        let node = matches[0].parentElement;
-        while (node) {
-            let count = 0;
-            for (const m of matches)
-                if (node.contains(m))
-                    count++;
-            if (count >= Math.min(3, matches.length) && isSettingsSidebarCandidate(node))
-                return node;
-            node = node.parentElement;
-        }
-    }
-    return null;
+    return best;
 }
 const FORBIDDEN_SETTINGS_SIDEBAR_SELECTOR = [
     "[data-composer-overlay-floating-ui='true']",
@@ -2274,18 +2331,18 @@ function isForbiddenSettingsSidebarSurface(node) {
         return true;
     return false;
 }
-function isSettingsSidebarCandidate(node) {
-    if (isForbiddenSettingsSidebarSurface(node))
+function isSettingsSidebarCandidate(el) {
+    const rect = codexPpVisibleBox(el);
+    if (!rect)
         return false;
-    const root = node.parentElement ?? node;
-    if (isForbiddenSettingsSidebarSurface(root))
+    // Current Codex Settings sidebar: left column, not the main content panel.
+    if (rect.width < 120 || rect.width > 620)
         return false;
-    if (root.querySelector("a[href*='/settings/']"))
-        return true;
-    const text = compactSettingsText(root.textContent ?? "");
-    return (text.includes("Back to app") &&
-        text.includes("General") &&
-        text.includes("Appearance"));
+    if (rect.height < 80)
+        return false;
+    if (rect.left > window.innerWidth * 0.65)
+        return false;
+    return isCodexPpSettingsLabelSet(codexPpSettingsLabelsFrom(el));
 }
 function removeMisplacedSettingsGroups() {
     const groups = document.querySelectorAll("[data-codexpp='nav-group'], [data-codexpp='pages-group'], [data-codexpp='native-nav-header']");

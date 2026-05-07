@@ -7,13 +7,21 @@ export interface CodexWindowServicesPatch {
   serviceVar?: string;
 }
 
+export interface CodexWindowServicesSourceDiagnostics {
+  hasMarker: boolean;
+  buildFlavorProperties: number;
+  objectCalls: number;
+  matchedFingerprints: string[];
+  snippet: string | null;
+}
+
 interface ServiceFactoryAssignment {
   serviceVar: string;
   callEnd: number;
 }
 
 const IDENT_RE = /^[$A-Za-z_][$A-Za-z0-9_]*$/;
-const BUILD_FLAVOR_CALL_RE = /([$A-Za-z_][$A-Za-z0-9_]*)\(\{\s*buildFlavor\s*:/g;
+const OBJECT_CALL_RE = /([$A-Za-z_][$A-Za-z0-9_]*)\s*\(\s*\{/g;
 const WINDOW_SERVICE_FINGERPRINTS = [
   "allowDevtools:",
   "allowDebugMenu:",
@@ -57,6 +65,19 @@ export function patchCodexWindowServicesSource(
   };
 }
 
+export function describeCodexWindowServicesSource(
+  source: string,
+  marker = CODEX_WINDOW_SERVICES_KEY,
+): CodexWindowServicesSourceDiagnostics {
+  return {
+    hasMarker: source.includes(markerAssignment(marker)),
+    buildFlavorProperties: countObjectProperty(source, "buildFlavor"),
+    objectCalls: countObjectCalls(source),
+    matchedFingerprints: matchedWindowServicesFingerprints(source),
+    snippet: diagnosticSnippet(source),
+  };
+}
+
 function repairMalformedMarkerAssignment(
   source: string,
   marker: string,
@@ -84,11 +105,11 @@ function repairMalformedMarkerAssignment(
 }
 
 function findWindowServicesFactoryAssignment(source: string): ServiceFactoryAssignment | null {
-  BUILD_FLAVOR_CALL_RE.lastIndex = 0;
+  OBJECT_CALL_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = BUILD_FLAVOR_CALL_RE.exec(source)) !== null) {
+  while ((match = OBJECT_CALL_RE.exec(source)) !== null) {
     const functionName = match[1] ?? "";
-    const parenStart = match.index + functionName.length;
+    const parenStart = match.index + match[0].indexOf("(");
     const serviceVar = findAssignedIdentifierBefore(source, match.index);
     if (!serviceVar) continue;
 
@@ -117,11 +138,8 @@ function findAssignedIdentifierBefore(source: string, index: number): string | n
 }
 
 function looksLikeWindowServicesFactory(callSource: string): boolean {
-  let score = 0;
-  for (const fingerprint of WINDOW_SERVICE_FINGERPRINTS) {
-    if (callSource.includes(fingerprint)) score += 1;
-  }
-  return score >= 5;
+  return hasObjectProperty(callSource, "buildFlavor")
+    && matchedWindowServicesFingerprints(callSource).length >= 5;
 }
 
 function findStatementEnd(source: string, startIndex: number): number {
@@ -209,4 +227,48 @@ function skipWhitespaceBackward(source: string, index: number): number {
 
 function markerAssignment(marker: string): string {
   return `globalThis.${marker}=`;
+}
+
+function matchedWindowServicesFingerprints(source: string): string[] {
+  const out: string[] = [];
+  for (const fingerprint of WINDOW_SERVICE_FINGERPRINTS) {
+    const property = fingerprint.slice(0, -1);
+    if (hasObjectProperty(source, property)) out.push(property);
+  }
+  return out;
+}
+
+function hasObjectProperty(source: string, property: string): boolean {
+  return objectPropertyRegExp(property).test(source);
+}
+
+function countObjectProperty(source: string, property: string): number {
+  const matches = source.match(objectPropertyRegExp(property, "g"));
+  return matches ? matches.length : 0;
+}
+
+function countObjectCalls(source: string): number {
+  const matches = source.match(/[$A-Za-z_][$A-Za-z0-9_]*\s*\(\s*\{/g);
+  return matches ? matches.length : 0;
+}
+
+function objectPropertyRegExp(property: string, flags = ""): RegExp {
+  return new RegExp(`(?:^|[,{])\\s*["']?${escapeRegExp(property)}["']?\\s*:`, flags);
+}
+
+function diagnosticSnippet(source: string): string | null {
+  const anchors = [
+    source.indexOf("buildFlavor"),
+    ...WINDOW_SERVICE_FINGERPRINTS.map((fingerprint) => source.indexOf(fingerprint.slice(0, -1))),
+  ].filter((index) => index >= 0);
+  if (anchors.length === 0) return null;
+
+  const anchor = Math.min(...anchors);
+  const start = Math.max(0, anchor - 90);
+  const end = Math.min(source.length, anchor + 220);
+  return source.slice(start, end).replace(/\s+/g, " ");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

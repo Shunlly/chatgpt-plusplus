@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   patchCodexMainStartupResourceSource,
+  patchCodexStartupComposerSource,
   patchCodexStartupHtmlSource,
+  patchCodexStartupModelSettingsSource,
   patchCodexStartupPerformance,
   patchCodexStartupPerformanceSource,
 } from "../src/codex-startup-performance.js";
@@ -76,7 +78,84 @@ test("startup patch updates index asset in extracted app", () => {
   }
 });
 
-test("startup html patch installs an optimistic focused composer shell", () => {
+test("startup patch updates model settings asset for synchronous composer mount", () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-startup-model-patch-"));
+  try {
+    const assets = join(root, "webview", "assets");
+    mkdirSync(assets, { recursive: true });
+    const asset = join(assets, "use-model-settings-abc123.js");
+    writeFileSync(
+      asset,
+      "function _I({composerController:e,placeholder:t,ariaLabel:n,minHeight:r,disableAutoFocus:i=!1,isFocusComposerTarget:a=!1,singleLine:o=!1,onSubmit:s,onMentionHandler:c,onSkillMentionHandler:l,className:u}){let d=(0,J.useRef)(null);return(0,J.useEffect)(()=>{let t=d.current;if(t==null)throw Error(`RichTextInput rootRef is not mounted`);let n=e.view.dom;return t.appendChild(n),e.view.dom.dataset.virtualkeyboard=`true`,n.style.fontSize=`var(--codex-chat-font-size)`,n.style.height=`auto`,n.style.resize=`none`,()=>{n.blur(),n.parentElement===t&&t.removeChild(n)}},[e]),(0,J.useEffect)(()=>{if(a){e.view.dom.dataset.codexComposer=`true`;return}delete e.view.dom.dataset.codexComposer},[e,a]),(0,J.useEffect)(()=>{i||requestAnimationFrame(()=>{e.focus()})},[e,i])," +
+        "(0,J.useEffect)(()=>{let t=e.view.dom;if(n){t.setAttribute(`aria-label`,n);return}t.removeAttribute(`aria-label`)},[n,e]),(0,J.useEffect)(()=>{e.view.dom.style.minHeight=r??`2.5rem`},[e,r]),(0,J.useEffect)(()=>{e.setPlaceholder(t)},[t,e]),",
+    );
+
+    const result = patchCodexStartupPerformance(root);
+
+    assert.deepEqual(result.patchedFiles, ["webview/assets/use-model-settings-abc123.js"]);
+    const patchedAsset = readFileSync(asset, "utf8");
+    assert.match(patchedAsset, /useLayoutEffect/);
+    assert.match(patchedAsset, /i\|\|e\.focus\(\)/);
+    assert.doesNotMatch(patchedAsset, /requestAnimationFrame\(\(\)=>\{e\.focus\(\)\}\)/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("startup composer patch gates heavy controls behind the real input", () => {
+  const controls =
+    "(0,Q.jsx)(az,{onAddImageDataUrls:ds,onAppendPromptText:e=>{Mn.appendText(e)},getAttachmentGen:()=>va.current,setFileAttachments:si,composerMode:Jn,composerInput:Bs,executionTargetCwd:q.cwd,executionTargetHostId:q.hostId,isSingleLineLayout:as,showHotkeyWindowHomeFooterControls:p,hotkeyWindowHomeOverflowMenu:v,conversationId:G,isAutoContextOn:Ur,setIsAutoContextOn:Br,ideContextStatus:qr,permissionsHostId:lr,permissionsCwdOverride:ur,submitButtonMode:Co,canStopFromEscape:To,isResponseInProgress:u,isQueueingEnabled:Zt,isSubmitting:Nt,onStop:x,submitBlockReason:yo,disabledReason:bo,emptySubmitTooltipNonce:ha,handleSubmit:ns,voiceControls:is})";
+  const source = `function before(){}var RU=\`new-conversation\`;function render(){return ${controls}}`;
+
+  const patched = patchCodexStartupComposerSource(source);
+
+  assert.equal(patched.changed, true);
+  assert.match(patched.source, /function __codexStartupInputGate/);
+  assert.match(patched.source, /fallback:Bs,children:\(0,Q\.jsx\)\(az,\{/);
+  assert.match(patched.source, /var RU=`new-conversation`;/);
+
+  const secondPass = patchCodexStartupComposerSource(patched.source);
+  assert.equal(secondPass.changed, false);
+});
+
+test("startup composer patch defers the status menu sibling", () => {
+  const statusMenu =
+    "(0,Q.jsx)(nV,{composerMode:Jn,currentLocalExecutionCwd:hr,currentLocalExecutionHostId:or,effectiveIdeContextStatus:qr,effectiveIsAutoContextOn:Ur,resolvedCwd:Cn,setIsAutoContextOn:Br,setIsStatusMenuOpen:at,skillLookupRoots:Wi})";
+  const source = `function render(){return (0,Q.jsxs)(Q.Fragment,{children:[${statusMenu},(0,Q.jsx)("div",{})]})}`;
+
+  const patched = patchCodexStartupComposerSource(source);
+
+  assert.equal(patched.changed, true);
+  assert.match(patched.source, /\(globalThis\.performance\?\.now\?\.\(\)\?\?1\/0\)<6e3\?null:/);
+  assert.match(patched.source, /children:\[\(\(globalThis\.performance/);
+
+  const secondPass = patchCodexStartupComposerSource(patched.source);
+  assert.equal(secondPass.changed, false);
+});
+
+test("startup patch updates composer asset for minimal real input commit", () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-startup-composer-patch-"));
+  try {
+    const assets = join(root, "webview", "assets");
+    mkdirSync(assets, { recursive: true });
+    const asset = join(assets, "composer-abc123.js");
+    writeFileSync(
+      asset,
+      "var RU=`new-conversation`;function render(){return (0,Q.jsx)(az,{onAddImageDataUrls:ds,onAppendPromptText:e=>{Mn.appendText(e)},getAttachmentGen:()=>va.current,setFileAttachments:si,composerMode:Jn,composerInput:Bs,executionTargetCwd:q.cwd,executionTargetHostId:q.hostId,isSingleLineLayout:as,showHotkeyWindowHomeFooterControls:p,hotkeyWindowHomeOverflowMenu:v,conversationId:G,isAutoContextOn:Ur,setIsAutoContextOn:Br,ideContextStatus:qr,permissionsHostId:lr,permissionsCwdOverride:ur,submitButtonMode:Co,canStopFromEscape:To,isResponseInProgress:u,isQueueingEnabled:Zt,isSubmitting:Nt,onStop:x,submitBlockReason:yo,disabledReason:bo,emptySubmitTooltipNonce:ha,handleSubmit:ns,voiceControls:is})}",
+    );
+
+    const result = patchCodexStartupPerformance(root);
+
+    assert.deepEqual(result.patchedFiles, ["webview/assets/composer-abc123.js"]);
+    const patchedAsset = readFileSync(asset, "utf8");
+    assert.match(patchedAsset, /function __codexStartupInputGate/);
+    assert.match(patchedAsset, /fallback:Bs,children:\(0,Q\.jsx\)\(az,\{/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("startup html patch does not install a fake composer shell", () => {
   const source = `<!doctype html>
 <html lang="en">
   <head>
@@ -98,57 +177,48 @@ test("startup html patch installs an optimistic focused composer shell", () => {
   const patched = patchCodexStartupHtmlSource(source);
 
   assert.equal(patched.changed, true);
-  assert.match(patched.source, /codex-optimistic-startup/);
-  assert.match(patched.source, /id="codex-optimistic-composer"/);
-  assert.match(patched.source, /data-codex-composer/);
-  assert.match(patched.source, /contenteditable="true"/);
-  assert.doesNotMatch(patched.source, /class="startup-loader"/);
+  assert.doesNotMatch(patched.source, /codex-optimistic-startup/);
+  assert.doesNotMatch(patched.source, /id="codex-optimistic-composer"/);
+  assert.doesNotMatch(patched.source, /data-codex-composer/);
+  assert.doesNotMatch(patched.source, /contenteditable="true"/);
+  assert.match(patched.source, /class="startup-loader"/);
   assert.doesNotMatch(patched.source, /data-codex-defer-css/);
+  assert.doesNotMatch(patched.source, /rel="modulepreload"/);
   assert.match(patched.source, /<link rel="stylesheet" crossorigin href="\.\/assets\/app\.css">/);
-  assert.match(patched.source, /script-src[^"]*'sha256-[^']+' 'sha256-existing'/);
-  assert.ok(
-    patched.source.indexOf('id="codex-optimistic-composer"') <
-      patched.source.indexOf('<script type="module" crossorigin src="./assets/index.js"></script>'),
-  );
-  assert.ok(
-    patched.source.indexOf('id="codex-optimistic-composer"') <
-      patched.source.indexOf('<link rel="stylesheet" crossorigin href="./assets/app.css">'),
-  );
 
   const secondPass = patchCodexStartupHtmlSource(patched.source);
   assert.equal(secondPass.changed, false);
 });
 
-test("startup html patch handles encoded CSP quotes and repairs bad prior hash insertion", () => {
+test("startup html patch removes prior optimistic composer shell", () => {
   const source = `<!doctype html>
 <html lang="en">
   <head>
-    <style></style>
-  <meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;self&#39; &#39;sha256-existing&#39; &#39;wasm-unsafe-eval&#39;; style-src &#39;self&#39; &#39;unsafe-inline&#39;;">
+    <style>.codex-optimistic-startup { color: #111; }</style>
+  <meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;self&#39;; style-src &#39;self&#39; &#39;unsafe-inline&#39;;">
+    <script>(() => {
+  const composerSelector = "[data-codex-composer]";
+})();</script>
 </head>
   <body>
-    <div id="root"><div class="startup-loader"></div></div>
+    <div id="root">
+      <div id="codex-optimistic-shell" class="codex-optimistic-startup">
+        <div id="codex-optimistic-composer" data-codex-composer contenteditable="true"></div>
+      </div>
+    </div>
   </body>
 </html>`;
 
   const patched = patchCodexStartupHtmlSource(source);
 
   assert.equal(patched.changed, true);
-  assert.match(patched.source, /script-src &#39;self&#39; &#39;sha256-/);
-  assert.doesNotMatch(patched.source, /script-src &#39 'sha256-/);
-
-  const broken = patched.source.replace(
-    /script-src &#39;self&#39; (&#39;sha256-[^&]+&#39;)/,
-    "script-src &#39 $1;self&#39;",
-  );
-  const repaired = patchCodexStartupHtmlSource(broken);
-
-  assert.equal(repaired.changed, true);
-  assert.match(repaired.source, /script-src &#39;self&#39; &#39;sha256-/);
-  assert.doesNotMatch(repaired.source, /script-src &#39 'sha256-/);
+  assert.match(patched.source, /class="startup-loader"/);
+  assert.doesNotMatch(patched.source, /id="codex-optimistic-composer"/);
+  assert.doesNotMatch(patched.source, /data-codex-composer/);
+  assert.doesNotMatch(patched.source, /contenteditable="true"/);
 });
 
-test("startup html patch repairs partial installs that only have optimistic css", () => {
+test("startup html patch cleans partial optimistic installs", () => {
   const partial = `<!doctype html>
 <html lang="en">
   <head>
@@ -168,8 +238,9 @@ test("startup html patch repairs partial installs that only have optimistic css"
   const patched = patchCodexStartupHtmlSource(partial);
 
   assert.equal(patched.changed, true);
-  assert.match(patched.source, /id="codex-optimistic-composer"/);
-  assert.doesNotMatch(patched.source, /class="startup-loader"/);
+  assert.match(patched.source, /class="startup-loader"/);
+  assert.doesNotMatch(patched.source, /id="codex-optimistic-composer"/);
+  assert.doesNotMatch(patched.source, /data-codex-composer/);
 });
 
 test("startup html patch restores stylesheets from the old deferred-css patch", () => {
@@ -197,6 +268,7 @@ test("startup html patch restores stylesheets from the old deferred-css patch", 
   assert.equal(patched.changed, true);
   assert.match(patched.source, /<link rel="stylesheet" crossorigin href="\.\/assets\/app\.css">/);
   assert.doesNotMatch(patched.source, /data-codex-defer-css/);
+  assert.doesNotMatch(patched.source, /id="codex-optimistic-composer"/);
 });
 
 test("startup source patch defers main-process warmers", () => {
@@ -226,14 +298,13 @@ test("startup source patch defers main-process warmers", () => {
   assert.match(patched.source, /Early host window creation failed/);
 });
 
-test("startup source patch removes strict mode renderer wrapper", () => {
+test("startup source patch leaves strict mode renderer wrapper unchanged", () => {
   const source =
     "var Jj=document.getElementById(`root`);if(!Jj)throw Error(`Root container not found`);" +
     "async function Zj(){await Qj(),Xj.render((0,$.jsx)(Q.StrictMode,{children:(0,$.jsx)(Ij,{})}))}async function Qj(){}";
 
   const patched = patchCodexStartupPerformanceSource(source);
 
-  assert.equal(patched.changed, true);
-  assert.match(patched.source, /function Zj\(\)\{Xj\.render\(\(0,\$\.jsx\)\(Ij,\{\}\)\)\}/);
-  assert.doesNotMatch(patched.source, /StrictMode/);
+  assert.equal(patched.changed, false);
+  assert.match(patched.source, /StrictMode/);
 });

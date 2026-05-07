@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { isInsideCodeSigningRoot, parseCodeSigningIdentities } from "../src/codesign";
+import { createPkcs12Password, isInsideCodeSigningRoot, parseCodeSigningIdentities } from "../src/codesign";
 
 test("parseCodeSigningIdentities extracts valid code signing identities", () => {
   const identities = parseCodeSigningIdentities(`
@@ -29,4 +29,11 @@ test("isInsideCodeSigningRoot rejects sibling and parent traversal paths", () =>
   assert.equal(isInsideCodeSigningRoot(root, join(root, "nested", "native.node")), true);
   assert.equal(isInsideCodeSigningRoot(root, join(root, "..", "outside.node")), false);
   assert.equal(isInsideCodeSigningRoot(root, join(`${root}-sibling`, "native.node")), false);
+});
+
+test("createPkcs12Password returns a non-empty command-safe password", () => {
+  const password = createPkcs12Password();
+
+  assert.match(password, /^[A-Za-z0-9_-]+$/);
+  assert.ok(password.length >= 32);
 });

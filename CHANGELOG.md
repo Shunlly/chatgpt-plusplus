@@ -4,6 +4,24 @@ All notable changes to codex-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 0.1.7
+
+Release notes: [docs/releases/0.1.7.md](docs/releases/0.1.7.md)
+
+### Changed
+
+- Updated Settings sidebar injection for the current Codex Desktop Settings UI by scoring known Settings navigation labels instead of depending on the old `Back to app` label.
+- Reworked startup performance patching to keep the real composer path, mount composer input effects synchronously, and defer heavier composer controls during early startup.
+- Improved self-update command execution diagnostics by capturing stdout/stderr tails when dependency install, build, or repair commands fail.
+- Made local macOS signing identity export/import use a generated PKCS#12 password and redact that secret from command failures.
+
+### Fixed
+
+- Fixed Windows installs against Codex builds whose main-process window-services factory has reordered or quoted object properties.
+- Added detailed window-services hook diagnostics that report scanned candidate bundles, matched fingerprints, parser errors, and nearby source snippets when Codex changes its internals again.
+- Broadened recovered Vite main-bundle scanning to include `main.js` and `main.*.js` layouts.
+- Removed stale optimistic-startup composer artifacts from previously patched installs and restored the normal startup loader shell.
+
 ## 0.1.5
 
 Release notes: [docs/releases/0.1.5.md](docs/releases/0.1.5.md)
