@@ -135,6 +135,12 @@ interface TweakStoreEntryView extends TweakStoreEntry {
     compatible: boolean;
     reason: string | null;
   };
+  runtime?: {
+    current: string;
+    required: string | null;
+    compatible: boolean;
+    reason: string | null;
+  };
 }
 
 /**
@@ -1510,6 +1516,9 @@ function tweakStoreCard(entry: TweakStoreEntryView): HTMLElement {
   } else if (entry.platform && !entry.platform.compatible) {
     card.classList.add("opacity-70");
     actions.appendChild(storeStatusPill(platformLockedLabel(entry.platform)));
+  } else if (entry.runtime && !entry.runtime.compatible) {
+    card.classList.add("opacity-70");
+    actions.appendChild(storeStatusPill(runtimeLockedLabel(entry.runtime)));
   } else {
     const installLabel = entry.installed ? "Update" : "Install";
     const installButton = storeInstallButton(installLabel, (button) => {
@@ -1545,6 +1554,10 @@ function platformLockedLabel(platform: NonNullable<TweakStoreEntryView["platform
   if (supported.includes("darwin")) return "macOS only";
   if (supported.includes("linux")) return "Linux only";
   return "Unavailable";
+}
+
+function runtimeLockedLabel(runtime: NonNullable<TweakStoreEntryView["runtime"]>): string {
+  return runtime.required ? `Requires Codex++ ${runtime.required}` : "Requires newer Codex++";
 }
 
 function showStoreCardMessage(card: HTMLElement, message: string): void {

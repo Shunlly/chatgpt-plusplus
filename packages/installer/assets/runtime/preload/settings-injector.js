@@ -1281,6 +1281,10 @@ function tweakStoreCard(entry) {
         card.classList.add("opacity-70");
         actions.appendChild(storeStatusPill(platformLockedLabel(entry.platform)));
     }
+    else if (entry.runtime && !entry.runtime.compatible) {
+        card.classList.add("opacity-70");
+        actions.appendChild(storeStatusPill(runtimeLockedLabel(entry.runtime)));
+    }
     else {
         const installLabel = entry.installed ? "Update" : "Install";
         const installButton = storeInstallButton(installLabel, (button) => {
@@ -1319,6 +1323,9 @@ function platformLockedLabel(platform) {
     if (supported.includes("linux"))
         return "Linux only";
     return "Unavailable";
+}
+function runtimeLockedLabel(runtime) {
+    return runtime.required ? `Requires Codex++ ${runtime.required}` : "Requires newer Codex++";
 }
 function showStoreCardMessage(card, message) {
     card.querySelector("[data-codexpp-store-card-message]")?.remove();

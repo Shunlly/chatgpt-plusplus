@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-07T10:50:41Z",
+  "generatedAt": "2026-05-07T10:58:40.205Z",
   "entries": [
     {
       "id": "co.bennett.ui-improvements",
@@ -247,6 +247,35 @@
       "approvedCommitSha": "672e21d955b636ec88c6e8c67de5431341f146dc",
       "approvedAt": "2026-05-02T22:25:48+09:00",
       "approvedBy": "bennett"
+    },
+    {
+      "id": "co.bennett.goal",
+      "manifest": {
+        "id": "co.bennett.goal",
+        "name": "Goal",
+        "version": "1.0.0",
+        "minRuntime": "0.1.6",
+        "githubRepo": "b-nnett/codex-plusplus-goal",
+        "description": "Adds Codex's /goal command and active goal UI to the desktop app.",
+        "author": {
+          "name": "bennett",
+          "url": "https://github.com/anomalyco/codex-plusplus"
+        },
+        "tags": [
+          "ui",
+          "goals",
+          "productivity",
+          "slash-command"
+        ],
+        "scope": "both",
+        "main": "index.js",
+        "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/goal.png"
+      },
+      "repo": "b-nnett/codex-plusplus-goal",
+      "approvedCommitSha": "e38f99fa0116cf76dcd21150b0ae297f184e5157",
+      "approvedAt": "2026-05-07T10:58:40.205Z",
+      "approvedBy": "bennett",
+      "releaseUrl": "https://github.com/b-nnett/codex-plusplus-goal/releases/tag/1.0.0"
     },
     {
       "id": "co.bennett.ios-simulator",

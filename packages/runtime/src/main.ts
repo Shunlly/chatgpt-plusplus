@@ -591,9 +591,11 @@ ipcMain.handle("codexpp:get-tweak-store", async () => {
     entries: entries.map((entry) => {
       const local = installed.get(entry.id);
       const platform = storeEntryPlatformCompatibility(entry);
+      const runtime = storeEntryRuntimeCompatibility(entry);
       return {
         ...entry,
         platform,
+        runtime,
         installed: local
           ? {
               version: local.manifest.version,
@@ -610,6 +612,7 @@ ipcMain.handle("codexpp:install-store-tweak", async (_e, id: string) => {
   const entry = registry.entries.find((candidate) => candidate.id === id);
   if (!entry) throw new Error(`Tweak store entry not found: ${id}`);
   assertStoreEntryPlatformCompatible(entry);
+  assertStoreEntryRuntimeCompatible(entry);
   await installStoreTweak(entry);
   reloadTweaks("store-install", tweakLifecycleDeps);
   return { installed: entry.id };
@@ -987,6 +990,13 @@ interface StoreEntryPlatformCompatibility {
   reason: string | null;
 }
 
+interface StoreEntryRuntimeCompatibility {
+  current: string;
+  required: string | null;
+  compatible: boolean;
+  reason: string | null;
+}
+
 class StoreTweakModifiedError extends Error {
   constructor(tweakName: string) {
     super(
@@ -1012,6 +1022,32 @@ function assertStoreEntryPlatformCompatible(entry: TweakStoreEntry): void {
   if (!platform.compatible) {
     throw new Error(platform.reason ?? `${entry.manifest.name} is not available on this platform.`);
   }
+}
+
+function storeEntryRuntimeCompatibility(entry: TweakStoreEntry): StoreEntryRuntimeCompatibility {
+  const required = cleanMinRuntime(entry.manifest.minRuntime);
+  const compatible = !required || compareVersions(CODEX_PLUSPLUS_VERSION, required) >= 0;
+  return {
+    current: CODEX_PLUSPLUS_VERSION,
+    required,
+    compatible,
+    reason: compatible || !required
+      ? null
+      : `${entry.manifest.name} requires Codex++ ${required} or newer.`,
+  };
+}
+
+function assertStoreEntryRuntimeCompatible(entry: TweakStoreEntry): void {
+  const runtime = storeEntryRuntimeCompatibility(entry);
+  if (!runtime.compatible) {
+    throw new Error(runtime.reason ?? `${entry.manifest.name} requires a newer Codex++ runtime.`);
+  }
+}
+
+function cleanMinRuntime(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const version = normalizeVersion(value.replace(/^>=?\s*/, ""));
+  return VERSION_RE.test(version) ? version : null;
 }
 
 function formatStorePlatforms(platforms: TweakStorePlatform[] | null): string {
