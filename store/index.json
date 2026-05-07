@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-06T05:02:49Z",
+  "generatedAt": "2026-05-07T10:50:41Z",
   "entries": [
     {
       "id": "co.bennett.ui-improvements",
       "manifest": {
         "id": "co.bennett.ui-improvements",
         "name": "Bennett's UI Improvements",
-        "version": "0.1.5",
+        "version": "0.1.6",
         "githubRepo": "b-nnett/codex-plusplus-bennett-ui",
         "description": "Quality-of-life UI tweaks for Codex: hide upgrade prompts, surface usage and message metrics.",
         "author": {
@@ -24,8 +24,8 @@
         "iconUrl": "https://b-nnett.github.io/codex-plusplus/store/icons/ui-improvements.png"
       },
       "repo": "b-nnett/codex-plusplus-bennett-ui",
-      "approvedCommitSha": "05a401e90db8b8ca1a5872ea639cce0624df7f60",
-      "approvedAt": "2026-05-05T18:19:59Z",
+      "approvedCommitSha": "cc34f6d1dc6e8f624ee4d0152938efccca268d4a",
+      "approvedAt": "2026-05-07T10:50:41Z",
       "approvedBy": "bennett"
     },
     {
