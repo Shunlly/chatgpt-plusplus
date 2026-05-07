@@ -189,6 +189,7 @@ function setListedTweaks(list) {
 }
 // ───────────────────────────────────────────────────────────── injection ──
 function tryInject() {
+    removeMisplacedSettingsGroups();
     const itemsGroup = findSidebarItemsGroup();
     if (!itemsGroup) {
         scheduleSettingsSurfaceHidden();
@@ -204,6 +205,14 @@ function tryInject() {
     // to hold multiple groups (`flex flex-col gap-1 gap-0`). We inject our
     // group as a sibling so the natural gap-1 acts as our visual separator.
     const outer = itemsGroup.parentElement ?? itemsGroup;
+    if (!isSettingsSidebarCandidate(itemsGroup) || !isSettingsSidebarCandidate(outer)) {
+        scheduleSettingsSurfaceHidden();
+        plog("rejected non-settings sidebar candidate", {
+            itemsGroup: describe(itemsGroup),
+            outer: describe(outer),
+        });
+        return;
+    }
     state.sidebarRoot = outer;
     syncNativeSettingsHeader(itemsGroup, outer);
     if (state.navGroup && outer.contains(state.navGroup)) {
@@ -327,6 +336,14 @@ function syncPagesGroup() {
     const outer = state.sidebarRoot;
     if (!outer)
         return;
+    if (!isSettingsSidebarCandidate(outer)) {
+        state.sidebarRoot = null;
+        state.pagesGroup = null;
+        state.pagesGroupKey = null;
+        for (const p of state.pages.values())
+            p.navButton = null;
+        return;
+    }
     const pages = [...state.pages.values()];
     // Build a deterministic fingerprint of the desired group state. If the
     // current DOM group already matches, this is a no-op — critical, because
@@ -2186,7 +2203,8 @@ function findSidebarItemsGroup() {
         let node = links[0].parentElement;
         while (node) {
             const inside = node.querySelectorAll("a[href*='/settings/']");
-            if (inside.length >= Math.max(2, links.length - 1))
+            if (inside.length >= Math.max(2, links.length - 1) &&
+                isSettingsSidebarCandidate(node))
                 return node;
             node = node.parentElement;
         }
@@ -2205,6 +2223,8 @@ function findSidebarItemsGroup() {
     const matches = [];
     const all = document.querySelectorAll("button, a, [role='button'], li, div");
     for (const el of Array.from(all)) {
+        if (isForbiddenSettingsSidebarSurface(el))
+            continue;
         const t = (el.textContent ?? "").trim();
         if (t.length > 30)
             continue;
@@ -2220,12 +2240,61 @@ function findSidebarItemsGroup() {
             for (const m of matches)
                 if (node.contains(m))
                     count++;
-            if (count >= Math.min(3, matches.length))
+            if (count >= Math.min(3, matches.length) && isSettingsSidebarCandidate(node))
                 return node;
             node = node.parentElement;
         }
     }
     return null;
+}
+const FORBIDDEN_SETTINGS_SIDEBAR_SELECTOR = [
+    "[data-composer-overlay-floating-ui='true']",
+    "[data-codexpp-slash-menu='true']",
+    "[data-codexpp-overlay-noise='true']",
+    ".composer-home-top-menu",
+    ".vertical-scroll-fade-mask",
+    "[class*='[container-name:home-main-content]']",
+].join(",");
+function isForbiddenSettingsSidebarSurface(node) {
+    if (!node)
+        return false;
+    const el = node instanceof HTMLElement ? node : node.parentElement;
+    if (!el)
+        return false;
+    if (el.closest(FORBIDDEN_SETTINGS_SIDEBAR_SELECTOR))
+        return true;
+    if (el.querySelector("[data-list-navigation-item='true'], [cmdk-item]"))
+        return true;
+    return false;
+}
+function isSettingsSidebarCandidate(node) {
+    if (isForbiddenSettingsSidebarSurface(node))
+        return false;
+    const root = node.parentElement ?? node;
+    if (isForbiddenSettingsSidebarSurface(root))
+        return false;
+    if (root.querySelector("a[href*='/settings/']"))
+        return true;
+    const text = compactSettingsText(root.textContent ?? "");
+    return (text.includes("Back to app") &&
+        text.includes("General") &&
+        text.includes("Appearance"));
+}
+function removeMisplacedSettingsGroups() {
+    const groups = document.querySelectorAll("[data-codexpp='nav-group'], [data-codexpp='pages-group'], [data-codexpp='native-nav-header']");
+    for (const group of Array.from(groups)) {
+        if (!isForbiddenSettingsSidebarSurface(group))
+            continue;
+        if (state.navGroup === group)
+            state.navGroup = null;
+        if (state.pagesGroup === group) {
+            state.pagesGroup = null;
+            state.pagesGroupKey = null;
+        }
+        if (state.nativeNavHeader === group)
+            state.nativeNavHeader = null;
+        group.remove();
+    }
 }
 function findContentArea() {
     const sidebar = findSidebarItemsGroup();
