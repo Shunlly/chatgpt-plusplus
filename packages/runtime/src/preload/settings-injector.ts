@@ -487,12 +487,7 @@ function scheduleSettingsSurfaceHidden(): void {
 
 function isSettingsTextVisible(): boolean {
   const text = compactSettingsText(document.body?.textContent || "").toLowerCase();
-  return (
-    text.includes("back to app") &&
-    text.includes("general") &&
-    text.includes("appearance") &&
-    (text.includes("configuration") || text.includes("default permissions"))
-  );
+  return isSettingsShellText(text);
 }
 
 function compactSettingsText(value: string): string {
@@ -2579,6 +2574,48 @@ async function resolveIconUrl(
 
 // ─────────────────────────────────────────────────────── DOM heuristics ──
 
+const SETTINGS_BACK_LABELS = [
+  "Back to app",
+  "Back to App",
+  "返回应用",
+  "返回应用程序",
+];
+
+const SETTINGS_GENERAL_LABELS = [
+  "General",
+  "常规",
+  "通用",
+];
+
+const SETTINGS_APPEARANCE_LABELS = [
+  "Appearance",
+  "外观",
+];
+
+const SETTINGS_CONFIG_LABELS = [
+  "Configuration",
+  "Default permissions",
+  "Personalization",
+  "配置",
+  "默认权限",
+  "个性化",
+];
+
+const SETTINGS_SIDEBAR_LABELS = [
+  ...SETTINGS_GENERAL_LABELS,
+  ...SETTINGS_APPEARANCE_LABELS,
+  ...SETTINGS_CONFIG_LABELS,
+  "MCP servers",
+  "MCP Servers",
+  "MCP 服务器",
+  "Git",
+  "Environments",
+  "环境",
+  "Account",
+  "账户",
+  "账号",
+];
+
 function findSidebarItemsGroup(): HTMLElement | null {
   // Anchor strategy first (would be ideal if Codex switches to <a>).
   const links = Array.from(
@@ -2597,16 +2634,6 @@ function findSidebarItemsGroup(): HTMLElement | null {
   }
 
   // Text-content match against Codex's known sidebar labels.
-  const KNOWN = [
-    "General",
-    "Appearance",
-    "Configuration",
-    "Personalization",
-    "MCP servers",
-    "MCP Servers",
-    "Git",
-    "Environments",
-  ];
   const matches: HTMLElement[] = [];
   const all = document.querySelectorAll<HTMLElement>(
     "button, a, [role='button'], li, div",
@@ -2615,7 +2642,7 @@ function findSidebarItemsGroup(): HTMLElement | null {
     if (isForbiddenSettingsSidebarSurface(el)) continue;
     const t = (el.textContent ?? "").trim();
     if (t.length > 30) continue;
-    if (KNOWN.some((k) => t === k)) matches.push(el);
+    if (SETTINGS_SIDEBAR_LABELS.some((k) => t === k)) matches.push(el);
     if (matches.length > 50) break;
   }
   if (matches.length >= 2) {
@@ -2654,11 +2681,21 @@ function isSettingsSidebarCandidate(node: HTMLElement): boolean {
   if (isForbiddenSettingsSidebarSurface(root)) return false;
   if (root.querySelector("a[href*='/settings/']")) return true;
   const text = compactSettingsText(root.textContent ?? "");
+  return isSettingsShellText(text);
+}
+
+function isSettingsShellText(text: string): boolean {
   return (
-    text.includes("Back to app") &&
-    text.includes("General") &&
-    text.includes("Appearance")
+    includesAnyLabel(text, SETTINGS_BACK_LABELS) &&
+    includesAnyLabel(text, SETTINGS_GENERAL_LABELS) &&
+    includesAnyLabel(text, SETTINGS_APPEARANCE_LABELS) &&
+    includesAnyLabel(text, SETTINGS_CONFIG_LABELS)
   );
+}
+
+function includesAnyLabel(text: string, labels: string[]): boolean {
+  const folded = text.toLowerCase();
+  return labels.some((label) => folded.includes(label.toLowerCase()));
 }
 
 function removeMisplacedSettingsGroups(): void {
