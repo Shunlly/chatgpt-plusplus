@@ -35,6 +35,8 @@ import {
   type TweakStorePublishSubmission,
 } from "../tweak-store";
 
+const CODEX_PLUSPLUS_RELEASES_URL = "https://github.com/b-nnett/codex-plusplus/releases";
+
 // Mirrors the runtime's main-side ListedTweak shape (kept in sync manually).
 interface ListedTweak {
   manifest: TweakManifest;
@@ -435,12 +437,13 @@ function tryInject(): void {
   group.dataset.codexpp = "nav-group";
   group.className = "flex flex-col gap-px";
 
-  group.appendChild(sidebarGroupHeader("Codex++", "pt-3"));
+  group.appendChild(sidebarGroupHeader("Codex++", "pt-3", sidebarReleasesPillButton()));
 
   // ── Sidebar items ────────────────────────────────────────────────────
   const configBtn = makeSidebarItem("Config", configIconSvg());
   const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
   const storeBtn = makeSidebarItem("Tweak Store", storeIconSvg());
+  appendSidebarStoreUpdateBadge(storeBtn);
 
   configBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -479,11 +482,15 @@ function syncNativeSettingsHeader(itemsGroup: HTMLElement, outer: HTMLElement): 
   state.nativeNavHeader = header;
 }
 
-function sidebarGroupHeader(text: string, topPadding = "pt-2"): HTMLElement {
+function sidebarGroupHeader(text: string, topPadding = "pt-2", trailing?: HTMLElement): HTMLElement {
   const header = document.createElement("div");
   header.className =
-    `px-row-x ${topPadding} pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none`;
-  header.textContent = text;
+    `px-row-x ${topPadding} pb-1 flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none`;
+  const label = document.createElement("span");
+  label.className = "truncate";
+  label.textContent = text;
+  header.appendChild(label);
+  if (trailing) header.appendChild(trailing);
   return header;
 }
 
@@ -721,6 +728,25 @@ function makeSidebarItem(label: string, iconSvg: string): HTMLButtonElement {
   return btn;
 }
 
+function appendSidebarStoreUpdateBadge(btn: HTMLButtonElement): void {
+  const inner = btn.firstElementChild as HTMLElement | null;
+  if (!inner) return;
+  const badge = document.createElement("span");
+  badge.dataset.codexppStoreUpdateBadge = "true";
+  badge.hidden = true;
+  badge.title = "Installed tweaks with approved updates";
+  badge.className = "inline-flex shrink-0 items-center justify-center";
+  Object.assign(badge.style, {
+    position: "absolute",
+    right: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    zIndex: "1",
+  });
+  applyStoreUpdateBadgeStyle(badge, null);
+  btn.appendChild(badge);
+}
+
 /** Internal key for the built-in nav buttons. */
 type BuiltinPage = "config" | "tweaks" | "store";
 
@@ -909,7 +935,7 @@ function rerender(): void {
 
   const title =
     ap.kind === "tweaks" ? "Tweaks" :
-    ap.kind === "store" ? "Tweak Store" : "Config";
+    ap.kind === "store" ? "Tweak Store" : "Codex++";
   const subtitle =
     ap.kind === "tweaks"
       ? "Manage your installed Codex++ tweaks."
@@ -925,7 +951,10 @@ function rerender(): void {
 
 // ───────────────────────────────────────────────────────────── pages ──
 
-function renderConfigPage(sectionsWrap: HTMLElement, subtitle?: HTMLElement): void {
+function renderConfigPage(
+  sectionsWrap: HTMLElement,
+  subtitle?: HTMLElement,
+): void {
   const section = document.createElement("section");
   section.className = "flex flex-col gap-2";
   section.appendChild(sectionTitle("Codex++ Updates"));
@@ -1497,6 +1526,7 @@ function renderTweakStorePage(
   actions.className = "flex shrink-0 items-center gap-2";
   const refreshBtn = storeIconButton(refreshIconSvg(), "Refresh tweak store", () => {
     refreshBtn.disabled = true;
+    updateStoreUpdateBadge(null);
     grid.textContent = "";
     renderTweakStoreGhostGrid(grid);
     refreshTweakStoreGrid(grid, source, refreshBtn, true);
@@ -1537,6 +1567,7 @@ function refreshTweakStoreGrid(
       grid.dataset.codexppStore = "";
       grid.removeAttribute("aria-busy");
       source.textContent = "Live registry unavailable";
+      updateStoreUpdateBadge(null);
       grid.textContent = "";
       grid.appendChild(storeMessageCard("Could not load tweak store", String(e)));
     })
@@ -1547,7 +1578,9 @@ function refreshTweakStoreGrid(
 
 function warmTweakStore(): void {
   if (state.tweakStore || state.tweakStorePromise) return;
-  void getTweakStore();
+  void getTweakStore().then((store) => {
+    updateStoreUpdateBadge(outdatedInstalledStoreCount(store.entries));
+  });
 }
 
 function getTweakStore(force = false): Promise<TweakStoreRegistryView> {
@@ -1579,6 +1612,7 @@ function renderTweakStoreGrid(grid: HTMLElement, source: HTMLElement): void {
   const entries = store.entries;
   grid.removeAttribute("aria-busy");
   source.textContent = `Refreshed ${new Date(store.fetchedAt).toLocaleString()}`;
+  updateStoreUpdateBadge(outdatedInstalledStoreCount(entries));
   grid.textContent = "";
   if (store.entries.length === 0) {
     grid.appendChild(storeMessageCard("No tweaks yet", "Use Publish Tweak to submit the first one."));
@@ -1627,7 +1661,8 @@ function tweakStoreCard(entry: TweakStoreEntryView): HTMLElement {
       }),
     );
   }
-  if (entry.installed && entry.installed.version === entry.manifest.version) {
+  const hasUpdate = !!entry.installed && entry.installed.version !== entry.manifest.version;
+  if (entry.installed && !hasUpdate) {
     actions.appendChild(storeStatusPill("Installed"));
   } else if (entry.platform && !entry.platform.compatible) {
     card.classList.add("opacity-70");
@@ -1637,6 +1672,7 @@ function tweakStoreCard(entry: TweakStoreEntryView): HTMLElement {
     actions.appendChild(storeStatusPill(runtimeLockedLabel(entry.runtime)));
   } else {
     const installLabel = entry.installed ? "Update" : "Install";
+    if (hasUpdate) actions.appendChild(storeStatusPill("Update available", "info"));
     const installButton = storeInstallButton(installLabel, (button) => {
       const grid = card.closest("[data-codexpp-store-grid]") as HTMLElement | null;
       const source = grid?.parentElement?.querySelector("[data-codexpp-store-source]") as HTMLElement | null;
@@ -1648,6 +1684,7 @@ function tweakStoreCard(entry: TweakStoreEntryView): HTMLElement {
           showStoreToast(`${entry.manifest.name} installed.`);
           showStoreButtonInstalled(button);
           versions.replaceChildren(tweakStoreVersionBadge(entry, entry.manifest.version));
+          updateStoreUpdateBadge(Math.max(0, currentStoreUpdateBadgeCount() - 1));
           setTimeout(() => {
             actions.replaceChildren(storeStatusPill("Installed"));
             if (grid && source) refreshTweakStoreGrid(grid, source, undefined, true);
@@ -1855,6 +1892,83 @@ function storeEntryIconUrl(entry: TweakStoreEntryView): string | null {
   return `https://raw.githubusercontent.com/${entry.repo}/${entry.approvedCommitSha}/${rel}`;
 }
 
+function sidebarReleasesPillButton(): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className =
+    "user-select-none no-drag cursor-interaction inline-flex shrink-0 items-center justify-center whitespace-nowrap";
+  Object.assign(btn.style, {
+    height: "20px",
+    borderRadius: "9999px",
+    border: "0",
+    background: "#0A84FF",
+    color: "#FFFFFF",
+    padding: "0 8px",
+    fontSize: "10px",
+    fontWeight: "700",
+    lineHeight: "20px",
+    letterSpacing: "0",
+    textTransform: "none",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.18)",
+  });
+  btn.textContent = "Update";
+  btn.title = "Open Codex++ releases";
+  btn.addEventListener("mouseenter", () => {
+    btn.style.background = "#0071E3";
+  });
+  btn.addEventListener("mouseleave", () => {
+    btn.style.background = "#0A84FF";
+  });
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void ipcRenderer.invoke("codexpp:open-external", CODEX_PLUSPLUS_RELEASES_URL);
+  });
+  return btn;
+}
+
+function updateStoreUpdateBadge(count: number | null): void {
+  const badge = document.querySelector<HTMLElement>("[data-codexpp-store-update-badge]");
+  if (!badge) return;
+  badge.dataset.codexppStoreUpdateCount = count === null ? "" : String(count);
+  applyStoreUpdateBadgeStyle(badge, count);
+  badge.hidden = count === null || count <= 0;
+  badge.textContent = count && count > 0 ? String(count) : "";
+  badge.title =
+    count && count > 0
+      ? `${count} installed tweak${count === 1 ? "" : "s"} can be updated`
+      : "Installed tweaks are up to date";
+}
+
+function applyStoreUpdateBadgeStyle(badge: HTMLElement, count: number | null): void {
+  const hasUpdates = !!count && count > 0;
+  Object.assign(badge.style, {
+    minWidth: "24px",
+    height: "20px",
+    borderRadius: "9999px",
+    border: "0",
+    background: hasUpdates ? "#0A84FF" : "transparent",
+    color: "#FFFFFF",
+    padding: "0 7px",
+    fontSize: "12px",
+    fontWeight: "700",
+    lineHeight: "20px",
+    letterSpacing: "0",
+    boxShadow: hasUpdates ? "0 1px 2px rgba(0, 0, 0, 0.22)" : "none",
+  });
+}
+
+function currentStoreUpdateBadgeCount(): number {
+  const badge = document.querySelector<HTMLElement>("[data-codexpp-store-update-badge]");
+  const raw = badge?.dataset.codexppStoreUpdateCount;
+  const parsed = raw ? Number(raw) : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function outdatedInstalledStoreCount(entries: TweakStoreEntryView[]): number {
+  return entries.filter((entry) => !!entry.installed && entry.installed.version !== entry.manifest.version).length;
+}
+
 function storeToolbarButton(
   label: string,
   onClick: () => void,
@@ -1945,10 +2059,14 @@ function storeVersionBadgeShell(hasUpdate: boolean): HTMLElement {
   return badge;
 }
 
-function storeStatusPill(label: string): HTMLElement {
+function storeStatusPill(label: string, tone: "neutral" | "info" = "neutral"): HTMLElement {
   const pill = document.createElement("span");
-  pill.className =
-    "inline-flex h-8 items-center justify-center rounded-lg bg-token-foreground/5 px-3 text-sm font-medium text-token-description-foreground";
+  pill.className = [
+    "inline-flex h-8 items-center justify-center whitespace-nowrap rounded-lg px-3 text-sm font-medium",
+    tone === "info"
+      ? "border border-blue-500/30 bg-blue-500/10 text-token-foreground"
+      : "bg-token-foreground/5 text-token-description-foreground",
+  ].join(" ");
   pill.textContent = label;
   return pill;
 }
@@ -2433,6 +2551,7 @@ function panelShell(
   sectionsWrap: HTMLElement;
   subtitle?: HTMLElement;
   headerActions: HTMLElement;
+  headerTitleActions: HTMLElement;
 } {
   const outer = document.createElement("div");
   outer.className = "main-surface flex h-full min-h-0 flex-col";
@@ -2457,10 +2576,16 @@ function panelShell(
   headerWrap.className = "flex items-center justify-between gap-3 pb-panel";
   const headerInner = document.createElement("div");
   headerInner.className = "flex min-w-0 flex-1 flex-col gap-1.5 pb-panel";
+  const titleLine = document.createElement("div");
+  titleLine.className = "flex min-w-0 items-center gap-2";
   const heading = document.createElement("div");
   heading.className = "electron:heading-lg heading-base truncate";
   heading.textContent = title;
-  headerInner.appendChild(heading);
+  titleLine.appendChild(heading);
+  const headerTitleActions = document.createElement("div");
+  headerTitleActions.className = "flex shrink-0 items-center gap-2";
+  titleLine.appendChild(headerTitleActions);
+  headerInner.appendChild(titleLine);
   let subtitleElement: HTMLElement | undefined;
   if (subtitle) {
     const sub = document.createElement("div");
@@ -2479,7 +2604,7 @@ function panelShell(
   sectionsWrap.className = "flex flex-col gap-[var(--padding-panel)]";
   inner.appendChild(sectionsWrap);
 
-  return { outer, sectionsWrap, subtitle: subtitleElement, headerActions };
+  return { outer, sectionsWrap, subtitle: subtitleElement, headerActions, headerTitleActions };
 }
 
 function sectionTitle(text: string, trailing?: HTMLElement): HTMLElement {

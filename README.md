@@ -79,6 +79,8 @@ codexplusplus update
 `codexplusplus update` downloads the latest Codex++ GitHub release, rebuilds it, and runs
 `repair`. If the command is not on PATH yet, rerun the source bootstrap once.
 Use `codexplusplus update --ref main` only when you intentionally want the current development branch instead of the latest release.
+On macOS, signing is ad-hoc by default. `codexplusplus install --local` and
+`codexplusplus repair --local` opt into a stable local signing identity.
 
 To revert:
 
@@ -88,6 +90,8 @@ codexplusplus uninstall
 
 Other commands: `status`, `doctor`, `repair`, `update-codex`, `create-tweak`,
 `validate-tweak`, `dev`, and `safe-mode`.
+Run `codexplusplus safe-mode --off` to leave safe mode and return to normal
+tweak loading.
 
 ### Updating Codex on macOS
 

@@ -23,7 +23,6 @@ import {
   patchCodexWindowServicesSource,
   type CodexWindowServicesSourceDiagnostics,
 } from "../codex-window-services.js";
-import { patchCodexStartupPerformance } from "../codex-startup-performance.js";
 import { chownForTargetUser } from "../ownership.js";
 
 interface Opts {
@@ -44,7 +43,7 @@ const sourceRoot = findSourceRoot(here);
 export async function install(opts: Opts = {}): Promise<void> {
   const fuseFlip = opts.fuse !== false;
   const resign = opts.resign !== false;
-  let localSigning = opts.localSigning !== false;
+  let localSigning = opts.localSigning === true;
   const wantWatcher = opts.watcher !== false;
   const wantDefaultTweaks = opts.defaultTweaks !== false;
 
@@ -272,9 +271,6 @@ async function injectLoader(
     }
 
     patchCodexWindowServices(dir, originalMain, step);
-    if (process.env.CODEXPP_PATCH_STARTUP_PERF !== "0") {
-      patchCodexStartupPerformance(dir);
-    }
   });
   return originalMain;
 }

@@ -458,11 +458,27 @@ test("self-update command failures include a bounded output tail", () => {
   assert.match(message, /stdout:\nstdout detail/);
 });
 
-test("repair migrates old ad-hoc installs to local signing", () => {
+test("repair keeps local signing opt-in", () => {
   const source = readFileSync(new URL("../src/commands/repair.ts", import.meta.url), "utf8");
 
-  assert.match(source, /localSigning:\s*true/);
+  assert.match(source, /localSigning:\s*opts\.localSigning === true/);
   assert.doesNotMatch(source, /state\.signingMode === "local-identity"/);
+});
+
+test("cli documents local signing and safe mode recovery", () => {
+  const source = readFileSync(new URL("../src/cli.ts", import.meta.url), "utf8");
+
+  assert.match(source, /\.option\("--local", "Use a stable local signing identity on macOS"\)/);
+  assert.match(source, /localSigning:\s*resolveLocalSigning\(opts\)/);
+  assert.match(source, /opts\.local === false \|\| opts\.localSigning === false \|\| opts\["local-signing"\] === false/);
+  assert.match(source, /Leave safe mode with: codexplusplus safe-mode --off/);
+  assert.match(source, /process\.argv\.length <= 2 \? \[\.\.\.process\.argv, "--help"\] : process\.argv/);
+});
+
+test("install keeps local signing opt-in", () => {
+  const source = readFileSync(new URL("../src/commands/install.ts", import.meta.url), "utf8");
+
+  assert.match(source, /let localSigning = opts\.localSigning === true/);
 });
 
 test("install falls back to ad-hoc signing if local identity setup fails", () => {
