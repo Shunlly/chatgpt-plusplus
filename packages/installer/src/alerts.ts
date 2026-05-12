@@ -1,14 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
-import { dirname, join } from "node:path";
-import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { readPlist } from "./plist.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
-import { ensureUserPaths } from "./paths.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
 const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
-const TERMINAL_REPAIR_THROTTLE_MS = 10 * 60 * 1000;
 
 export function showPatchFailedAlert(errorMessage: string): void {
   if (isMacAppManagementError(errorMessage)) {
@@ -33,28 +31,15 @@ export function showPatchFailedAlert(errorMessage: string): void {
 }
 
 function showAppManagementPatchFailedAlert(errorMessage: string): void {
-  const watcher = isWatcherContext();
-  const launchedTerminalRepair = watcher ? tryOpenTerminalRepair() : false;
   const button = showAlert({
-    title: watcher ? "Codex++ needs Terminal to finish repair" : "Codex++ needs app repair",
-    message:
-      (watcher
-        ? "Codex was updated, but the background watcher could not modify the app directly.\n\n"
-        : "Codex was updated, but macOS blocked this repair command from modifying the app.\n\n") +
-      (launchedTerminalRepair
-        ? "Codex++ opened Terminal to finish the repair. Let that command complete.\n\n"
-        : "") +
-      "If the repair is not already running, open Terminal and run:\n\n" +
-      "codexplusplus repair\n\n" +
-      "Codex will stay unpatched until that command completes.",
-    buttons: ["Dismiss", "Run Repair in Terminal", "Report on GitHub"],
-    defaultButton: launchedTerminalRepair ? "Dismiss" : "Run Repair in Terminal",
+    title: "Codex++ needs app repair",
+    message: 'Run "codexplusplus repair" in your terminal.',
+    buttons: ["Dismiss", "Report Issue on GitHub"],
+    defaultButton: "Dismiss",
     critical: true,
   });
 
-  if (button === "Run Repair in Terminal") {
-    tryOpenTerminalRepair(true);
-  } else if (button === "Report on GitHub") {
+  if (button === "Report Issue on GitHub") {
     openUrl(buildPatchFailureIssueUrl(errorMessage));
   }
 }
@@ -265,18 +250,24 @@ function quitCodex(appRoot: string): void {
 export function buildPatchFailureIssueUrl(errorMessage: string): string {
   const title = "Codex++ failed to patch Codex after update";
   const body = [
-    "## What happened",
+    "## Summary",
     "Codex++ could not reapply its patch after Codex updated.",
     "",
     "## Error",
     "```text",
-    errorMessage.trim() || "(empty error message)",
+    trimIssueError(errorMessage),
     "```",
     "",
     "## Environment",
     `- Platform: ${process.platform}`,
     `- Arch: ${process.arch}`,
     `- Node: ${process.version}`,
+    "",
+    "## Debugging context",
+    "- Codex app path: ",
+    "- Codex version shown in app, if known: ",
+    "- Was Codex running during the update? ",
+    "- Did rerunning `codexplusplus repair` change the result? ",
   ].join("\n");
 
   const params = new URLSearchParams({ title, body });
@@ -287,8 +278,13 @@ export function buildCliFailureIssueUrl(command: string | undefined, errorMessag
   const commandLabel = command?.trim() || "(unknown command)";
   const title = `Codex++ ${commandLabel} failed`;
   const body = [
-    "## What happened",
-    `The \`codexplusplus ${commandLabel}\` command failed.`,
+    "## Summary",
+    `\`codexplusplus ${commandLabel}\` failed.`,
+    "",
+    "## Command",
+    "```text",
+    `codexplusplus ${commandLabel}`,
+    "```",
     "",
     "## Error",
     "```text",
@@ -300,6 +296,12 @@ export function buildCliFailureIssueUrl(command: string | undefined, errorMessag
     `- Platform: ${process.platform}`,
     `- Arch: ${process.arch}`,
     `- Node: ${process.version}`,
+    "",
+    "## Debugging context",
+    "- Codex app path, if shown: ",
+    "- Install source: ",
+    "- Did rerunning the command change the result? ",
+    "- Any recent Codex or Codex++ update? ",
   ].join("\n");
 
   const params = new URLSearchParams({ title, body });
@@ -317,74 +319,11 @@ export function isMacAppManagementError(errorMessage: string): boolean {
   return /macOS App Management is blocking modification/.test(errorMessage);
 }
 
-function isWatcherContext(): boolean {
-  return process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === "com.codexplusplus.watcher";
-}
-
-function tryOpenTerminalRepair(force = false): boolean {
-  if (platform() !== "darwin") return false;
-  try {
-    const paths = ensureUserPaths();
-    const marker = join(paths.root, "terminal-repair-launched.json");
-    if (!force && recentlyTouched(marker, TERMINAL_REPAIR_THROTTLE_MS)) return false;
-    const commandPath = join(paths.binDir, "repair-from-terminal.command");
-    mkdirSync(dirname(commandPath), { recursive: true });
-    writeFileSync(commandPath, terminalRepairScript(), { mode: 0o755 });
-    chmodSync(commandPath, 0o755);
-    writeFileSync(marker, JSON.stringify({ launchedAt: new Date().toISOString() }, null, 2));
-    execFileSync("open", ["-a", "Terminal", commandPath], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function recentlyTouched(path: string, maxAgeMs: number): boolean {
-  try {
-    return Date.now() - statSync(path).mtimeMs < maxAgeMs;
-  } catch {
-    return false;
-  }
-}
-
-function terminalRepairScript(): string {
-  const cli = process.argv[1] ?? "codexplusplus";
-  const execArgs = cli.endsWith(".ts") ? process.execArgv : [];
-  const repairCommand = [
-    shellQuote(process.execPath),
-    ...execArgs.map(shellQuote),
-    shellQuote(cli),
-    "repair",
-    "--force",
-  ].join(" ");
-  return [
-    "#!/bin/zsh",
-    "clear",
-    "echo 'Codex++ is finishing the app repair from Terminal.'",
-    "echo ''",
-    repairCommand,
-    "status=$?",
-    "echo ''",
-    "if [ \"$status\" -eq 0 ]; then",
-    "  echo 'Codex++ repair complete. You can close this window.'",
-    "else",
-    "  echo \"Codex++ repair failed with exit code $status.\"",
-    "  echo 'If macOS asked for permission, click Allow and run: codexplusplus repair'",
-    "fi",
-    "exit \"$status\"",
-    "",
-  ].join("\n");
-}
-
 function openUrl(url: string): void {
   if (platform() !== "darwin") return;
   try {
     execFileSync("open", [url], { stdio: "ignore" });
   } catch {}
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function codexBundleId(appRoot: string): string {

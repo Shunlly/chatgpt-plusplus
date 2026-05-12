@@ -30,6 +30,7 @@ exports.registerPage = registerPage;
 exports.setListedTweaks = setListedTweaks;
 const electron_1 = require("electron");
 const tweak_store_1 = require("../tweak-store");
+const CODEX_PLUSPLUS_RELEASES_URL = "https://github.com/b-nnett/codex-plusplus/releases";
 const state = {
     sections: new Map(),
     pages: new Map(),
@@ -239,15 +240,26 @@ function tryInject() {
         state.activePage = null;
         state.panelHost = null;
     }
+    const existingCodexPpNavGroup = outer.querySelector(':scope > [data-codexpp="nav-group"]') ??
+        outer.querySelector('[data-codexpp="nav-group"]');
+    if (existingCodexPpNavGroup) {
+        state.navGroup = existingCodexPpNavGroup;
+        state.sidebarRoot = outer;
+        syncPagesGroup();
+        if (state.activePage !== null)
+            syncCodexNativeNavActive(true);
+        return;
+    }
     // ── Group container ───────────────────────────────────────────────────
     const group = document.createElement("div");
     group.dataset.codexpp = "nav-group";
     group.className = "flex flex-col gap-px";
-    group.appendChild(sidebarGroupHeader("Codex++", "pt-3"));
+    group.appendChild(sidebarGroupHeader("Codex++", "pt-3", sidebarReleasesPillButton()));
     // ── Sidebar items ────────────────────────────────────────────────────
     const configBtn = makeSidebarItem("Config", configIconSvg());
     const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
     const storeBtn = makeSidebarItem("Tweak Store", storeIconSvg());
+    appendSidebarStoreUpdateBadge(storeBtn);
     configBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -282,11 +294,16 @@ function syncNativeSettingsHeader(itemsGroup, outer) {
     outer.insertBefore(header, itemsGroup);
     state.nativeNavHeader = header;
 }
-function sidebarGroupHeader(text, topPadding = "pt-2") {
+function sidebarGroupHeader(text, topPadding = "pt-2", trailing) {
     const header = document.createElement("div");
     header.className =
-        `px-row-x ${topPadding} pb-1 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none`;
-    header.textContent = text;
+        `px-row-x ${topPadding} pb-1 flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-wider text-token-description-foreground select-none`;
+    const label = document.createElement("span");
+    label.className = "truncate";
+    label.textContent = text;
+    header.appendChild(label);
+    if (trailing)
+        header.appendChild(trailing);
     return header;
 }
 function scheduleSettingsSurfaceHidden() {
@@ -302,14 +319,106 @@ function scheduleSettingsSurfaceHidden() {
     }, 1500);
 }
 function isSettingsTextVisible() {
-    const text = compactSettingsText(document.body?.textContent || "").toLowerCase();
-    return (text.includes("back to app") &&
-        text.includes("general") &&
-        text.includes("appearance") &&
-        (text.includes("configuration") || text.includes("default permissions")));
+    return isCodexPpSettingsLabelSet(codexPpSettingsLabelsFrom(document));
 }
 function compactSettingsText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
+}
+const CODEXPP_CORE_SETTINGS_LABELS = [
+    "General",
+    "常规",
+    "通用",
+    "Appearance",
+    "外观",
+    "Configuration",
+    "配置",
+    "默认权限",
+    "Personalization",
+    "个性化",
+].map(normalizeCodexPpSettingsLabel);
+const CODEXPP_EXTENDED_SETTINGS_LABELS = [
+    "Account",
+    "账户",
+    "账号",
+    "General",
+    "常规",
+    "通用",
+    "Appearance",
+    "外观",
+    "Configuration",
+    "配置",
+    "默认权限",
+    "Personalization",
+    "个性化",
+    "Keyboard shortcuts",
+    "Archived chats",
+    "Usage",
+    "Computer use",
+    "Browser use",
+    "MCP servers",
+    "MCP Servers",
+    "MCP 服务器",
+    "Git",
+    "Environments",
+    "环境",
+    "Cloud Environments",
+    "Worktrees",
+    "Connections",
+    "Plugins",
+    "Skills",
+].map(normalizeCodexPpSettingsLabel);
+function normalizeCodexPpSettingsLabel(value) {
+    return compactSettingsText(value)
+        .toLocaleLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[’‘`´]/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function codexPpControlLabel(el) {
+    return normalizeCodexPpSettingsLabel(el.getAttribute("aria-label") ||
+        el.getAttribute("title") ||
+        el.textContent ||
+        "");
+}
+function codexPpSettingsLabelsFrom(root) {
+    const controls = Array.from(root.querySelectorAll("button,a,[role='button'],[role='link']"));
+    return [
+        ...new Set(controls
+            .map(codexPpControlLabel)
+            .filter(Boolean)),
+    ];
+}
+function codexPpSettingsLabelScore(labels) {
+    const core = new Set();
+    const total = new Set();
+    for (const label of labels) {
+        for (const marker of CODEXPP_CORE_SETTINGS_LABELS) {
+            if (label === marker || label.includes(marker))
+                core.add(marker);
+        }
+        for (const marker of CODEXPP_EXTENDED_SETTINGS_LABELS) {
+            if (label === marker || label.includes(marker))
+                total.add(marker);
+        }
+    }
+    return { core: core.size, total: total.size };
+}
+function isCodexPpSettingsLabelSet(labels) {
+    const score = codexPpSettingsLabelScore(labels);
+    return score.core >= 2 && score.total >= 3;
+}
+function codexPpVisibleBox(el) {
+    if (!el.isConnected)
+        return null;
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden")
+        return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0)
+        return null;
+    return rect;
 }
 function setSettingsSurfaceVisible(visible, reason) {
     if (state.settingsSurfaceVisible === visible)
@@ -414,6 +523,25 @@ function makeSidebarItem(label, iconSvg) {
     inner.innerHTML = `${iconSvg}<span class="truncate">${label}</span>`;
     btn.appendChild(inner);
     return btn;
+}
+function appendSidebarStoreUpdateBadge(btn) {
+    const inner = btn.firstElementChild;
+    if (!inner)
+        return;
+    const badge = document.createElement("span");
+    badge.dataset.codexppStoreUpdateBadge = "true";
+    badge.hidden = true;
+    badge.title = "Installed tweaks with approved updates";
+    badge.className = "inline-flex shrink-0 items-center justify-center";
+    Object.assign(badge.style, {
+        position: "absolute",
+        right: "12px",
+        top: "50%",
+        transform: "translateY(-50%)",
+        zIndex: "1",
+    });
+    applyStoreUpdateBadgeStyle(badge, null);
+    btn.appendChild(badge);
 }
 function setNavActive(active) {
     // Built-in (Config/Tweaks) buttons.
@@ -605,7 +733,7 @@ function rerender() {
         return;
     }
     const title = ap.kind === "tweaks" ? "Tweaks" :
-        ap.kind === "store" ? "Tweak Store" : "Config";
+        ap.kind === "store" ? "Tweak Store" : "Codex++";
     const subtitle = ap.kind === "tweaks"
         ? "Manage your installed Codex++ tweaks."
         : ap.kind === "store"
@@ -1153,6 +1281,7 @@ function renderTweakStorePage(sectionsWrap, headerActions) {
     actions.className = "flex shrink-0 items-center gap-2";
     const refreshBtn = storeIconButton(refreshIconSvg(), "Refresh tweak store", () => {
         refreshBtn.disabled = true;
+        updateStoreUpdateBadge(null);
         grid.textContent = "";
         renderTweakStoreGhostGrid(grid);
         refreshTweakStoreGrid(grid, source, refreshBtn, true);
@@ -1187,6 +1316,7 @@ function refreshTweakStoreGrid(grid, source, refreshBtn, force = false) {
         grid.dataset.codexppStore = "";
         grid.removeAttribute("aria-busy");
         source.textContent = "Live registry unavailable";
+        updateStoreUpdateBadge(null);
         grid.textContent = "";
         grid.appendChild(storeMessageCard("Could not load tweak store", String(e)));
     })
@@ -1198,7 +1328,9 @@ function refreshTweakStoreGrid(grid, source, refreshBtn, force = false) {
 function warmTweakStore() {
     if (state.tweakStore || state.tweakStorePromise)
         return;
-    void getTweakStore();
+    void getTweakStore().then((store) => {
+        updateStoreUpdateBadge(outdatedInstalledStoreCount(store.entries));
+    });
 }
 function getTweakStore(force = false) {
     if (!force) {
@@ -1232,6 +1364,7 @@ function renderTweakStoreGrid(grid, source) {
     const entries = store.entries;
     grid.removeAttribute("aria-busy");
     source.textContent = `Refreshed ${new Date(store.fetchedAt).toLocaleString()}`;
+    updateStoreUpdateBadge(outdatedInstalledStoreCount(entries));
     grid.textContent = "";
     if (store.entries.length === 0) {
         grid.appendChild(storeMessageCard("No tweaks yet", "Use Publish Tweak to submit the first one."));
@@ -1274,7 +1407,8 @@ function tweakStoreCard(entry) {
             void electron_1.ipcRenderer.invoke("codexpp:open-external", entry.releaseUrl);
         }));
     }
-    if (entry.installed && entry.installed.version === entry.manifest.version) {
+    const hasUpdate = !!entry.installed && entry.installed.version !== entry.manifest.version;
+    if (entry.installed && !hasUpdate) {
         actions.appendChild(storeStatusPill("Installed"));
     }
     else if (entry.platform && !entry.platform.compatible) {
@@ -1287,6 +1421,8 @@ function tweakStoreCard(entry) {
     }
     else {
         const installLabel = entry.installed ? "Update" : "Install";
+        if (hasUpdate)
+            actions.appendChild(storeStatusPill("Update available", "info"));
         const installButton = storeInstallButton(installLabel, (button) => {
             const grid = card.closest("[data-codexpp-store-grid]");
             const source = grid?.parentElement?.querySelector("[data-codexpp-store-source]");
@@ -1298,6 +1434,7 @@ function tweakStoreCard(entry) {
                 showStoreToast(`${entry.manifest.name} installed.`);
                 showStoreButtonInstalled(button);
                 versions.replaceChildren(tweakStoreVersionBadge(entry, entry.manifest.version));
+                updateStoreUpdateBadge(Math.max(0, currentStoreUpdateBadgeCount() - 1));
                 setTimeout(() => {
                     actions.replaceChildren(storeStatusPill("Installed"));
                     if (grid && source)
@@ -1483,6 +1620,79 @@ function storeEntryIconUrl(entry) {
         return null;
     return `https://raw.githubusercontent.com/${entry.repo}/${entry.approvedCommitSha}/${rel}`;
 }
+function sidebarReleasesPillButton() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+        "user-select-none no-drag cursor-interaction inline-flex shrink-0 items-center justify-center whitespace-nowrap";
+    Object.assign(btn.style, {
+        height: "20px",
+        borderRadius: "9999px",
+        border: "0",
+        background: "#0A84FF",
+        color: "#FFFFFF",
+        padding: "0 8px",
+        fontSize: "10px",
+        fontWeight: "700",
+        lineHeight: "20px",
+        letterSpacing: "0",
+        textTransform: "none",
+        boxShadow: "0 1px 2px rgba(0, 0, 0, 0.18)",
+    });
+    btn.textContent = "Update";
+    btn.title = "Open Codex++ releases";
+    btn.addEventListener("mouseenter", () => {
+        btn.style.background = "#0071E3";
+    });
+    btn.addEventListener("mouseleave", () => {
+        btn.style.background = "#0A84FF";
+    });
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void electron_1.ipcRenderer.invoke("codexpp:open-external", CODEX_PLUSPLUS_RELEASES_URL);
+    });
+    return btn;
+}
+function updateStoreUpdateBadge(count) {
+    const badge = document.querySelector("[data-codexpp-store-update-badge]");
+    if (!badge)
+        return;
+    badge.dataset.codexppStoreUpdateCount = count === null ? "" : String(count);
+    applyStoreUpdateBadgeStyle(badge, count);
+    badge.hidden = count === null || count <= 0;
+    badge.textContent = count && count > 0 ? String(count) : "";
+    badge.title =
+        count && count > 0
+            ? `${count} installed tweak${count === 1 ? "" : "s"} can be updated`
+            : "Installed tweaks are up to date";
+}
+function applyStoreUpdateBadgeStyle(badge, count) {
+    const hasUpdates = !!count && count > 0;
+    Object.assign(badge.style, {
+        minWidth: "24px",
+        height: "20px",
+        borderRadius: "9999px",
+        border: "0",
+        background: hasUpdates ? "#0A84FF" : "transparent",
+        color: "#FFFFFF",
+        padding: "0 7px",
+        fontSize: "12px",
+        fontWeight: "700",
+        lineHeight: "20px",
+        letterSpacing: "0",
+        boxShadow: hasUpdates ? "0 1px 2px rgba(0, 0, 0, 0.22)" : "none",
+    });
+}
+function currentStoreUpdateBadgeCount() {
+    const badge = document.querySelector("[data-codexpp-store-update-badge]");
+    const raw = badge?.dataset.codexppStoreUpdateCount;
+    const parsed = raw ? Number(raw) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+function outdatedInstalledStoreCount(entries) {
+    return entries.filter((entry) => !!entry.installed && entry.installed.version !== entry.manifest.version).length;
+}
 function storeToolbarButton(label, onClick, variant = "secondary") {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -1557,10 +1767,14 @@ function storeVersionBadgeShell(hasUpdate) {
     ].join(" ");
     return badge;
 }
-function storeStatusPill(label) {
+function storeStatusPill(label, tone = "neutral") {
     const pill = document.createElement("span");
-    pill.className =
-        "inline-flex h-8 items-center justify-center rounded-lg bg-token-foreground/5 px-3 text-sm font-medium text-token-description-foreground";
+    pill.className = [
+        "inline-flex h-8 items-center justify-center whitespace-nowrap rounded-lg px-3 text-sm font-medium",
+        tone === "info"
+            ? "border border-blue-500/30 bg-blue-500/10 text-token-foreground"
+            : "bg-token-foreground/5 text-token-description-foreground",
+    ].join(" ");
     pill.textContent = label;
     return pill;
 }
@@ -2005,10 +2219,16 @@ function panelShell(title, subtitle, options) {
     headerWrap.className = "flex items-center justify-between gap-3 pb-panel";
     const headerInner = document.createElement("div");
     headerInner.className = "flex min-w-0 flex-1 flex-col gap-1.5 pb-panel";
+    const titleLine = document.createElement("div");
+    titleLine.className = "flex min-w-0 items-center gap-2";
     const heading = document.createElement("div");
     heading.className = "electron:heading-lg heading-base truncate";
     heading.textContent = title;
-    headerInner.appendChild(heading);
+    titleLine.appendChild(heading);
+    const headerTitleActions = document.createElement("div");
+    headerTitleActions.className = "flex shrink-0 items-center gap-2";
+    titleLine.appendChild(headerTitleActions);
+    headerInner.appendChild(titleLine);
     let subtitleElement;
     if (subtitle) {
         const sub = document.createElement("div");
@@ -2025,7 +2245,7 @@ function panelShell(title, subtitle, options) {
     const sectionsWrap = document.createElement("div");
     sectionsWrap.className = "flex flex-col gap-[var(--padding-panel)]";
     inner.appendChild(sectionsWrap);
-    return { outer, sectionsWrap, subtitle: subtitleElement, headerActions };
+    return { outer, sectionsWrap, subtitle: subtitleElement, headerActions, headerTitleActions };
 }
 function sectionTitle(text, trailing) {
     const titleRow = document.createElement("div");
@@ -2204,55 +2424,27 @@ async function resolveIconUrl(url, tweakDir) {
 }
 // ─────────────────────────────────────────────────────── DOM heuristics ──
 function findSidebarItemsGroup() {
-    // Anchor strategy first (would be ideal if Codex switches to <a>).
-    const links = Array.from(document.querySelectorAll("a[href*='/settings/']"));
-    if (links.length >= 2) {
-        let node = links[0].parentElement;
-        while (node) {
-            const inside = node.querySelectorAll("a[href*='/settings/']");
-            if (inside.length >= Math.max(2, links.length - 1) &&
-                isSettingsSidebarCandidate(node))
-                return node;
-            node = node.parentElement;
+    const candidates = Array.from(document.querySelectorAll("aside,nav,[role='navigation'],div"));
+    let best = null;
+    let bestScore = -1;
+    let bestArea = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+        if (candidate.dataset.codexpp)
+            continue;
+        if (!isSettingsSidebarCandidate(candidate))
+            continue;
+        const labels = codexPpSettingsLabelsFrom(candidate);
+        const score = codexPpSettingsLabelScore(labels);
+        const rect = candidate.getBoundingClientRect();
+        const area = rect.width * rect.height;
+        const weighted = score.core * 100 + score.total;
+        if (weighted > bestScore || (weighted === bestScore && area < bestArea)) {
+            best = candidate;
+            bestScore = weighted;
+            bestArea = area;
         }
     }
-    // Text-content match against Codex's known sidebar labels.
-    const KNOWN = [
-        "General",
-        "Appearance",
-        "Configuration",
-        "Personalization",
-        "MCP servers",
-        "MCP Servers",
-        "Git",
-        "Environments",
-    ];
-    const matches = [];
-    const all = document.querySelectorAll("button, a, [role='button'], li, div");
-    for (const el of Array.from(all)) {
-        if (isForbiddenSettingsSidebarSurface(el))
-            continue;
-        const t = (el.textContent ?? "").trim();
-        if (t.length > 30)
-            continue;
-        if (KNOWN.some((k) => t === k))
-            matches.push(el);
-        if (matches.length > 50)
-            break;
-    }
-    if (matches.length >= 2) {
-        let node = matches[0].parentElement;
-        while (node) {
-            let count = 0;
-            for (const m of matches)
-                if (node.contains(m))
-                    count++;
-            if (count >= Math.min(3, matches.length) && isSettingsSidebarCandidate(node))
-                return node;
-            node = node.parentElement;
-        }
-    }
-    return null;
+    return best;
 }
 const FORBIDDEN_SETTINGS_SIDEBAR_SELECTOR = [
     "[data-composer-overlay-floating-ui='true']",
@@ -2274,18 +2466,18 @@ function isForbiddenSettingsSidebarSurface(node) {
         return true;
     return false;
 }
-function isSettingsSidebarCandidate(node) {
-    if (isForbiddenSettingsSidebarSurface(node))
+function isSettingsSidebarCandidate(el) {
+    const rect = codexPpVisibleBox(el);
+    if (!rect)
         return false;
-    const root = node.parentElement ?? node;
-    if (isForbiddenSettingsSidebarSurface(root))
+    // Current Codex Settings sidebar: left column, not the main content panel.
+    if (rect.width < 120 || rect.width > 620)
         return false;
-    if (root.querySelector("a[href*='/settings/']"))
-        return true;
-    const text = compactSettingsText(root.textContent ?? "");
-    return (text.includes("Back to app") &&
-        text.includes("General") &&
-        text.includes("Appearance"));
+    if (rect.height < 80)
+        return false;
+    if (rect.left > window.innerWidth * 0.65)
+        return false;
+    return isCodexPpSettingsLabelSet(codexPpSettingsLabelsFrom(el));
 }
 function removeMisplacedSettingsGroups() {
     const groups = document.querySelectorAll("[data-codexpp='nav-group'], [data-codexpp='pages-group'], [data-codexpp='native-nav-header']");

@@ -17,11 +17,22 @@ interface InstallCliOpts {
   app?: string;
   fuse?: boolean;
   resign?: boolean;
+  local?: boolean;
   localSigning?: boolean;
   "local-signing"?: boolean;
   watcher?: boolean;
   defaultTweaks?: boolean;
   "default-tweaks"?: boolean;
+}
+
+interface RepairCliOpts {
+  app?: string;
+  quiet?: boolean;
+  force?: boolean;
+  local?: boolean;
+  localSigning?: boolean;
+  "local-signing"?: boolean;
+  watcher?: boolean;
 }
 
 function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T): T {
@@ -47,9 +58,27 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
 function runInstall(opts: InstallCliOpts): Promise<void> {
   return install({
     ...opts,
-    localSigning: opts.localSigning ?? opts["local-signing"],
+    localSigning: resolveLocalSigning(opts),
     defaultTweaks: opts.defaultTweaks ?? opts["default-tweaks"],
   });
+}
+
+function runRepair(opts: RepairCliOpts): Promise<void> {
+  return repair({
+    ...opts,
+    localSigning: resolveLocalSigning(opts),
+  });
+}
+
+function resolveLocalSigning(opts: {
+  local?: boolean;
+  localSigning?: boolean;
+  "local-signing"?: boolean;
+}): boolean | undefined {
+  if (opts.local === false || opts.localSigning === false || opts["local-signing"] === false) {
+    return false;
+  }
+  return opts.localSigning ?? opts["local-signing"] ?? opts.local;
 }
 
 async function runCreateTweak(target: string, opts: never): Promise<void> {
@@ -85,7 +114,8 @@ prog
   .option("--app", "Path to Codex.app / install dir (auto-detected if omitted)")
   .option("--fuse", "Flip Electron's embedded asar integrity fuse", true)
   .option("--resign", "Code sign Codex.app on macOS", true)
-  .option("--local-signing", "Use a stable local signing identity on macOS", true)
+  .option("--local", "Use a stable local signing identity on macOS")
+  .option("--local-signing", "Alias for --local")
   .option("--watcher", "Install the auto-repair watcher", true)
   .option("--default-tweaks", "Install the default tweak set from latest GitHub releases", true)
   .action(wrap(runInstall));
@@ -102,8 +132,10 @@ prog
   .option("--app", "Path to Codex.app / install dir")
   .option("--quiet", "Suppress non-error output")
   .option("--force", "Re-apply even if the patch appears intact")
+  .option("--local", "Use a stable local signing identity on macOS")
+  .option("--local-signing", "Alias for --local")
   .option("--watcher", "Run from the auto-repair watcher")
-  .action(wrap(repair));
+  .action(wrap(runRepair));
 
 prog
   .command("update-codex")
@@ -168,9 +200,9 @@ prog
 
 prog
   .command("safe-mode")
-  .describe("Temporarily disable all tweaks without deleting them")
+  .describe("Temporarily disable all tweaks without deleting them. Leave safe mode with: codexplusplus safe-mode --off")
   .option("--on", "Enable safe mode (default)")
-  .option("--off", "Disable safe mode")
+  .option("--off", "Disable safe mode and return to normal tweak loading")
   .option("--status", "Print current safe mode status")
   .action(wrap(safeMode));
 

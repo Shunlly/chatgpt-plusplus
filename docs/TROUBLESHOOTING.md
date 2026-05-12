@@ -15,9 +15,9 @@ codex-plusplus repair --force
 xattr -dr com.apple.quarantine /Applications/Codex.app
 ```
 
-On macOS, Codex++ normally creates and reuses a local "Codex++ Local Signing"
-identity so privacy grants can survive future repair runs. To force the old
-ad-hoc behavior, run `codex-plusplus install --no-local-signing`.
+On macOS, Codex++ signs ad-hoc by default. `codex-plusplus install --local`
+or `codex-plusplus repair --local` opts into a local "Codex++ Local Signing"
+identity, but that can involve Keychain access prompts.
 
 ## App launches but nothing about codex-plusplus appears
 

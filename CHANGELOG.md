@@ -4,6 +4,30 @@ All notable changes to codex-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 0.1.7
+
+Release notes: [docs/releases/0.1.7.md](docs/releases/0.1.7.md)
+
+### Changed
+
+- Updated Settings sidebar injection for the current Codex Desktop Settings UI by scoring known Settings navigation labels instead of depending on the old `Back to app` label.
+- Added a solid blue sidebar update pill that opens the Codex++ GitHub Releases page directly.
+- Added a Tweak Store sidebar badge showing how many installed tweaks have newer approved versions available.
+- Improved self-update command execution diagnostics by capturing stdout/stderr tails when dependency install, build, or repair commands fail.
+- Made local macOS signing identity export/import use a generated PKCS#12 password and redact that secret from command failures.
+- Documented the safe-mode exit command in CLI help and kept blank `codexplusplus` invocations mapped to help output.
+
+### Fixed
+
+- Fixed Windows installs against Codex builds whose main-process window-services factory has reordered or quoted object properties.
+- Fixed Windows uninstall cleanup so Codex++ removes Explorer context-menu entries it created.
+- Fixed uninstall cleanup on installs that were previously run with elevated permissions by repairing ownership before removing runtime files.
+- Kept macOS signing ad-hoc by default and added `--local` as an opt-in stable local signing identity for install and repair.
+- Added detailed window-services hook diagnostics that report scanned candidate bundles, matched fingerprints, parser errors, and nearby source snippets when Codex changes its internals again.
+- Broadened recovered Vite main-bundle scanning to include `main.js` and `main.*.js` layouts.
+- Retried and best-effort cleaned temporary unpacked asar directories after patching.
+- Removed Codex startup/composer performance patching from the installer.
+
 ## 0.1.5
 
 Release notes: [docs/releases/0.1.5.md](docs/releases/0.1.5.md)

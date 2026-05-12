@@ -3,8 +3,20 @@ export const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 export interface CodexWindowServicesPatch {
   source: string;
   changed: boolean;
-  strategy: "already-patched" | "repair-missing-separator" | "service-factory-fingerprint";
+  strategy:
+    | "already-patched"
+    | "repair-missing-separator"
+    | "service-factory-fingerprint"
+    | "lifecycle-registration-fingerprint";
   serviceVar?: string;
+}
+
+export interface CodexWindowServicesSourceDiagnostics {
+  hasMarker: boolean;
+  buildFlavorProperties: number;
+  objectCalls: number;
+  matchedFingerprints: string[];
+  snippet: string | null;
 }
 
 interface ServiceFactoryAssignment {
@@ -13,7 +25,7 @@ interface ServiceFactoryAssignment {
 }
 
 const IDENT_RE = /^[$A-Za-z_][$A-Za-z0-9_]*$/;
-const BUILD_FLAVOR_CALL_RE = /([$A-Za-z_][$A-Za-z0-9_]*)\(\{\s*buildFlavor\s*:/g;
+const OBJECT_CALL_RE = /([$A-Za-z_][$A-Za-z0-9_]*)\s*\(\s*\{/g;
 const WINDOW_SERVICE_FINGERPRINTS = [
   "allowDevtools:",
   "allowDebugMenu:",
@@ -39,7 +51,7 @@ export function patchCodexWindowServicesSource(
   }
 
   const assignment = findWindowServicesFactoryAssignment(source);
-  if (!assignment) return null;
+  if (!assignment) return patchFromLifecycleRegistration(source, marker);
 
   const statementEnd = findStatementEnd(source, assignment.callEnd + 1);
   if (statementEnd < 0) {
@@ -54,6 +66,19 @@ export function patchCodexWindowServicesSource(
     changed: true,
     strategy: "service-factory-fingerprint",
     serviceVar: assignment.serviceVar,
+  };
+}
+
+export function describeCodexWindowServicesSource(
+  source: string,
+  marker = CODEX_WINDOW_SERVICES_KEY,
+): CodexWindowServicesSourceDiagnostics {
+  return {
+    hasMarker: source.includes(markerAssignment(marker)),
+    buildFlavorProperties: countObjectProperty(source, "buildFlavor"),
+    objectCalls: countObjectCalls(source),
+    matchedFingerprints: matchedWindowServicesFingerprints(source),
+    snippet: diagnosticSnippet(source),
   };
 }
 
@@ -84,11 +109,11 @@ function repairMalformedMarkerAssignment(
 }
 
 function findWindowServicesFactoryAssignment(source: string): ServiceFactoryAssignment | null {
-  BUILD_FLAVOR_CALL_RE.lastIndex = 0;
+  OBJECT_CALL_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = BUILD_FLAVOR_CALL_RE.exec(source)) !== null) {
+  while ((match = OBJECT_CALL_RE.exec(source)) !== null) {
     const functionName = match[1] ?? "";
-    const parenStart = match.index + functionName.length;
+    const parenStart = match.index + match[0].indexOf("(");
     const serviceVar = findAssignedIdentifierBefore(source, match.index);
     if (!serviceVar) continue;
 
@@ -104,6 +129,63 @@ function findWindowServicesFactoryAssignment(source: string): ServiceFactoryAssi
   return null;
 }
 
+function patchFromLifecycleRegistration(
+  source: string,
+  marker: string,
+): CodexWindowServicesPatch | null {
+  const registration = findWindowServicesLifecycleRegistration(source);
+  if (!registration) return null;
+
+  const statementEnd = findStatementEnd(source, registration.callEnd + 1);
+  if (statementEnd < 0) {
+    throw new Error("Codex window services lifecycle registration end could not be identified");
+  }
+
+  return {
+    source:
+      source.slice(0, statementEnd + 1) +
+      `globalThis.${marker}=${registration.serviceVar};` +
+      source.slice(statementEnd + 1),
+    changed: true,
+    strategy: "lifecycle-registration-fingerprint",
+    serviceVar: registration.serviceVar,
+  };
+}
+
+function findWindowServicesLifecycleRegistration(source: string): ServiceFactoryAssignment | null {
+  OBJECT_CALL_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = OBJECT_CALL_RE.exec(source)) !== null) {
+    const parenStart = match.index + match[0].indexOf("(");
+    const callEnd = findMatchingBracket(source, parenStart, "(", ")");
+    if (callEnd < 0) continue;
+
+    const callSource = source.slice(parenStart, callEnd + 1);
+    const serviceVar = windowServicesVarFromLifecycleRegistration(callSource);
+    if (!serviceVar) continue;
+
+    return { serviceVar, callEnd };
+  }
+
+  return null;
+}
+
+function windowServicesVarFromLifecycleRegistration(callSource: string): string | null {
+  const serviceVar = objectPropertyIdentifierValue(callSource, "windows");
+  if (!serviceVar) return null;
+
+  const expectedMemberRefs = [
+    "ensureHostWindow",
+    "hotkeyWindowLifecycleManager",
+    "globalDictationLifecycleManager",
+  ].filter((property) => hasObjectPropertyMemberRef(callSource, property, serviceVar)).length;
+  const expectedStandaloneProps = ["flushAndDisposeContexts", "appEvent", "errorReporter"].filter((property) =>
+    hasObjectProperty(callSource, property)
+  ).length;
+
+  return expectedMemberRefs >= 2 && expectedStandaloneProps >= 2 ? serviceVar : null;
+}
+
 function findAssignedIdentifierBefore(source: string, index: number): string | null {
   const eqIndex = skipWhitespaceBackward(source, index - 1);
   if (source[eqIndex] !== "=") return null;
@@ -117,11 +199,20 @@ function findAssignedIdentifierBefore(source: string, index: number): string | n
 }
 
 function looksLikeWindowServicesFactory(callSource: string): boolean {
-  let score = 0;
-  for (const fingerprint of WINDOW_SERVICE_FINGERPRINTS) {
-    if (callSource.includes(fingerprint)) score += 1;
-  }
-  return score >= 5;
+  return hasObjectProperty(callSource, "buildFlavor")
+    && matchedWindowServicesFingerprints(callSource).length >= 5;
+}
+
+function objectPropertyIdentifierValue(source: string, property: string): string | null {
+  const pattern = new RegExp(`(?:^|[,{])\\s*${escapeRegExp(property)}\\s*:\\s*([$A-Za-z_][$A-Za-z0-9_]*)`);
+  return pattern.exec(source)?.[1] ?? null;
+}
+
+function hasObjectPropertyMemberRef(source: string, property: string, objectName: string): boolean {
+  const pattern = new RegExp(
+    `(?:^|[,{])\\s*${escapeRegExp(property)}\\s*:\\s*${escapeRegExp(objectName)}\\.${escapeRegExp(property)}\\b`,
+  );
+  return pattern.test(source);
 }
 
 function findStatementEnd(source: string, startIndex: number): number {
@@ -209,4 +300,48 @@ function skipWhitespaceBackward(source: string, index: number): number {
 
 function markerAssignment(marker: string): string {
   return `globalThis.${marker}=`;
+}
+
+function matchedWindowServicesFingerprints(source: string): string[] {
+  const out: string[] = [];
+  for (const fingerprint of WINDOW_SERVICE_FINGERPRINTS) {
+    const property = fingerprint.slice(0, -1);
+    if (hasObjectProperty(source, property)) out.push(property);
+  }
+  return out;
+}
+
+function hasObjectProperty(source: string, property: string): boolean {
+  return objectPropertyRegExp(property).test(source);
+}
+
+function countObjectProperty(source: string, property: string): number {
+  const matches = source.match(objectPropertyRegExp(property, "g"));
+  return matches ? matches.length : 0;
+}
+
+function countObjectCalls(source: string): number {
+  const matches = source.match(/[$A-Za-z_][$A-Za-z0-9_]*\s*\(\s*\{/g);
+  return matches ? matches.length : 0;
+}
+
+function objectPropertyRegExp(property: string, flags = ""): RegExp {
+  return new RegExp(`(?:^|[,{])\\s*["']?${escapeRegExp(property)}["']?\\s*:`, flags);
+}
+
+function diagnosticSnippet(source: string): string | null {
+  const anchors = [
+    source.indexOf("buildFlavor"),
+    ...WINDOW_SERVICE_FINGERPRINTS.map((fingerprint) => source.indexOf(fingerprint.slice(0, -1))),
+  ].filter((index) => index >= 0);
+  if (anchors.length === 0) return null;
+
+  const anchor = Math.min(...anchors);
+  const start = Math.max(0, anchor - 90);
+  const end = Math.min(source.length, anchor + 220);
+  return source.slice(start, end).replace(/\s+/g, " ");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

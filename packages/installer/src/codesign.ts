@@ -13,6 +13,7 @@
  * same identity before signing the main bundle.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { platform, tmpdir } from "node:os";
@@ -178,6 +179,7 @@ function createLocalSigningIdentity(identityName: string): PreparedSigningIdenti
     const certPath = join(dir, "identity.crt");
     const p12Path = join(dir, "identity.p12");
     const keychain = defaultUserKeychain();
+    const p12Password = createPkcs12Password();
 
     writeFileSync(
       configPath,
@@ -216,7 +218,7 @@ function createLocalSigningIdentity(identityName: string): PreparedSigningIdenti
       certPath,
     ], { stdio: "ignore" });
 
-    execFileSync("openssl", [
+    execFileSyncRedacted("openssl", [
       "pkcs12",
       "-export",
       "-inkey",
@@ -234,19 +236,19 @@ function createLocalSigningIdentity(identityName: string): PreparedSigningIdenti
       "-macalg",
       "sha1",
       "-passout",
-      "pass:",
-    ], { stdio: "ignore" });
+      `pass:${p12Password}`,
+    ], { stdio: ["ignore", "ignore", "pipe"] }, [p12Password]);
 
-    execFileSync("security", [
+    execFileSyncRedacted("security", [
       "import",
       p12Path,
       "-k",
       keychain,
       "-P",
-      "",
+      p12Password,
       "-T",
       "/usr/bin/codesign",
-    ], { stdio: "ignore" });
+    ], { stdio: ["ignore", "ignore", "pipe"] }, [p12Password]);
 
     execFileSync("security", [
       "add-trusted-cert",
@@ -269,6 +271,32 @@ function createLocalSigningIdentity(identityName: string): PreparedSigningIdenti
     throw new Error(`Failed to create local signing identity "${identityName}": ${message}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function createPkcs12Password(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+function execFileSyncRedacted(
+  command: string,
+  args: string[],
+  options: Parameters<typeof execFileSync>[2],
+  redactions: string[],
+): Buffer | string {
+  try {
+    return execFileSync(command, args, options);
+  } catch (e) {
+    const err = e as { stderr?: Buffer | string; stdout?: Buffer | string; message?: string };
+    let message = [err.stderr, err.stdout]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
+    if (!message) message = err.message ?? String(e);
+    for (const secret of redactions) {
+      if (secret) message = message.split(secret).join("[redacted]");
+    }
+    throw new Error(`${command} failed: ${message}`);
   }
 }
 
