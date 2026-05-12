@@ -25,7 +25,6 @@ Release notes: [docs/releases/0.1.7.md](docs/releases/0.1.7.md)
 - Kept macOS signing ad-hoc by default and added `--local` as an opt-in stable local signing identity for install and repair.
 - Added detailed window-services hook diagnostics that report scanned candidate bundles, matched fingerprints, parser errors, and nearby source snippets when Codex changes its internals again.
 - Broadened recovered Vite main-bundle scanning to include `main.js` and `main.*.js` layouts.
-- Removed stale optimistic-startup composer artifacts from previously patched installs and restored the normal startup loader shell.
 - Retried and best-effort cleaned temporary unpacked asar directories after patching.
 - Removed Codex startup/composer performance patching from the installer.
 
