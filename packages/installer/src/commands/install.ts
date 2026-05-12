@@ -44,7 +44,7 @@ const sourceRoot = findSourceRoot(here);
 export async function install(opts: Opts = {}): Promise<void> {
   const fuseFlip = opts.fuse !== false;
   const resign = opts.resign !== false;
-  const localSigning = opts.localSigning !== false;
+  let localSigning = opts.localSigning !== false;
   const wantWatcher = opts.watcher !== false;
   const wantDefaultTweaks = opts.defaultTweaks !== false;
 
@@ -59,9 +59,20 @@ export async function install(opts: Opts = {}): Promise<void> {
   preflightWritableTargets(codex, { fuseFlip });
   step("Bundle is writable");
 
-  const preparedSigning = resign && codex.platform === "darwin"
-    ? prepareCodeSigning({ useLocalIdentity: localSigning })
-    : null;
+  let preparedSigning: ReturnType<typeof prepareCodeSigning> = null;
+  if (resign && codex.platform === "darwin") {
+    try {
+      preparedSigning = prepareCodeSigning({ useLocalIdentity: localSigning });
+    } catch (e) {
+      if (!localSigning) throw e;
+      localSigning = false;
+      console.warn(
+        kleur.yellow(
+          `Local signing setup failed; falling back to ad-hoc signing.\n${(e as Error).message}`,
+        ),
+      );
+    }
+  }
 
   const codexVersion = readCodexVersion(codex.metaPath);
   if (codexVersion) step(`Codex version: ${kleur.cyan(codexVersion)}`);

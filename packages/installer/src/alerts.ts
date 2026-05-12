@@ -250,18 +250,24 @@ function quitCodex(appRoot: string): void {
 export function buildPatchFailureIssueUrl(errorMessage: string): string {
   const title = "Codex++ failed to patch Codex after update";
   const body = [
-    "## What happened",
+    "## Summary",
     "Codex++ could not reapply its patch after Codex updated.",
     "",
     "## Error",
     "```text",
-    errorMessage.trim() || "(empty error message)",
+    trimIssueError(errorMessage),
     "```",
     "",
     "## Environment",
     `- Platform: ${process.platform}`,
     `- Arch: ${process.arch}`,
     `- Node: ${process.version}`,
+    "",
+    "## Debugging context",
+    "- Codex app path: ",
+    "- Codex version shown in app, if known: ",
+    "- Was Codex running during the update? ",
+    "- Did rerunning `codexplusplus repair` change the result? ",
   ].join("\n");
 
   const params = new URLSearchParams({ title, body });
@@ -272,8 +278,13 @@ export function buildCliFailureIssueUrl(command: string | undefined, errorMessag
   const commandLabel = command?.trim() || "(unknown command)";
   const title = `Codex++ ${commandLabel} failed`;
   const body = [
-    "## What happened",
-    `The \`codexplusplus ${commandLabel}\` command failed.`,
+    "## Summary",
+    `\`codexplusplus ${commandLabel}\` failed.`,
+    "",
+    "## Command",
+    "```text",
+    `codexplusplus ${commandLabel}`,
+    "```",
     "",
     "## Error",
     "```text",
@@ -285,6 +296,12 @@ export function buildCliFailureIssueUrl(command: string | undefined, errorMessag
     `- Platform: ${process.platform}`,
     `- Arch: ${process.arch}`,
     `- Node: ${process.version}`,
+    "",
+    "## Debugging context",
+    "- Codex app path, if shown: ",
+    "- Install source: ",
+    "- Did rerunning the command change the result? ",
+    "- Any recent Codex or Codex++ update? ",
   ].join("\n");
 
   const params = new URLSearchParams({ title, body });

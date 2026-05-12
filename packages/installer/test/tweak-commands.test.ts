@@ -293,6 +293,21 @@ test("window services patch is idempotent when the marker is already present", (
   assert.equal(patched.source, source);
 });
 
+test("window services patch falls back to lifecycle registration fingerprint", () => {
+  const source = [
+    "let M=oG({theme:a,featureFlags:b});",
+    "_B({isWindows:E,quitState:ee,windows:M,applicationMenuManager:oe.applicationMenuManager,ensureHostWindow:M.ensureHostWindow,hotkeyWindowLifecycleManager:M.hotkeyWindowLifecycleManager,globalDictationLifecycleManager:M.globalDictationLifecycleManager,globalStatesByHostId:j.globalStatesByHostId,flushAndDisposeContexts:I.flushAndDisposeContexts,disposables:k,appEvent:F.appEvent,errorReporter:g});",
+  ].join("");
+
+  const patched = patchCodexWindowServicesSource(source);
+
+  assert.ok(patched);
+  assert.equal(patched.changed, true);
+  assert.equal(patched.strategy, "lifecycle-registration-fingerprint");
+  assert.equal(patched.serviceVar, "M");
+  assert.match(patched.source, /;globalThis\.__codexpp_window_services__=M;$/);
+});
+
 test("window services patch ignores unrelated buildFlavor factories", () => {
   const source = "let x=Fn({buildFlavor:a,foo:b,bar:c});Other({buildFlavor:a})";
 
@@ -443,10 +458,18 @@ test("self-update command failures include a bounded output tail", () => {
   assert.match(message, /stdout:\nstdout detail/);
 });
 
-test("repair preserves the installed signing mode", () => {
+test("repair migrates old ad-hoc installs to local signing", () => {
   const source = readFileSync(new URL("../src/commands/repair.ts", import.meta.url), "utf8");
 
-  assert.match(source, /localSigning:\s*state \? state\.signingMode === "local-identity" : true/);
+  assert.match(source, /localSigning:\s*true/);
+  assert.doesNotMatch(source, /state\.signingMode === "local-identity"/);
+});
+
+test("install falls back to ad-hoc signing if local identity setup fails", () => {
+  const source = readFileSync(new URL("../src/commands/install.ts", import.meta.url), "utf8");
+
+  assert.match(source, /Local signing setup failed; falling back to ad-hoc signing/);
+  assert.match(source, /localSigning = false/);
 });
 
 test("installation source labels local checkouts", () => {

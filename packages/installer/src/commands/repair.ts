@@ -147,7 +147,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
     app: opts.app ?? state?.appRoot,
     fuse: state?.fuseFlipped ?? true,
     resign: state?.resigned ?? true,
-    localSigning: state ? state.signingMode === "local-identity" : true,
+    localSigning: true,
     watcher: state?.watcher === "none" ? false : true,
     watcherKind: state?.watcher,
     quiet: opts.quiet,

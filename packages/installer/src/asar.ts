@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdtempSync, rmSync, cpSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 export interface AsarHeaderInfo {
   /** SHA-256 hex of the header JSON bytes Electron hashes. */
@@ -78,8 +79,26 @@ export async function patchAsar(
     }
     return readHeaderHash(asarPath);
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    await cleanupTempTree(work);
   }
+}
+
+export async function cleanupTempTree(path: string): Promise<void> {
+  const retryDelaysMs = [25, 75, 150, 300, 600];
+  for (const waitMs of [0, ...retryDelaysMs]) {
+    if (waitMs > 0) await delay(waitMs);
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (e) {
+      if (!isTransientCleanupError(e)) return;
+    }
+  }
+}
+
+function isTransientCleanupError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | null)?.code;
+  return code === "ENOTEMPTY" || code === "EBUSY" || code === "EPERM" || code === "EACCES";
 }
 
 /**
