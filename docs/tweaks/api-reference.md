@@ -104,7 +104,7 @@ Validates the manifest shape. It checks required string fields, id characters,
 GitHub repo format, scope, optional strings, author object, tags, permissions,
 and MCP shape.
 
-It does not check that the entry file exists; `codexplusplus validate-tweak`
+It does not check that the entry file exists; `chatgptplusplus validate-tweak`
 adds that filesystem check.
 
 ```ts

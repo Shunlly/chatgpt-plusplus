@@ -19,7 +19,7 @@ reload from Settings -> Tweaks or restart Codex.
 ## Create a Tweak
 
 ```sh
-codexplusplus create-tweak ./my-tweak \
+chatgptplusplus create-tweak ./my-tweak \
   --id com.you.my-tweak \
   --name "My Tweak" \
   --repo you/my-tweak
@@ -38,16 +38,16 @@ my-tweak/
 Validate it:
 
 ```sh
-codexplusplus validate-tweak ./my-tweak
+chatgptplusplus validate-tweak ./my-tweak
 ```
 
 Link it into your live tweaks directory:
 
 ```sh
-codexplusplus dev ./my-tweak
+chatgptplusplus dev ./my-tweak
 ```
 
-`codexplusplus dev` validates the manifest, creates a symlink, touches a reload
+`chatgptplusplus dev` validates the manifest, creates a symlink, touches a reload
 marker, and watches for local changes. Pass `--replace` if a symlink with that
 name already points somewhere else.
 

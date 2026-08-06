@@ -1,6 +1,6 @@
 # ChatGPT++
 
-ChatGPT++ lets you install local tweaks into the OpenAI Codex desktop app. Tweaks
+ChatGPT++ lets you install local tweaks into the OpenAI ChatGPT desktop app. Tweaks
 can change UI, add settings pages, run main-process code, and use native
 OS-level features through the ChatGPT++ bridge.
 [Join the Discord community](https://discord.gg/6bY6gGX36H).
@@ -11,16 +11,16 @@ OS-level features through the ChatGPT++ bridge.
 
 ## TL;DR
 
-ChatGPT++ patches your local Codex app so Codex loads a small ChatGPT++ runtime on
+ChatGPT++ patches your local ChatGPT app so ChatGPT loads a small ChatGPT++ runtime on
 startup.
 
-That runtime lives in your user data directory, not inside Codex. It finds
-tweaks in a local `tweaks/` folder and loads them when Codex opens.
+That runtime lives in your user data directory, not inside ChatGPT. It finds
+tweaks in a local `tweaks/` folder and loads them when ChatGPT opens.
 
 The app patch is tiny. Your tweaks, config, logs, backups, and runtime files
-stay outside the app bundle, so you can edit tweaks without rebuilding Codex.
+stay outside the app bundle, so you can edit tweaks without rebuilding ChatGPT.
 
-When Codex updates, the patch is usually removed. ChatGPT++ installs a watcher
+When ChatGPT updates, the patch is usually removed. ChatGPT++ installs a watcher
 that notices this and re-applies the patch.
 
 1.0.0 adds cleaner patching, better debug output, Owl runtime detection,
@@ -53,8 +53,8 @@ Tell me where you install it and send me the local path for adding new tweaks.
 Homebrew:
 
 ```sh
-brew install Shunlly/chatgpt-plusplus/codexplusplus
-codexplusplus install
+brew install Shunlly/chatgpt-plusplus/chatgptplusplus
+chatgptplusplus install
 ```
 
 GitHub source installer:
@@ -73,74 +73,74 @@ Bun:
 
 ```sh
 bun install -g github:Shunlly/chatgpt-plusplus
-codexplusplus install
+chatgptplusplus install
 ```
 
-After install, launch Codex normally. Open Settings and look for the ChatGPT++
+After install, launch ChatGPT++. Open Settings and look for the ChatGPT++
 section.
 
 ## What ChatGPT++ Is
 
-ChatGPT++ is a tweak loader for Codex Desktop.
+ChatGPT++ is a tweak loader for the ChatGPT desktop app.
 
 It gives you:
 
 - A local `tweaks/` folder.
 - A runtime that loads renderer and main-process tweaks.
-- A ChatGPT++ Settings section inside Codex.
+- A ChatGPT++ Settings section inside ChatGPT.
 - CLI tools for install, repair, update, debug, and tweak development.
-- A watcher that repairs ChatGPT++ after Codex updates.
+- A watcher that repairs ChatGPT++ after ChatGPT updates.
 - A public SDK for tweak authors.
 - Native bridge APIs for advanced macOS tweaks.
 
-It does not replace Codex, proxy your account, or run a separate Codex clone.
+It does not replace ChatGPT, proxy your account, or run a separate ChatGPT clone.
 It modifies your installed app so it can load local code.
 
 ## How It Works
 
 Install flow:
 
-1. ChatGPT++ finds your Codex app.
+1. ChatGPT++ finds your ChatGPT app.
 2. It backs up the unpatched app files.
-3. It patches Codex `app.asar` so a ChatGPT++ loader runs first.
+3. It patches ChatGPT `app.asar` so a ChatGPT++ loader runs first.
 4. It stages the ChatGPT++ runtime in your user data directory.
 5. It re-signs the app when needed.
-6. It installs a watcher for future Codex updates.
+6. It installs a watcher for future ChatGPT updates.
 
 Runtime flow:
 
-1. You launch Codex.
+1. You launch ChatGPT++.
 2. The ChatGPT++ loader starts.
 3. The loader starts the ChatGPT++ runtime from disk.
-4. Codex starts normally.
+4. ChatGPT starts normally.
 5. ChatGPT++ discovers enabled tweaks.
-6. Renderer tweaks run in Codex windows.
-7. Main-process tweaks run in the Codex main process.
+6. Renderer tweaks run in ChatGPT windows.
+7. Main-process tweaks run in the ChatGPT main process.
 8. The Settings UI shows ChatGPT++ pages and tweak controls.
 
 ## Common Commands
 
 | Command | What it does |
 |---|---|
-| `codexplusplus install` | Patch Codex and install the runtime. |
-| `codexplusplus status` | Show installed version and patch state. |
-| `codexplusplus debug` | Show app path, runtime type, paths, open state, and bridge status. |
-| `codexplusplus repair` | Re-apply the patch after an app update or broken install. |
-| `codexplusplus update` | Update ChatGPT++ from the latest GitHub release. |
-| `codexplusplus update-codex` | Prepare Codex for its official updater, then re-patch after restart. |
-| `codexplusplus doctor` | Diagnose signatures, integrity, permissions, and common failures. |
-| `codexplusplus safe-mode` | Disable all tweaks without deleting them. |
-| `codexplusplus safe-mode --off` | Leave safe mode. |
-| `codexplusplus uninstall` | Remove ChatGPT++ and restore the app when safe. |
-| `codexplusplus uninstall --purge` | Also delete tweaks, config, logs, backups, and ChatGPT++ user data. |
+| `chatgptplusplus install` | Patch ChatGPT and install the runtime. |
+| `chatgptplusplus status` | Show installed version and patch state. |
+| `chatgptplusplus debug` | Show app path, runtime type, paths, open state, and bridge status. |
+| `chatgptplusplus repair` | Re-apply the patch after an app update or broken install. |
+| `chatgptplusplus update` | Update ChatGPT++ from the latest GitHub release. |
+| `chatgptplusplus update-codex` | Prepare ChatGPT for its official updater, then re-patch after restart. |
+| `chatgptplusplus doctor` | Diagnose signatures, integrity, permissions, and common failures. |
+| `chatgptplusplus safe-mode` | Disable all tweaks without deleting them. |
+| `chatgptplusplus safe-mode --off` | Leave safe mode. |
+| `chatgptplusplus uninstall` | Remove ChatGPT++ and restore the app when safe. |
+| `chatgptplusplus uninstall --purge` | Also delete tweaks, config, logs, backups, and ChatGPT++ user data. |
 
 Tweak development commands:
 
 | Command | What it does |
 |---|---|
-| `codexplusplus create-tweak ./my-tweak` | Create a new tweak folder. |
-| `codexplusplus validate-tweak ./my-tweak` | Validate a tweak manifest and entry file. |
-| `codexplusplus dev ./my-tweak` | Link a local tweak into ChatGPT++ for development. |
+| `chatgptplusplus create-tweak ./my-tweak` | Create a new tweak folder. |
+| `chatgptplusplus validate-tweak ./my-tweak` | Validate a tweak manifest and entry file. |
+| `chatgptplusplus dev ./my-tweak` | Link a local tweak into ChatGPT++ for development. |
 
 Source checkout commands:
 
@@ -153,11 +153,11 @@ node packages/installer/dist/cli.js debug
 
 ## Where Files Live
 
-ChatGPT++ keeps almost everything outside Codex.
+ChatGPT++ keeps almost everything outside ChatGPT++.
 
 | Item | Location |
 |---|---|
-| Loader patch | Inside Codex `app.asar` |
+| Loader patch | Inside ChatGPT `app.asar` |
 | Runtime | `<user-data-dir>/runtime/` |
 | Tweaks | `<user-data-dir>/tweaks/` |
 | Tweak data | `<user-data-dir>/tweak-data/` |
@@ -222,22 +222,22 @@ module.exports = {
 Local dev loop:
 
 ```sh
-codexplusplus create-tweak ./my-tweak --id com.you.my-tweak --name "My Tweak"
-codexplusplus validate-tweak ./my-tweak
-codexplusplus dev ./my-tweak
+chatgptplusplus create-tweak ./my-tweak --id com.you.my-tweak --name "My Tweak"
+chatgptplusplus validate-tweak ./my-tweak
+chatgptplusplus dev ./my-tweak
 ```
 
 Full docs are in [Writing Tweaks](./docs/WRITING-TWEAKS.md).
 
 ## Owl And Native Bridge
 
-Current macOS Codex builds use Owl: a native app shell with Chromium and an
+Current macOS ChatGPT builds use Owl: a native app shell with Chromium and an
 Electron-compatible JavaScript runtime.
 
 ChatGPT++ 1.0.0 detects Owl and reports capability status through:
 
 ```sh
-codexplusplus debug
+chatgptplusplus debug
 ```
 
 Tweak authors should use the ChatGPT++ SDK, not raw Owl internals:
@@ -260,11 +260,11 @@ Start with [Native Bridge](./docs/tweaks/native-bridge.md).
 
 ## Browser Host Mode
 
-Browser host mode opens the Codex React UI in a normal browser tab while a
-hidden Codex window provides the private app bridge:
+Browser host mode opens the ChatGPT UI in a normal browser tab while a
+hidden ChatGPT window provides the private app bridge:
 
 ```sh
-codexplusplus browser --port 8765
+chatgptplusplus browser --port 8765
 ```
 
 Then open:
@@ -282,48 +282,48 @@ embedding.
 Update ChatGPT++:
 
 ```sh
-codexplusplus update
+chatgptplusplus update
 ```
 
-Run the official Codex updater on macOS:
+Run the official ChatGPT updater on macOS:
 
 ```sh
-codexplusplus update-codex
+chatgptplusplus update-codex
 ```
 
 Repair ChatGPT++:
 
 ```sh
-codexplusplus repair --force
+chatgptplusplus repair --force
 ```
 
 Disable tweaks temporarily:
 
 ```sh
-codexplusplus safe-mode
+chatgptplusplus safe-mode
 ```
 
 Re-enable normal tweak loading:
 
 ```sh
-codexplusplus safe-mode --off
+chatgptplusplus safe-mode --off
 ```
 
 Uninstall:
 
 ```sh
-codexplusplus uninstall
+chatgptplusplus uninstall
 ```
 
 Clean uninstall, including tweaks/config/logs/backups:
 
 ```sh
-codexplusplus uninstall --purge
+chatgptplusplus uninstall --purge
 ```
 
 ## Security
 
-ChatGPT++ runs local code inside your Codex desktop app. Install tweaks only from
+ChatGPT++ runs local code inside your ChatGPT desktop app. Install tweaks only from
 sources you trust.
 
 Important details:

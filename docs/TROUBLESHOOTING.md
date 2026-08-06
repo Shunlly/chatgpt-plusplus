@@ -36,7 +36,7 @@ codex-plusplus repair
 Check the watcher is installed:
 
 ```sh
-launchctl list | grep codexplusplus      # macOS
+launchctl list | grep chatgptplusplus      # macOS
 systemctl --user status codex-plusplus-watcher  # Linux
 schtasks /Query /TN codex-plusplus-watcher       # Windows
 ```
@@ -73,7 +73,7 @@ The uninstaller only restores files we backed up at install time. If you've upgr
 ## I want to start fresh
 
 ```sh
-codexplusplus uninstall --purge
+chatgptplusplus uninstall --purge
 ```
 
 This removes the runtime, watcher, tweaks, config, logs, backups, and ChatGPT++ user data. Then reinstall Codex.app from the official download.
