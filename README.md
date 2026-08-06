@@ -349,6 +349,14 @@ See [Security](./SECURITY.md).
 - [Owl Runtime Surface](./docs/OWL-RUNTIME.md)
 - [Owl Bridge Roadmap](./docs/OWL-BRIDGE-ROADMAP.md)
 
+## Credits & Upstream
+
+ChatGPT++ is a continuation of [Codex++](https://github.com/b-nnett/codex-plusplus), the original tweak system for the Codex desktop app.
+
+- Original author: [Bennett (@b-nnett)](https://github.com/b-nnett)
+- Upstream project: [b-nnett/codex-plusplus](https://github.com/b-nnett/codex-plusplus)
+- The MIT license header retains the original copyright (c) 2026 Bennett.
+
 ## Contributors
 
 - [Alex Naidis (@TheCrazyLex)](https://github.com/TheCrazyLex) - macOS
