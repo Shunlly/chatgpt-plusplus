@@ -1,4 +1,4 @@
-import type { CodexCdpStatus, CodexCdpTarget, CodexRuntimeCapabilities, CodexRuntimeInfo } from "@codex-plusplus/sdk";
+import type { CodexCdpStatus, CodexCdpTarget, CodexRuntimeCapabilities, CodexRuntimeInfo } from "@chatgpt-plusplus/sdk";
 export interface RuntimeProbeOptions {
     userRoot: string;
     runtimeDir: string;

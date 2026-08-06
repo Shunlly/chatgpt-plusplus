@@ -8,7 +8,7 @@ import { locateCodex } from "./platform.js";
 import { getOpenReport, type OpenReport } from "./commands/debug.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
-const CODEX_PLUSPLUS_REPO_URL = "https://github.com/b-nnett/codex-plusplus";
+const CODEX_PLUSPLUS_REPO_URL = "https://github.com/Shunlly/chatgpt-plusplus";
 
 export function showPatchFailedAlert(errorMessage: string): void {
   if (isMacAppManagementError(errorMessage)) {

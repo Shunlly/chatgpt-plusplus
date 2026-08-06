@@ -2,7 +2,7 @@
   "scripts": {
     "build": "node -e \"\""
   },
-  "name": "@codex-plusplus/loader",
+  "name": "@chatgpt-plusplus/loader",
   "version": "1.0.0",
   "private": true,
   "description": "Tiny stub injected into app.asar; bootstraps the runtime from the user dir.",

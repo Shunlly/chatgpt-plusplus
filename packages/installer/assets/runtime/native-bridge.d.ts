@@ -1,4 +1,4 @@
-import type { CodexRuntimeCapabilities, NativeHelperLaunchOptions, NativeHelperRef, NativeModuleLoadOptions, NativeModuleRef, NativePanelCreateOptions, NativePanelRef, NativeViewAttachOptions, NativeViewRef } from "@codex-plusplus/sdk";
+import type { CodexRuntimeCapabilities, NativeHelperLaunchOptions, NativeHelperRef, NativeModuleLoadOptions, NativeModuleRef, NativePanelCreateOptions, NativePanelRef, NativeViewAttachOptions, NativeViewRef } from "@chatgpt-plusplus/sdk";
 export interface NativeTweakContext {
     id: string;
     dir: string;

@@ -15,7 +15,7 @@ import type {
   NativePanelRef,
   NativeViewAttachOptions,
   NativeViewRef,
-} from "@codex-plusplus/sdk";
+} from "@chatgpt-plusplus/sdk";
 
 export interface NativeTweakContext {
   id: string;

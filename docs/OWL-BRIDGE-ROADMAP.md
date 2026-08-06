@@ -1,13 +1,13 @@
 # Owl Bridge Roadmap
 
-This roadmap turns the private Owl runtime surface into stable Codex++ APIs.
+This roadmap turns the private Owl runtime surface into stable ChatGPT++ APIs.
 The goal is not to expose Owl internals directly. The goal is a compatibility
 layer that can survive upstream Codex changes while giving tweaks controlled
 access to native desktop capabilities.
 
 ## Principles
 
-- Codex++ owns the public API. Tweaks do not receive raw
+- ChatGPT++ owns the public API. Tweaks do not receive raw
   `globalThis.__codexpp_window_services__`, `window.electronBridge`, or
   upstream Electron objects by default.
 - Every bridge feature is capability-gated. Missing upstream APIs should return
@@ -52,7 +52,7 @@ Deliverables:
 - Detect whether `window.electronBridge.usesOwlAppShell()` is true from the
   renderer.
 - Detect whether `globalThis.__codexpp_window_services__` is present in main.
-- Detect available Electron-compatible exports needed by Codex++.
+- Detect available Electron-compatible exports needed by ChatGPT++.
 - Expose a serializable capability report over IPC.
 
 Proposed shape:
@@ -162,9 +162,9 @@ interface CodexWindowCreateOptions {
 Implementation:
 
 - Internally adapt to Owl `windowManager.createWindow()` when available.
-- Fall back to existing Codex++ window creation behavior on older builds.
+- Fall back to existing ChatGPT++ window creation behavior on older builds.
 - Validate routes before passing anything to Codex.
-- Hide private Owl appearances unless Codex++ explicitly supports them.
+- Hide private Owl appearances unless ChatGPT++ explicitly supports them.
 
 Testing:
 
@@ -208,7 +208,7 @@ Future:
 
 This is the core 1.0.0 native feature. A tweak should be able to load compiled
 Swift, Objective-C++, C, or C++ code into the Owl/Codex process and call it
-through a stable Codex++ bridge.
+through a stable ChatGPT++ bridge.
 
 Proposed SDK:
 
@@ -292,12 +292,12 @@ interface NativeHelperRef {
   Node/Electron-compatible main process.
 - Support Swift by allowing a `.node`/Objective-C++ shim to call a bundled
   Swift dylib or framework.
-- Add a Codex++ native host module for AppKit/Metal operations that JavaScript
+- Add a ChatGPT++ native host module for AppKit/Metal operations that JavaScript
   cannot do safely itself.
 - Let local/dev tweaks load unsigned native modules from their own directory.
 - Track every loaded native module and dispose it on tweak stop where the
   module exposes cleanup hooks.
-- Log native load paths, module ids, and failures to the Codex++ main log.
+- Log native load paths, module ids, and failures to the ChatGPT++ main log.
 
 Native host responsibilities:
 
@@ -393,7 +393,7 @@ Use helpers for:
 - Launch a helper owned by the tweak.
 - Pipe structured JSON messages over stdio.
 - Kill helper processes on tweak stop and Codex quit.
-- Store helper logs under the Codex++ log directory.
+- Store helper logs under the ChatGPT++ log directory.
 - Validate executable paths are inside the tweak directory unless the tweak has
   an explicit native-helper permission.
 
@@ -443,7 +443,7 @@ Review rules:
 - A minimal `MTKView` can render, resize, hide, and dispose without crashing
   Codex.
 - Native helper launch/stop works as the fallback native path.
-- Docs clearly separate stable Codex++ APIs from private Owl internals.
+- Docs clearly separate stable ChatGPT++ APIs from private Owl internals.
 
 ## Open Questions
 

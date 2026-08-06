@@ -35,7 +35,7 @@ import type {
   TweakApi,
   ReactFiberNode,
   Tweak,
-} from "@codex-plusplus/sdk";
+} from "@chatgpt-plusplus/sdk";
 
 interface ListedTweak {
   manifest: TweakManifest;

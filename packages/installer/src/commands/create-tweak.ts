@@ -5,7 +5,7 @@ import {
   validateTweakManifest,
   type TweakManifest,
   type TweakScope,
-} from "@codex-plusplus/sdk";
+} from "@chatgpt-plusplus/sdk";
 
 interface CreateTweakOpts {
   id?: string;
@@ -63,7 +63,7 @@ export function createTweak(target: string, opts: CreateTweakOpts = {}): void {
       validate: "codexplusplus validate-tweak .",
     },
     devDependencies: {
-      "@codex-plusplus/sdk": "^0.1.3",
+      "@chatgpt-plusplus/sdk": "^0.1.3",
     },
   });
   writeFileSync(resolve(dir, "README.md"), readme(manifest), "utf8");

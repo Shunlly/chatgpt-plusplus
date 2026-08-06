@@ -1,7 +1,7 @@
 {
-  "name": "@codex-plusplus/sdk",
+  "name": "@chatgpt-plusplus/sdk",
   "version": "1.0.0",
-  "description": "Public types and helpers for codex-plusplus tweak authors",
+  "description": "Public types and helpers for chatgpt-plusplus tweak authors",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

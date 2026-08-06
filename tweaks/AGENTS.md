@@ -1,7 +1,7 @@
-# AGENTS.md — Codex++ tweak authoring guide
+# AGENTS.md — ChatGPT++ tweak authoring guide
 
 This file is read by AI coding agents (and humans) authoring tweaks for
-Codex++. **Follow it.**
+ChatGPT++. **Follow it.**
 
 ## Prime directive
 
@@ -37,7 +37,7 @@ module.exports = {
 Or, with the SDK helper:
 
 ```js
-const { defineTweak } = require("@codex-plusplus/sdk");
+const { defineTweak } = require("@chatgpt-plusplus/sdk");
 module.exports = defineTweak({
   start(api) { api.log.info("hello"); },
 });
@@ -58,7 +58,7 @@ module.exports = defineTweak({
 | `tags`        | `string[]`                      | no       | e.g. `["ui", "shortcut"]`. |
 | `scope`       | `"renderer" \| "main" \| "both"` | no      | Current runtime behavior is effectively `"both"` when omitted. Set it explicitly. |
 | `main`        | `string`                        | no       | Custom entry path. Defaults to `index.js`/`index.mjs`/`index.cjs`. |
-| `minRuntime`  | `string` (semver range)         | no       | Codex++ runtime range required. |
+| `minRuntime`  | `string` (semver range)         | no       | ChatGPT++ runtime range required. |
 
 Full manifest example:
 
@@ -81,7 +81,7 @@ Full manifest example:
 
 ## The API (`api`)
 
-See `@codex-plusplus/sdk` for full types. The most-used pieces:
+See `@chatgpt-plusplus/sdk` for full types. The most-used pieces:
 
 - `api.log.{debug,info,warn,error}(…)` — goes to `preload.log` and DevTools.
 - `api.storage.{get,set,delete,all}` — per-tweak persistent KV.
@@ -252,14 +252,14 @@ btn.textContent = "Delete all data";
 
 ## Hot reload
 
-Codex++ watches your tweak folder and reloads on save. Don't add your own
+ChatGPT++ watches your tweak folder and reloads on save. Don't add your own
 file watcher — `start()` will simply be re-invoked. Use `stop()` to undo any
 DOM mutations / IPC handlers / event listeners.
 
 ## Inspecting the live DOM (Chrome DevTools Protocol)
 
 When you're authoring a tweak, you almost always need to know Codex's
-real markup — class names, structure, computed styles. The Codex++
+real markup — class names, structure, computed styles. The ChatGPT++
 runtime can expose Electron's renderer over CDP so you (or an AI agent)
 can probe and mutate it from the host shell without clicking around.
 
@@ -329,7 +329,7 @@ make a change, rebuild + stage the runtime, `Page.reload`, re-probe.
 
 ## Reference
 
-- SDK types: `@codex-plusplus/sdk` → `TweakManifest`, `TweakApi`,
+- SDK types: `@chatgpt-plusplus/sdk` → `TweakManifest`, `TweakApi`,
   `SettingsSection`, etc.
 - Codex's Settings markup samples: `/tmp/codex_panels/*.txt` (when the
   runtime is in dev/dump mode).

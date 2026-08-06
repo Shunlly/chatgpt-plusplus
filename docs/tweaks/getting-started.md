@@ -1,6 +1,6 @@
 # Getting Started
 
-A tweak is a JavaScript package loaded from the Codex++ tweaks directory. Tweaks
+A tweak is a JavaScript package loaded from the ChatGPT++ tweaks directory. Tweaks
 can add settings UI, adjust Codex's renderer DOM, run Electron main-process
 code, communicate between renderer and main, store data, expose MCP servers, and
 open Codex-native windows.
@@ -13,7 +13,7 @@ open Codex-native windows.
 | Linux | `~/.local/share/codex-plusplus/tweaks/` |
 | Windows | `%APPDATA%/codex-plusplus/tweaks/` |
 
-Codex++ watches this directory and hot-reloads when files change. You can also
+ChatGPT++ watches this directory and hot-reloads when files change. You can also
 reload from Settings -> Tweaks or restart Codex.
 
 ## Create a Tweak
@@ -53,7 +53,7 @@ name already points somewhere else.
 
 ## Entry File Resolution
 
-Codex++ resolves the entry file in this order:
+ChatGPT++ resolves the entry file in this order:
 
 1. `manifest.main`, if present
 2. `index.js`
@@ -93,7 +93,7 @@ module.exports = {
         root.innerHTML = "";
         const p = document.createElement("p");
         p.className = "text-sm text-token-text-secondary";
-        p.textContent = "Hello from Codex++.";
+        p.textContent = "Hello from ChatGPT++.";
         root.append(p);
       },
     });

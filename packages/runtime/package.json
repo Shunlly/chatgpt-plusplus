@@ -1,5 +1,5 @@
 {
-  "name": "@codex-plusplus/runtime",
+  "name": "@chatgpt-plusplus/runtime",
   "version": "1.0.0",
   "type": "commonjs",
   "main": "dist/main.js",
@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json && node ./scripts/bundle-renderer.mjs && node ./scripts/copy-native-host.mjs"
   },
   "dependencies": {
-    "@codex-plusplus/sdk": "*",
+    "@chatgpt-plusplus/sdk": "*",
     "chokidar": "^4.0.0"
   },
   "devDependencies": {

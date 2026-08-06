@@ -1,4 +1,4 @@
-import type { TweakMcpServer } from "@codex-plusplus/sdk";
+import type { TweakMcpServer } from "@chatgpt-plusplus/sdk";
 export declare const MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
 export declare const MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
 export interface McpSyncTweak {

@@ -1,6 +1,6 @@
 # MCP Servers
 
-Tweaks can declare MCP servers in `manifest.json`. Codex++ syncs enabled
+Tweaks can declare MCP servers in `manifest.json`. ChatGPT++ syncs enabled
 tweak-declared servers into Codex's `~/.codex/config.toml`.
 
 ## Manifest
@@ -24,7 +24,7 @@ tweak-declared servers into Codex's `~/.codex/config.toml`.
 
 ## Generated Config
 
-Codex++ writes managed entries between markers:
+ChatGPT++ writes managed entries between markers:
 
 ```toml
 # BEGIN CODEX++ MANAGED MCP SERVERS
@@ -44,11 +44,11 @@ The default server name is derived from the tweak id:
 - `co.bennett.project-home` -> `project-home`
 - `com.you.tools` -> `com-you-tools`
 
-If a generated name conflicts with another managed name, Codex++ appends
+If a generated name conflicts with another managed name, ChatGPT++ appends
 `-2`, `-3`, and so on.
 
 If the user already has a manual `[mcp_servers.<name>]` entry outside the
-managed block, Codex++ skips that managed server instead of overwriting it.
+managed block, ChatGPT++ skips that managed server instead of overwriting it.
 
 ## Path Resolution
 

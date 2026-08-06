@@ -15,8 +15,8 @@ codex-plusplus repair --force
 xattr -dr com.apple.quarantine /Applications/Codex.app
 ```
 
-On macOS, Codex++ signs ad-hoc by default. `codex-plusplus install --local`
-or `codex-plusplus repair --local` opts into a local "Codex++ Local Signing"
+On macOS, ChatGPT++ signs ad-hoc by default. `codex-plusplus install --local`
+or `codex-plusplus repair --local` opts into a local "ChatGPT++ Local Signing"
 identity, but that can involve Keychain access prompts.
 
 ## App launches but nothing about codex-plusplus appears
@@ -76,4 +76,4 @@ The uninstaller only restores files we backed up at install time. If you've upgr
 codexplusplus uninstall --purge
 ```
 
-This removes the runtime, watcher, tweaks, config, logs, backups, and Codex++ user data. Then reinstall Codex.app from the official download.
+This removes the runtime, watcher, tweaks, config, logs, backups, and ChatGPT++ user data. Then reinstall Codex.app from the official download.
