@@ -1,5 +1,7 @@
 # ChatGPT++
 
+**English** | [简体中文](./README.zh-CN.md)
+
 ChatGPT++ lets you install local tweaks into the OpenAI ChatGPT desktop app. Tweaks
 can change UI, add settings pages, run main-process code, and use native
 OS-level features through the ChatGPT++ bridge.
