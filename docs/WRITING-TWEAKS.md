@@ -75,6 +75,6 @@ module.exports = {
 Validate and link it:
 
 ```sh
-codexplusplus validate-tweak ./my-tweak
-codexplusplus dev ./my-tweak
+chatgptplusplus validate-tweak ./my-tweak
+chatgptplusplus dev ./my-tweak
 ```

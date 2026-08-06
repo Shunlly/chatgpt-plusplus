@@ -137,7 +137,7 @@ More detail: [MCP servers](./mcp.md).
 Run:
 
 ```sh
-codexplusplus validate-tweak ./my-tweak
+chatgptplusplus validate-tweak ./my-tweak
 ```
 
 Validation catches malformed required fields, invalid `githubRepo`, unknown

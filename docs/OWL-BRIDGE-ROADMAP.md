@@ -17,7 +17,7 @@ access to native desktop capabilities.
 - Native macOS work is first-class. In-process Swift/Objective-C++ modules and
   AppKit/Metal view embedding are 1.0.0 goals. Helper processes remain a
   fallback path for workloads that should not live inside Codex.
-- The bridge must be inspectable from `codexplusplus debug`.
+- The bridge must be inspectable from `chatgptplusplus debug`.
 
 ## 1.0.0 Target
 
@@ -107,7 +107,7 @@ Testing:
 
 ## Phase 2: Debug Visibility
 
-Extend `codexplusplus debug` so we can see the bridge state without attaching
+Extend `chatgptplusplus debug` so we can see the bridge state without attaching
 DevTools.
 
 Output should include:
@@ -430,7 +430,7 @@ Review rules:
 
 1.0.0 can ship the Owl bridge when:
 
-- `codexplusplus debug` reports bridge capabilities clearly.
+- `chatgptplusplus debug` reports bridge capabilities clearly.
 - All public bridge APIs return graceful unavailable errors on missing Owl APIs.
 - Renderer and main tweaks can query runtime info.
 - Window creation works on current Owl and does not regress older

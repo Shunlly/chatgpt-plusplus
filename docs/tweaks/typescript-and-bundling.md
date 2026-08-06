@@ -116,7 +116,7 @@ entry that branches on `api.process`.
 {
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=browser --format=cjs --outfile=index.js",
-    "validate": "codexplusplus validate-tweak ."
+    "validate": "chatgptplusplus validate-tweak ."
   },
   "devDependencies": {
     "@chatgpt-plusplus/sdk": "^1.0.0",
@@ -130,5 +130,5 @@ Run:
 
 ```sh
 npm run build
-codexplusplus validate-tweak .
+chatgptplusplus validate-tweak .
 ```

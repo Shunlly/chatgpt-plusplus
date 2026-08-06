@@ -25,12 +25,12 @@ resolve local changes.
 ## Useful Commands
 
 ```sh
-codexplusplus create-tweak ./my-tweak --id com.you.my-tweak --name "My Tweak" --repo you/my-tweak
-codexplusplus validate-tweak ./my-tweak
-codexplusplus dev ./my-tweak
-codexplusplus status
-codexplusplus doctor
-codexplusplus debug
+chatgptplusplus create-tweak ./my-tweak --id com.you.my-tweak --name "My Tweak" --repo you/my-tweak
+chatgptplusplus validate-tweak ./my-tweak
+chatgptplusplus dev ./my-tweak
+chatgptplusplus status
+chatgptplusplus doctor
+chatgptplusplus debug
 ```
 
 ## Logs
