@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "license": "MIT",
-  "description": "Tweak system for the OpenAI Codex desktop app",
+  "description": "Tweak system for the OpenAI ChatGPT desktop app",
   "type": "module",
   "repository": {
     "type": "git",
