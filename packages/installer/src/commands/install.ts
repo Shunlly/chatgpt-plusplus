@@ -4,13 +4,13 @@ import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, c
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { locateCodex, type CodexInstall } from "../platform.js";
+import { locateCodex, MAC_CHATGPTPP_DEFAULT, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
 import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
-import { readPlist } from "../plist.js";
+import { readPlist, writePlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
 import { CODEX_PLUSPLUS_VERSION } from "../version.js";
@@ -48,10 +48,10 @@ export async function install(opts: Opts = {}): Promise<void> {
   const wantWatcher = opts.watcher !== false;
 
   const step = makeStepper({ quiet: opts.quiet === true, verbose: opts.verbose === true });
-  const codex = locateCodex(opts.app);
+  const codex = ensureDedicatedApp(locateCodex(opts.app), step);
   const fuseFlip = shouldFlipElectronFuse(codex, wantsFuseFlip);
   const codexVersion = readCodexVersion(codex.metaPath);
-  step(`Codex: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
+  step(`${codex.appName}: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
   if (wantsFuseFlip && !fuseFlip) {
     step.detail("Skipping Electron fuse flip; Electron Framework binary was not found");
   }
@@ -209,10 +209,43 @@ export async function install(opts: Opts = {}): Promise<void> {
       console.log(`  Opening the Microsoft Store ${kleur.cyan("Codex")} app directly will launch the unpatched app.`);
     } else {
       console.log();
-      console.log(`  Launch Codex normally; the Tweaks tab will appear in Settings.`);
+      console.log(
+        codex.platform === "darwin"
+          ? `  Launch ${kleur.cyan(basename(codex.appRoot, ".app"))}; the Tweaks tab will appear in Settings.`
+          : `  Launch Codex normally; the Tweaks tab will appear in Settings.`,
+      );
       console.log();
     }
   }
+}
+
+/**
+ * 独立副本模式（macOS）：把源 Codex/ChatGPT 应用复制成 ChatGPT++.app 并改
+ * bundle id，后续 patch、签名、启动全部作用于副本，原版应用不被改动。
+ */
+export function ensureDedicatedApp(
+  codex: CodexInstall,
+  step: { detail?: (msg: string) => void; (msg: string): void } = () => {},
+): CodexInstall {
+  if (codex.platform !== "darwin" || codex.appRoot === MAC_CHATGPTPP_DEFAULT) return codex;
+
+  const homeTarget = join(homedir(), "Applications", "ChatGPT++.app");
+  const targetRoot = [MAC_CHATGPTPP_DEFAULT, homeTarget].find((p) => existsSync(p)) ?? MAC_CHATGPTPP_DEFAULT;
+  if (existsSync(targetRoot)) {
+    step(`Using dedicated ${kleur.cyan(targetRoot)}`);
+    return locateCodex(targetRoot);
+  }
+
+  step(`Cloning ${kleur.cyan(codex.appRoot)} to ${kleur.cyan(targetRoot)}`);
+  execFileSync("ditto", [codex.appRoot, targetRoot], { stdio: "ignore" });
+  const plistPath = join(targetRoot, "Contents", "Info.plist");
+  const pl = readPlist(plistPath);
+  pl.CFBundleDisplayName = "ChatGPT++";
+  pl.CFBundleName = "ChatGPT++";
+  pl.CFBundleIdentifier = "com.openai.chatgptpp";
+  writePlist(plistPath, pl);
+  step.detail?.("Renamed bundle to ChatGPT++ (com.openai.chatgptpp)");
+  return locateCodex(targetRoot);
 }
 
 export function readCodexVersion(metaPath: string | null): string | null {
