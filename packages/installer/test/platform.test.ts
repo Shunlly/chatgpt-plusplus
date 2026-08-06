@@ -7,6 +7,7 @@ import { inferCodexChannel, locateCodex, resolveLinuxInstall } from "../src/plat
 
 test("inferCodexChannel detects stable and beta metadata", () => {
   assert.equal(inferCodexChannel("com.openai.codex", "Codex"), "stable");
+  assert.equal(inferCodexChannel("com.openai.chatgptpp", "ChatGPT++"), "stable");
   assert.equal(inferCodexChannel("com.openai.codex.beta", "Codex (Beta)"), "beta");
   assert.equal(inferCodexChannel(null, "Codex (Beta)"), "beta");
 });
@@ -109,6 +110,37 @@ test("locateCodex finds the renamed ChatGPT.app bundle on macOS", { skip: proces
     assert.equal(codex.bundleId, "com.openai.codex");
     assert.equal(codex.channel, "stable");
     assert.equal(codex.executable.endsWith("Contents/MacOS/ChatGPT"), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test("locateCodex finds the dedicated ChatGPT++ bundle on macOS", { skip: process.platform !== "darwin" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "codexpp-platform-"));
+  try {
+    const app = join(root, "ChatGPT++.app");
+    mkdirSync(join(app, "Contents", "Resources"), { recursive: true });
+    mkdirSync(
+      join(app, "Contents", "Frameworks", "Electron Framework.framework", "Versions", "A"),
+      { recursive: true },
+    );
+    writeFileSync(join(app, "Contents", "Resources", "app.asar"), "");
+    writeFileSync(
+      join(app, "Contents", "Info.plist"),
+      `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleDisplayName</key><string>ChatGPT++</string>
+  <key>CFBundleExecutable</key><string>ChatGPT</string>
+  <key>CFBundleIdentifier</key><string>com.openai.chatgptpp</string>
+</dict></plist>`,
+    );
+
+    const codex = locateCodex(app);
+    assert.equal(codex.appName, "ChatGPT++");
+    assert.equal(codex.bundleId, "com.openai.chatgptpp");
+    assert.equal(codex.channel, "stable");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
