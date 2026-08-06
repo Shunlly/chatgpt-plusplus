@@ -4,13 +4,13 @@ import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, c
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { locateCodex, MAC_CHATGPTPP_DEFAULT, type CodexInstall } from "../platform.js";
+import { locateCodex, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
 import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
-import { readPlist, writePlist } from "../plist.js";
+import { readPlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
 import { CODEX_PLUSPLUS_VERSION } from "../version.js";
@@ -48,10 +48,10 @@ export async function install(opts: Opts = {}): Promise<void> {
   const wantWatcher = opts.watcher !== false;
 
   const step = makeStepper({ quiet: opts.quiet === true, verbose: opts.verbose === true });
-  const codex = ensureDedicatedApp(locateCodex(opts.app), step);
+  const codex = locateCodex(opts.app);
   const fuseFlip = shouldFlipElectronFuse(codex, wantsFuseFlip);
   const codexVersion = readCodexVersion(codex.metaPath);
-  step(`${codex.appName}: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
+  step(`Codex: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
   if (wantsFuseFlip && !fuseFlip) {
     step.detail("Skipping Electron fuse flip; Electron Framework binary was not found");
   }
@@ -82,7 +82,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   step.detail(`User dir: ${kleur.cyan(paths.root)}`);
   step(formatCliStep(formatCliShimResult(installCliShims(paths.binDir))));
   const launcher = installWindowsManagedAppLauncher(codex);
-  if (launcher) step(`Installed patched Codex++ launcher${launcher.shortcutPaths.length === 1 ? "" : "s"}: ${launcher.shortcutPaths.map((p) => kleur.cyan(p)).join(", ")}`);
+  if (launcher) step(`Installed patched ChatGPT++ launcher${launcher.shortcutPaths.length === 1 ? "" : "s"}: ${launcher.shortcutPaths.map((p) => kleur.cyan(p)).join(", ")}`);
 
   // 1. Backup originals.
   const pristineAppBackup = codex.platform === "darwin" ? join(paths.backup, "Codex.app") : null;
@@ -201,51 +201,18 @@ export async function install(opts: Opts = {}): Promise<void> {
 
   if (!opts.quiet) {
     console.log();
-    console.log(kleur.green().bold("✓ codex-plusplus installed."));
+    console.log(kleur.green().bold("✓ chatgpt-plusplus installed."));
     console.log(`  Tweaks: ${kleur.cyan(paths.tweaks)}`);
     console.log(`  Logs:   ${kleur.cyan(paths.logDir)}`);
     if (launcher) {
-      console.log(`  Launch ${kleur.cyan("Codex++")} from Start Menu or Desktop.`);
+      console.log(`  Launch ${kleur.cyan("ChatGPT++")} from Start Menu or Desktop.`);
       console.log(`  Opening the Microsoft Store ${kleur.cyan("Codex")} app directly will launch the unpatched app.`);
     } else {
       console.log();
-      console.log(
-        codex.platform === "darwin"
-          ? `  Launch ${kleur.cyan(basename(codex.appRoot, ".app"))}; the Tweaks tab will appear in Settings.`
-          : `  Launch Codex normally; the Tweaks tab will appear in Settings.`,
-      );
+      console.log(`  Launch ChatGPT normally; the Tweaks tab will appear in Settings.`);
       console.log();
     }
   }
-}
-
-/**
- * 独立副本模式（macOS）：把源 Codex/ChatGPT 应用复制成 ChatGPT++.app 并改
- * bundle id，后续 patch、签名、启动全部作用于副本，原版应用不被改动。
- */
-export function ensureDedicatedApp(
-  codex: CodexInstall,
-  step: { detail?: (msg: string) => void; (msg: string): void } = () => {},
-): CodexInstall {
-  if (codex.platform !== "darwin" || codex.appRoot === MAC_CHATGPTPP_DEFAULT) return codex;
-
-  const homeTarget = join(homedir(), "Applications", "ChatGPT++.app");
-  const targetRoot = [MAC_CHATGPTPP_DEFAULT, homeTarget].find((p) => existsSync(p)) ?? MAC_CHATGPTPP_DEFAULT;
-  if (existsSync(targetRoot)) {
-    step(`Using dedicated ${kleur.cyan(targetRoot)}`);
-    return locateCodex(targetRoot);
-  }
-
-  step(`Cloning ${kleur.cyan(codex.appRoot)} to ${kleur.cyan(targetRoot)}`);
-  execFileSync("ditto", [codex.appRoot, targetRoot], { stdio: "ignore" });
-  const plistPath = join(targetRoot, "Contents", "Info.plist");
-  const pl = readPlist(plistPath);
-  pl.CFBundleDisplayName = "ChatGPT++";
-  pl.CFBundleName = "ChatGPT++";
-  pl.CFBundleIdentifier = "com.openai.chatgptpp";
-  writePlist(plistPath, pl);
-  step.detail?.("Renamed bundle to ChatGPT++ (com.openai.chatgptpp)");
-  return locateCodex(targetRoot);
 }
 
 export function readCodexVersion(metaPath: string | null): string | null {
@@ -467,7 +434,7 @@ function formatWindowServicesHookFailure(
   const lines = [
     "Codex window services hook point not found.",
     "",
-    "Codex++ could not identify Codex's main-process window services factory.",
+    "ChatGPT++ could not identify ChatGPT's main-process window services factory.",
     "This usually means Codex changed its bundled main-process layout or renamed the service object properties.",
     "",
     `Original entry point: ${originalMain}`,
@@ -613,10 +580,10 @@ function writableError(e: unknown, target: string, platform: string): unknown {
 function macAppManagementFix(target: string, code: string | undefined): string {
   const permissionSteps =
     `macOS App Management is blocking modification of ${target}.\n` +
-    `Run "codexplusplus repair" in your terminal.\n`;
+    `Run "chatgptplusplus repair" in your terminal.\n`;
   const sudoFallback =
     code === "EACCES"
-      ? `If Codex.app is root-owned and repair still cannot write to it, run "sudo codexplusplus repair".\n`
+      ? `If ChatGPT.app is root-owned and repair still cannot write to it, run "sudo chatgptplusplus repair".\n`
       : "";
 
   return permissionSteps + sudoFallback;
@@ -674,7 +641,7 @@ function formatCodexRunningError(codex: CodexInstall, open: OpenReport): string 
     `Codex is currently ${status}:\n` +
     `  ${codex.appName}\n` +
     `  ${codex.appRoot}${pid}${opened}${related}\n\n` +
-    `Codex++ cannot safely patch app.asar while Codex is running. ` +
+    `ChatGPT++ cannot safely patch app.asar while ChatGPT is running. ` +
     `Changing the bundle underneath an active process can make lazy-loaded Codex surfaces crash until restart.\n\n` +
     `Quit Codex completely, then rerun this command from Terminal.\n` +
     stuckCommand
@@ -720,11 +687,11 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
     : null;
   if (!startMenuRoot) return { shortcutPaths };
 
-  const startMenuShortcut = join(startMenuRoot, "Codex++.lnk");
+  const startMenuShortcut = join(startMenuRoot, "ChatGPT++.lnk");
   if (createWindowsCodexShortcut(startMenuShortcut, codex.executable)) {
     shortcutPaths.push(startMenuShortcut);
   }
-  const desktopShortcut = join(homedir(), "Desktop", "Codex++.lnk");
+  const desktopShortcut = join(homedir(), "Desktop", "ChatGPT++.lnk");
   if (createWindowsCodexShortcut(desktopShortcut, codex.executable)) {
     shortcutPaths.push(desktopShortcut);
   }

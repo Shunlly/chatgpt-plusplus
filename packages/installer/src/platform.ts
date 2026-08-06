@@ -32,8 +32,6 @@ export interface CodexInstall {
 const MAC_DEFAULT = "/Applications/Codex.app";
 const MAC_BETA_DEFAULT = "/Applications/Codex (Beta).app";
 const MAC_CHATGPT_DEFAULT = "/Applications/ChatGPT.app";
-/** 独立副本：安装只 patch 它，绝不改动原版 ChatGPT.app。 */
-export const MAC_CHATGPTPP_DEFAULT = "/Applications/ChatGPT++.app";
 
 export function detectPlatform(): Platform {
   const p = platform();
@@ -53,12 +51,10 @@ function locateMac(override?: string): CodexInstall {
     override,
     MAC_DEFAULT,
     MAC_BETA_DEFAULT,
-    MAC_CHATGPTPP_DEFAULT,
     MAC_CHATGPT_DEFAULT,
     join(homedir(), "Applications", "Codex.app"),
     join(homedir(), "Applications", "Codex (Beta).app"),
     join(homedir(), "Applications", "ChatGPT.app"),
-    join(homedir(), "Applications", "ChatGPT++.app"),
     ...findMacCodexApps("/Applications"),
     ...findMacCodexApps(join(homedir(), "Applications")),
   ].filter(Boolean) as string[];
@@ -134,7 +130,7 @@ function readMacAppInfo(appRoot: string): { name: string; executable: string; bu
 }
 
 export function inferCodexChannel(bundleId: string | null, appName?: string): CodexChannel {
-  if (bundleId === "com.openai.codex" || bundleId === "com.openai.chatgptpp") return "stable";
+  if (bundleId === "com.openai.codex") return "stable";
   if (bundleId === "com.openai.codex.beta") return "beta";
   if (/\bbeta\b/i.test(appName ?? "")) return "beta";
   if (/\bcodex\b/i.test(appName ?? "")) return "stable";
