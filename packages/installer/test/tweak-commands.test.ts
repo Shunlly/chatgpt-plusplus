@@ -497,7 +497,7 @@ test("cli documents local signing and safe mode recovery", () => {
   assert.match(source, /\.option\("--local", "Use a stable local signing identity on macOS"\)/);
   assert.match(source, /localSigning:\s*resolveLocalSigning\(opts\)/);
   assert.match(source, /opts\.local === false \|\| opts\.localSigning === false \|\| opts\["local-signing"\] === false/);
-  assert.match(source, /Leave safe mode with: codexplusplus safe-mode --off/);
+  assert.match(source, /Leave safe mode with: chatgptplusplus safe-mode --off/);
   assert.match(source, /process\.argv\.length <= 2 \? \[\.\.\.process\.argv, "--help"\] : process\.argv/);
 });
 

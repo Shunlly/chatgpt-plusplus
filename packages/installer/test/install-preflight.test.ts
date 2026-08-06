@@ -57,7 +57,7 @@ test("install preflight checks Info.plist before patching", { skip: process.plat
         },
         /Cannot write to .*Info\.plist/,
       );
-      assert.match(String(error), /codexplusplus repair/);
+      assert.match(String(error), /chatgptplusplus repair/);
     } finally {
       chmodSync(metaPath, 0o644);
     }

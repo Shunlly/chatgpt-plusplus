@@ -43,7 +43,7 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
         const command = process.argv[2];
-        console.error("\n" + kleur.red().bold("✗ codex-plusplus failed"));
+        console.error("\n" + kleur.red().bold("✗ chatgpt-plusplus failed"));
         console.error(msg);
         console.error("");
         console.error(
@@ -102,18 +102,18 @@ function maybeShowPatchFailedAlert(message: string): void {
   showPatchFailedAlert(message);
 }
 
-const prog = sade("codex-plusplus")
+const prog = sade("chatgpt-plusplus")
   .version(CODEX_PLUSPLUS_VERSION)
-  .describe("Tweak system for the Codex desktop app");
+  .describe("Tweak system for the ChatGPT desktop app");
 
 capKnownLogFiles();
 
 prog
   .command("install")
-  .describe("Patch Codex.app to load the tweak runtime")
-  .option("--app", "Path to Codex.app / install dir (auto-detected if omitted)")
+  .describe("Patch ChatGPT.app to load the tweak runtime")
+  .option("--app", "Path to ChatGPT.app / install dir (auto-detected if omitted)")
   .option("--fuse", "Flip Electron's embedded asar integrity fuse", true)
-  .option("--resign", "Code sign Codex.app on macOS", true)
+  .option("--resign", "Code sign ChatGPT.app on macOS", true)
   .option("--local", "Use a stable local signing identity on macOS")
   .option("--local-signing", "Alias for --local")
   .option("--watcher", "Install the auto-repair watcher", true)
@@ -122,9 +122,9 @@ prog
 
 prog
   .command("uninstall")
-  .describe("Restore Codex.app from backup and remove the watcher")
+  .describe("Restore ChatGPT.app from backup and remove the watcher")
   .option("--app", "Path to Codex.app / install dir")
-  .option("--purge", "Delete tweaks, config, logs, backups, and Codex++ user data")
+  .option("--purge", "Delete tweaks, config, logs, backups, and ChatGPT++ user data")
   .action(wrap(uninstall));
 
 prog
@@ -140,13 +140,13 @@ prog
 
 prog
   .command("update-codex")
-  .describe("Restore signed Codex.app so the official updater can run, then reapply Codex++ after restart")
+  .describe("Restore signed ChatGPT.app so the official updater can run, then reapply ChatGPT++ after restart")
   .option("--app", "Path to Codex.app / install dir")
   .action(wrap(updateCodex));
 
 prog
   .command("update")
-  .describe("Update Codex++ from the latest GitHub release, rebuild, then repair the app patch")
+  .describe("Update ChatGPT++ from the latest GitHub release, rebuild, then repair the app patch")
   .option("--repo", "GitHub repo to download (default: b-nnett/codex-plusplus)")
   .option("--ref", "Git ref to download (default: latest GitHub release)")
   .option("--repair", "Run repair after updating", true)
@@ -179,7 +179,7 @@ prog
 
 prog
   .command("browser")
-  .describe("Open the Codex React UI in a browser tab backed by a hidden Codex host")
+  .describe("Open the ChatGPT React UI in a browser tab backed by a hidden ChatGPT host")
   .option("--app", "Path to Codex.app / install dir")
   .option("--port", "Local browser UI port", 8765)
   .option("--open", "Open the browser tab after launch", true)
@@ -208,7 +208,7 @@ prog
 
 prog
   .command("dev [target]")
-  .describe("Link a tweak into the Codex++ tweaks directory for local development")
+  .describe("Link a tweak into the ChatGPT++ tweaks directory for local development")
   .option("--name", "Override linked directory name; defaults to manifest id")
   .option("--replace", "Replace an existing symlink at the target tweak id")
   .option("--no-watch", "Link once and exit instead of watching for changes")
@@ -216,7 +216,7 @@ prog
 
 prog
   .command("safe-mode")
-  .describe("Temporarily disable all tweaks without deleting them. Leave safe mode with: codexplusplus safe-mode --off")
+  .describe("Temporarily disable all tweaks without deleting them. Leave safe mode with: chatgptplusplus safe-mode --off")
   .option("--on", "Enable safe mode (default)")
   .option("--off", "Disable safe mode and return to normal tweak loading")
   .option("--status", "Print current safe mode status")

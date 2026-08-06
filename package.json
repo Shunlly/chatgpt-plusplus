@@ -33,7 +33,9 @@
   },
   "bin": {
     "codexplusplus": "bin/codexplusplus.js",
-    "codex-plusplus": "bin/codexplusplus.js"
+    "codex-plusplus": "bin/codexplusplus.js",
+    "chatgptplusplus": "bin/chatgptplusplus.js",
+    "chatgpt-plusplus": "bin/chatgptplusplus.js"
   },
   "dependencies": {
     "@electron/asar": "^3.4.0",
