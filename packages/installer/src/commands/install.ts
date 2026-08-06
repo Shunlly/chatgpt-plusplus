@@ -1,16 +1,16 @@
 import kleur from "kleur";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync, renameSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { locateCodex, type CodexInstall } from "../platform.js";
+import { locateCodex, MAC_CHATGPTPP_DEFAULT, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
 import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
-import { readPlist } from "../plist.js";
+import { readPlist, writePlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
 import { CODEX_PLUSPLUS_VERSION } from "../version.js";
@@ -48,10 +48,10 @@ export async function install(opts: Opts = {}): Promise<void> {
   const wantWatcher = opts.watcher !== false;
 
   const step = makeStepper({ quiet: opts.quiet === true, verbose: opts.verbose === true });
-  const codex = locateCodex(opts.app);
+  const codex = ensureDedicatedApp(locateCodex(opts.app), step);
   const fuseFlip = shouldFlipElectronFuse(codex, wantsFuseFlip);
   const codexVersion = readCodexVersion(codex.metaPath);
-  step(`Codex: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
+  step(`${codex.appName}: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
   if (wantsFuseFlip && !fuseFlip) {
     step.detail("Skipping Electron fuse flip; Electron Framework binary was not found");
   }
@@ -209,11 +209,98 @@ export async function install(opts: Opts = {}): Promise<void> {
       console.log(`  Opening the Microsoft Store ${kleur.cyan("Codex")} app directly will launch the unpatched app.`);
     } else {
       console.log();
-      console.log(`  Launch ChatGPT normally; the Tweaks tab will appear in Settings.`);
+      console.log(
+        codex.platform === "darwin"
+          ? `  Launch ${kleur.cyan(basename(codex.appRoot, ".app"))}; the Tweaks tab will appear in Settings.`
+          : `  Launch ChatGPT normally; the Tweaks tab will appear in Settings.`,
+      );
       console.log();
     }
   }
 }
+
+/**
+ * 独立副本模式（macOS）：把源 Codex/ChatGPT 应用复制成 ChatGPT++.app 并改
+ * bundle id，后续 patch、签名、启动全部作用于副本，原版应用不被改动。
+ */
+export function ensureDedicatedApp(
+  codex: CodexInstall,
+  step: { detail?: (msg: string) => void; (msg: string): void } = () => {},
+): CodexInstall {
+  if (codex.platform !== "darwin" || codex.appRoot === MAC_CHATGPTPP_DEFAULT) return codex;
+
+  const homeTarget = join(homedir(), "Applications", "ChatGPT++.app");
+  const targetRoot = [MAC_CHATGPTPP_DEFAULT, homeTarget].find((p) => existsSync(p)) ?? MAC_CHATGPTPP_DEFAULT;
+  if (existsSync(targetRoot)) {
+    step(`Using dedicated ${kleur.cyan(targetRoot)}`);
+    ensureIsolatedLauncher(targetRoot);
+    return locateCodex(targetRoot);
+  }
+
+  step(`Cloning ${kleur.cyan(codex.appRoot)} to ${kleur.cyan(targetRoot)}`);
+  execFileSync("ditto", [codex.appRoot, targetRoot], { stdio: "ignore" });
+  const plistPath = join(targetRoot, "Contents", "Info.plist");
+  const pl = readPlist(plistPath);
+  pl.CFBundleDisplayName = "ChatGPT++";
+  pl.CFBundleName = "ChatGPT++";
+  pl.CFBundleIdentifier = "com.openai.chatgptpp";
+  writePlist(plistPath, pl);
+  ensureIsolatedLauncher(targetRoot);
+  step.detail?.("Renamed bundle to ChatGPT++ (com.openai.chatgptpp)");
+  return locateCodex(targetRoot);
+}
+
+/**
+ * 副本与原版共享硬编码的 ~/Library/Application Support/Codex 数据目录，
+ * 会触发单实例锁冲突导致打不开。用 Mach-O 启动器给真实二进制追加
+ * --user-data-dir 指向独立目录（原生层生效，JS setPath 无法覆盖）。
+ */
+function ensureIsolatedLauncher(appRoot: string): void {
+  const macosDir = join(appRoot, "Contents", "MacOS");
+  const launcher = join(macosDir, "ChatGPT");
+  const realBinary = join(macosDir, "ChatGPT.bin");
+  if (existsSync(realBinary)) return; // 已装过启动器
+  renameSync(launcher, realBinary);
+  execFileSync("clang", ["-O2", "-o", launcher, "-x", "c", "-"], {
+    input: LAUNCHER_C,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
+  chmodSync(launcher, 0o755);
+}
+
+// ponytail: 单架构启动器，按本机架构编译；需要同时支持 x64 mac 时用
+// clang -arch arm64 -arch x86_64 编译通用二进制。
+const LAUNCHER_C = `#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  const char *home = getenv("HOME");
+  if (!home) home = "/";
+  char ud[4096];
+  snprintf(ud, sizeof(ud), "%s/Library/Application Support/ChatGPT++", home);
+  char real[4096];
+  const char *slash = strrchr(argv[0], '/');
+  if (slash) {
+    snprintf(real, sizeof(real), "%.*s/ChatGPT.bin", (int)(slash - argv[0]), argv[0]);
+  } else {
+    snprintf(real, sizeof(real), "./ChatGPT.bin");
+  }
+  // 必须用 "=" 形式且作为单个参数：路径含空格时分离形式会被 Chromium 截断。
+  char udflag[4608];
+  snprintf(udflag, sizeof(udflag), "--user-data-dir=%s", ud);
+  char **args = malloc((size_t)(argc + 2) * sizeof(char *));
+  if (!args) return 127;
+  args[0] = argv[0];
+  args[1] = udflag;
+  for (int i = 1; i < argc; i++) args[i + 1] = argv[i];
+  args[argc + 1] = NULL;
+  execv(real, args);
+  perror("execv");
+  return 127;
+}
+`;
 
 export function readCodexVersion(metaPath: string | null): string | null {
   if (!metaPath || !existsSync(metaPath)) return null;

@@ -15,3 +15,6 @@ coverage
 # installer artifacts (local testing)
 /tmp-extract
 /tmp-codex
+
+# 解包调试文件（不入库）
+/app-*.js
