@@ -1,6 +1,6 @@
 # UI and DOM Patterns
 
-Renderer tweaks can add Codex++ settings UI and adjust Codex's live DOM. The
+Renderer tweaks can add ChatGPT++ settings UI and adjust Codex's live DOM. The
 runtime does not expose Codex's React instance; use DOM APIs or bundle your own
 small renderer.
 

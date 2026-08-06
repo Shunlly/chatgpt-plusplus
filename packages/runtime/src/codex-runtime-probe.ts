@@ -7,7 +7,7 @@ import type {
   CodexRuntimeCapabilities,
   CodexRuntimeInfo,
   CodexRuntimeType,
-} from "@codex-plusplus/sdk";
+} from "@chatgpt-plusplus/sdk";
 
 export interface RuntimeProbeOptions {
   userRoot: string;

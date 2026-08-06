@@ -21,7 +21,7 @@
  * our own `main-surface` panel in their place. Clicking any of Codex's
  * sidebar items restores the original view.
  */
-import type { SettingsSection, SettingsPage, SettingsHandle, TweakManifest } from "@codex-plusplus/sdk";
+import type { SettingsSection, SettingsPage, SettingsHandle, TweakManifest } from "@chatgpt-plusplus/sdk";
 interface ListedTweak {
     manifest: TweakManifest;
     entry: string;

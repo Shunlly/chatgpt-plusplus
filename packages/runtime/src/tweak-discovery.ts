@@ -9,7 +9,7 @@
  */
 import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { TweakManifest } from "@codex-plusplus/sdk";
+import type { TweakManifest } from "@chatgpt-plusplus/sdk";
 
 export interface DiscoveredTweak {
   dir: string;

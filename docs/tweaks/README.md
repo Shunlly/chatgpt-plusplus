@@ -1,6 +1,6 @@
 # Tweak Authoring Docs
 
-Segmented docs for building Codex++ tweaks.
+Segmented docs for building ChatGPT++ tweaks.
 
 - [Getting started](./getting-started.md)
 - [Manifest reference](./manifest.md)
@@ -14,4 +14,4 @@ Segmented docs for building Codex++ tweaks.
 - [Owl runtime surface](../OWL-RUNTIME.md)
 - [Owl bridge roadmap](../OWL-BRIDGE-ROADMAP.md)
 
-The top-level entry point remains [Writing Codex++ Tweaks](../WRITING-TWEAKS.md).
+The top-level entry point remains [Writing ChatGPT++ Tweaks](../WRITING-TWEAKS.md).

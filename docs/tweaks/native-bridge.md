@@ -1,6 +1,6 @@
 # Native Bridge
 
-Codex++ 1.0.0 exposes native macOS integration through `api.codex.native`.
+ChatGPT++ 1.0.0 exposes native macOS integration through `api.codex.native`.
 The bridge is main-process backed and never exposes raw Owl objects to tweaks.
 
 ## Permissions
@@ -20,11 +20,11 @@ Declare the permissions you use:
 - `native-helper` is required for helper processes.
 
 Native paths must resolve to an existing file inside the tweak directory.
-Codex++ checks real paths, so symlink escapes are rejected.
+ChatGPT++ checks real paths, so symlink escapes are rejected.
 
 ## Built-In Host
 
-When `moduleId` is omitted, Codex++ uses its bundled Objective-C++ native host:
+When `moduleId` is omitted, ChatGPT++ uses its bundled Objective-C++ native host:
 
 ```js
 module.exports = {
@@ -107,7 +107,7 @@ For 1.0.0, Swift is loaded through an Objective-C++/N-API shim:
 
 1. Build a Swift `.dylib` or `.framework` inside the tweak.
 2. Build a `.node` Objective-C++ shim that links to that Swift binary.
-3. Export the Codex++ native module contract from the shim.
+3. Export the ChatGPT++ native module contract from the shim.
 4. Load the shim with `api.codex.native.loadModule()`.
 
 This keeps JS loading on the stable N-API surface while letting the native side
@@ -115,7 +115,7 @@ use Swift, AppKit, Metal, and MetalKit.
 
 ## Lifecycle
 
-Codex++ tracks native modules, panels, views, and helpers per tweak.
+ChatGPT++ tracks native modules, panels, views, and helpers per tweak.
 
 - Parent window move, resize, fullscreen, focus, visibility, and close events
   are forwarded to optional native instance methods such as

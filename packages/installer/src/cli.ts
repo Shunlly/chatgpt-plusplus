@@ -147,7 +147,7 @@ prog
 prog
   .command("update")
   .describe("Update ChatGPT++ from the latest GitHub release, rebuild, then repair the app patch")
-  .option("--repo", "GitHub repo to download (default: b-nnett/codex-plusplus)")
+  .option("--repo", "GitHub repo to download (default: Shunlly/chatgpt-plusplus)")
   .option("--ref", "Git ref to download (default: latest GitHub release)")
   .option("--repair", "Run repair after updating", true)
   .option("--quiet", "Suppress non-error output")
@@ -158,7 +158,7 @@ prog
 prog
   .command("self-update")
   .describe("Alias for update")
-  .option("--repo", "GitHub repo to download (default: b-nnett/codex-plusplus)")
+  .option("--repo", "GitHub repo to download (default: Shunlly/chatgpt-plusplus)")
   .option("--ref", "Git ref to download (default: latest GitHub release)")
   .option("--repair", "Run repair after updating", true)
   .option("--quiet", "Suppress non-error output")

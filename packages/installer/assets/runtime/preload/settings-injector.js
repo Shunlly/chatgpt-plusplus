@@ -30,7 +30,7 @@ exports.registerPage = registerPage;
 exports.setListedTweaks = setListedTweaks;
 const electron_1 = require("electron");
 const tweak_store_1 = require("../tweak-store");
-const CODEX_PLUSPLUS_RELEASES_URL = "https://github.com/b-nnett/codex-plusplus/releases";
+const CODEX_PLUSPLUS_RELEASES_URL = "https://github.com/Shunlly/chatgpt-plusplus/releases";
 const state = {
     sections: new Map(),
     pages: new Map(),
@@ -919,7 +919,7 @@ function updateChannelRow(config) {
     action?.appendChild(select);
     if (config.updateChannel === "custom") {
         action?.appendChild(compactButton("Edit", () => {
-            const repo = window.prompt("GitHub repo", config.updateRepo || "b-nnett/codex-plusplus");
+            const repo = window.prompt("GitHub repo", config.updateRepo || "Shunlly/chatgpt-plusplus");
             if (repo === null)
                 return;
             const ref = window.prompt("Git ref", config.updateRef || "main");
@@ -1239,7 +1239,7 @@ function updateSummary(check) {
 }
 function updateChannelSummary(config) {
     if (config.updateChannel === "custom") {
-        return `${config.updateRepo || "b-nnett/codex-plusplus"} ${config.updateRef || "(no ref set)"}`;
+        return `${config.updateRepo || "Shunlly/chatgpt-plusplus"} ${config.updateRef || "(no ref set)"}`;
     }
     if (config.updateChannel === "prerelease") {
         return "Use the newest published GitHub release, including prereleases.";
@@ -1326,7 +1326,7 @@ function reportBugRow() {
             "## Logs",
             "Attach relevant lines from the Codex++ log directory.",
         ].join("\n"));
-        void electron_1.ipcRenderer.invoke("codexpp:open-external", `https://github.com/b-nnett/codex-plusplus/issues/new?title=${title}&body=${body}`);
+        void electron_1.ipcRenderer.invoke("codexpp:open-external", `https://github.com/Shunlly/chatgpt-plusplus/issues/new?title=${title}&body=${body}`);
     }));
     return row;
 }

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to codex-plusplus are documented here.
+All notable changes to chatgpt-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
@@ -141,7 +141,7 @@ Release notes: [docs/releases/0.1.2.md](docs/releases/0.1.2.md)
 - Fixed the GitHub source installer failing on clean machines when `npm ci` rejects an out-of-sync workspace lockfile.
 - The source installer now installs dependencies with `npm ci --workspaces --include-workspace-root --ignore-scripts`.
 - If the downloaded lockfile is stale, the installer now removes only that temporary lockfile and falls back to `npm install --workspaces --include-workspace-root --ignore-scripts`.
-- Fixed fallback installs missing workspace dependencies such as `electron`, `chokidar`, or `@codex-plusplus/sdk`.
+- Fixed fallback installs missing workspace dependencies such as `electron`, `chokidar`, or `@chatgpt-plusplus/sdk`.
 - Fixed Windows install preflight using the macOS-only `Contents` bundle path.
 - Expanded Windows app discovery to cover common Squirrel and Electron install locations.
 - Hardened Windows scheduled-task repair command quoting.

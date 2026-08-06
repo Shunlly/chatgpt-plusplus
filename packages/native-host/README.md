@@ -1,6 +1,6 @@
-# @codex-plusplus/native-host
+# @chatgpt-plusplus/native-host
 
-macOS Objective-C++ N-API host used by the Codex++ Owl bridge.
+macOS Objective-C++ N-API host used by the ChatGPT++ Owl bridge.
 
 The host is intentionally small:
 

@@ -1,6 +1,6 @@
 # Runtime and Lifecycle
 
-Codex++ loads a runtime from the user data directory. That runtime discovers
+ChatGPT++ loads a runtime from the user data directory. That runtime discovers
 tweaks, starts main-process tweaks, injects a renderer preload into Codex
 windows, and starts renderer tweaks from that preload.
 
@@ -66,13 +66,13 @@ runtime:
 6. Renderers stop loaded renderer tweaks and start them again from fresh source.
 
 Make all mutations idempotent. Codex can also re-render its own DOM without a
-Codex++ hot reload.
+ChatGPT++ hot reload.
 
 ## Cleanup Checklist
 
 Clean these in `stop()`:
 
-- DOM nodes you inserted outside Codex++ settings pages.
+- DOM nodes you inserted outside ChatGPT++ settings pages.
 - `<style>` tags you inserted.
 - Event listeners on `window`, `document`, or Codex DOM nodes.
 - `MutationObserver`, `ResizeObserver`, `IntersectionObserver`.
@@ -103,7 +103,7 @@ Use [TypeScript and bundling](./typescript-and-bundling.md) for build examples.
 
 ## Safe Mode and Enable Flags
 
-Codex++ stores enable flags in `<userRoot>/config.json`.
+ChatGPT++ stores enable flags in `<userRoot>/config.json`.
 
 - Missing enable state means enabled.
 - Safe mode disables tweak loading.

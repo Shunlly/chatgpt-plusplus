@@ -31,7 +31,7 @@ import {
   listCdpTargets,
 } from "./codex-runtime-probe";
 import { NativeBridge, type NativeTweakContext } from "./native-bridge";
-import type { TweakManifest } from "@codex-plusplus/sdk";
+import type { TweakManifest } from "@chatgpt-plusplus/sdk";
 import type {
   CodexRuntimeCapabilities,
   CodexRuntimeInfo,
@@ -43,7 +43,7 @@ import type {
   NativePanelCreateOptions,
   NativeViewAttachOptions,
   TweakPermission,
-} from "@codex-plusplus/sdk";
+} from "@chatgpt-plusplus/sdk";
 import {
   DEFAULT_TWEAK_STORE_INDEX_URL,
   normalizeGitHubRepo,
@@ -77,7 +77,7 @@ const UPDATE_MODE_FILE = join(userRoot, "update-mode.json");
 const SELF_UPDATE_STATE_FILE = join(userRoot, "self-update-state.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
 const CODEX_PLUSPLUS_VERSION = "1.0.0";
-const CODEX_PLUSPLUS_REPO = "b-nnett/codex-plusplus";
+const CODEX_PLUSPLUS_REPO = "Shunlly/chatgpt-plusplus";
 const TWEAK_STORE_INDEX_URL = process.env.CODEX_PLUSPLUS_STORE_INDEX_URL ?? DEFAULT_TWEAK_STORE_INDEX_URL;
 const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 

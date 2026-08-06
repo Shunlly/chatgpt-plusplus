@@ -1,6 +1,6 @@
-import type { TweakManifest } from "@codex-plusplus/sdk";
+import type { TweakManifest } from "@chatgpt-plusplus/sdk";
 export declare const DEFAULT_TWEAK_STORE_INDEX_URL = "https://b-nnett.github.io/codex-plusplus/store/index.json";
-export declare const TWEAK_STORE_REVIEW_ISSUE_URL = "https://github.com/b-nnett/codex-plusplus/issues/new";
+export declare const TWEAK_STORE_REVIEW_ISSUE_URL = "https://github.com/Shunlly/chatgpt-plusplus/issues/new";
 export interface TweakStoreRegistry {
     schemaVersion: 1;
     generatedAt?: string;

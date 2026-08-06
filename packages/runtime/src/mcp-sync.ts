@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
-import type { TweakMcpServer } from "@codex-plusplus/sdk";
+import type { TweakMcpServer } from "@chatgpt-plusplus/sdk";
 
 export const MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
 export const MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";

@@ -81,7 +81,7 @@ The fuse alone would let us swap in a new asar, but Codex's asar is large (~115 
 
 ### Why local re-signing instead of disabling SIP?
 
-Re-signing is local-only, reversible, and doesn't compromise system security. On macOS, Codex++ creates and reuses a per-machine "Codex++ Local Signing" identity so privacy grants have a stable signer across repair runs. Users can still opt into ad-hoc signing with `--no-local-signing`. We never touch SIP, hardened runtime, or kernel-level protections.
+Re-signing is local-only, reversible, and doesn't compromise system security. On macOS, ChatGPT++ creates and reuses a per-machine "ChatGPT++ Local Signing" identity so privacy grants have a stable signer across repair runs. Users can still opt into ad-hoc signing with `--no-local-signing`. We never touch SIP, hardened runtime, or kernel-level protections.
 
 ### Why a preload, not source-patching the React tree?
 
@@ -94,7 +94,7 @@ So you can iterate on tweaks (and even on the runtime itself) without re-running
 ### What about Owl?
 
 Current Codex builds use Owl: a native Codex shell with a Chromium framework and
-an Electron-compatible JavaScript runtime. Codex++ still patches `app.asar` and
+an Electron-compatible JavaScript runtime. ChatGPT++ still patches `app.asar` and
 still uses Electron-compatible APIs such as `app`, `BrowserWindow`, `session`,
 `ipcMain`, and `ipcRenderer`, but there is no `Electron Framework.framework` in
 the current macOS bundle. See [Owl runtime surface](./OWL-RUNTIME.md) for the
@@ -117,13 +117,13 @@ When Codex auto-updates via Sparkle:
 4. The watcher runs `codex-plusplus repair --quiet`.
 5. `repair` is idempotent: if the current asar hash still matches `patchedAsarHash`, it exits without touching the app; if the hash drifted after an update, it re-runs the install patch against the new app bundle.
 
-## Codex++ self-updates
+## ChatGPT++ self-updates
 
-The watcher also runs hourly using the GitHub-installed local CLI at `~/.codex-plusplus/source/packages/installer/dist/cli.js`. It checks the latest Codex++ GitHub Release, downloads and rebuilds a newer release when available, then runs `repair`. When the app patch is intact but the installed Codex++ version in `state.json` is older than the running CLI, `repair` refreshes `<user-data-dir>/runtime/` and updates state. It does not modify user tweak folders.
+The watcher also runs hourly using the GitHub-installed local CLI at `~/.codex-plusplus/source/packages/installer/dist/cli.js`. It checks the latest ChatGPT++ GitHub Release, downloads and rebuilds a newer release when available, then runs `repair`. When the app patch is intact but the installed ChatGPT++ version in `state.json` is older than the running CLI, `repair` refreshes `<user-data-dir>/runtime/` and updates state. It does not modify user tweak folders.
 
-Users can disable Codex++ runtime auto-updates from Settings → Codex Plus Plus → Config. The setting is stored in `<user-data-dir>/config.json`; app-update repair still works, but intact-app runtime refreshes are skipped while auto-update is disabled.
+Users can disable ChatGPT++ runtime auto-updates from Settings → Codex Plus Plus → Config. The setting is stored in `<user-data-dir>/config.json`; app-update repair still works, but intact-app runtime refreshes are skipped while auto-update is disabled.
 
-The Config page can also check for Codex++ updates manually. It reads GitHub release metadata and opens GitHub release pages for review.
+The Config page can also check for ChatGPT++ updates manually. It reads GitHub release metadata and opens GitHub release pages for review.
 
 ## What's not protected against
 

@@ -1,4 +1,4 @@
-# Writing Codex++ Tweaks
+# Writing ChatGPT++ Tweaks
 
 This page is the entry point for tweak authors. The detailed docs are split by
 task so the API reference can stay complete without turning the getting-started
@@ -13,7 +13,7 @@ guide into a wall of text.
 - [Runtime and lifecycle](./tweaks/runtime-lifecycle.md): renderer/main/both
   scopes, loading model, hot reload, storage locations, and cleanup rules.
 - [SDK and API reference](./tweaks/api-reference.md): full coverage of every
-  public export from `@codex-plusplus/sdk`.
+  public export from `@chatgpt-plusplus/sdk`.
 - [Native bridge](./tweaks/native-bridge.md): AppKit/Metal panels, tweak-owned
   `.node` modules, Swift shims, helpers, permissions, and lifecycle.
 - [UI and DOM patterns](./tweaks/ui-and-dom.md): settings pages, settings
@@ -26,7 +26,7 @@ guide into a wall of text.
 - [Distribution and debugging](./tweaks/distribution-debugging.md): releases,
   update checks, store behavior, logs, commands, and compatibility rules.
 - [Owl runtime surface](./OWL-RUNTIME.md): private Owl/Electron-compatible
-  APIs observed in the current Codex app, and the stable Codex++ wrappers.
+  APIs observed in the current Codex app, and the stable ChatGPT++ wrappers.
 - [Owl bridge roadmap](./OWL-BRIDGE-ROADMAP.md): planned stable bridge APIs for
   runtime info, windows, CDP, and native helpers.
 
@@ -46,7 +46,7 @@ my-tweak/
   "name": "My Tweak",
   "version": "0.1.0",
   "githubRepo": "you/my-tweak",
-  "description": "Adds a Codex++ settings page.",
+  "description": "Adds a ChatGPT++ settings page.",
   "scope": "renderer",
   "main": "index.js"
 }
@@ -64,7 +64,7 @@ module.exports = {
         root.innerHTML = "";
         const p = document.createElement("p");
         p.className = "text-sm text-token-text-secondary";
-        p.textContent = "Hello from Codex++.";
+        p.textContent = "Hello from ChatGPT++.";
         root.append(p);
       },
     });

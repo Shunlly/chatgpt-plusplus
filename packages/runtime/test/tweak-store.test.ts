@@ -9,14 +9,14 @@ import {
 } from "../src/tweak-store";
 
 test("normalizeGitHubRepo accepts common GitHub repo forms", () => {
-  assert.equal(normalizeGitHubRepo("b-nnett/codex-plusplus"), "b-nnett/codex-plusplus");
+  assert.equal(normalizeGitHubRepo("Shunlly/chatgpt-plusplus"), "Shunlly/chatgpt-plusplus");
   assert.equal(
-    normalizeGitHubRepo("https://github.com/b-nnett/codex-plusplus.git"),
-    "b-nnett/codex-plusplus",
+    normalizeGitHubRepo("https://github.com/Shunlly/chatgpt-plusplus.git"),
+    "Shunlly/chatgpt-plusplus",
   );
   assert.equal(
-    normalizeGitHubRepo("git@github.com:b-nnett/codex-plusplus.git"),
-    "b-nnett/codex-plusplus",
+    normalizeGitHubRepo("git@github.com:Shunlly/chatgpt-plusplus.git"),
+    "Shunlly/chatgpt-plusplus",
   );
 });
 
@@ -81,7 +81,7 @@ test("publish issue URL pins the commit admins must review", () => {
       iconUrl: "https://example.com/icon.png",
     },
   }));
-  assert.equal(url.origin + url.pathname, "https://github.com/b-nnett/codex-plusplus/issues/new");
+  assert.equal(url.origin + url.pathname, "https://github.com/Shunlly/chatgpt-plusplus/issues/new");
   assert.equal(url.searchParams.get("title"), "Tweak store review: example/good");
   assert.match(url.searchParams.get("body") ?? "", /1234567890abcdef1234567890abcdef12345678/);
   assert.match(url.searchParams.get("body") ?? "", /Do not approve a different commit/);

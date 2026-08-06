@@ -1,5 +1,5 @@
 {
-  "name": "codex-plusplus",
+  "name": "chatgpt-plusplus",
   "private": true,
   "version": "1.0.0",
   "license": "MIT",
@@ -7,19 +7,19 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/b-nnett/codex-plusplus.git"
+    "url": "https://github.com/Shunlly/chatgpt-plusplus.git"
   },
   "bugs": {
-    "url": "https://github.com/b-nnett/codex-plusplus/issues"
+    "url": "https://github.com/Shunlly/chatgpt-plusplus/issues"
   },
-  "homepage": "https://github.com/b-nnett/codex-plusplus#readme",
+  "homepage": "https://github.com/Shunlly/chatgpt-plusplus#readme",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @codex-plusplus/sdk && npm run build --workspace @codex-plusplus/native-host && npm run build --workspace @codex-plusplus/runtime && npm run build --workspace @codex-plusplus/loader && npm run build --workspace codex-plusplus",
+    "build": "npm run build --workspace @chatgpt-plusplus/sdk && npm run build --workspace @chatgpt-plusplus/native-host && npm run build --workspace @chatgpt-plusplus/runtime && npm run build --workspace @chatgpt-plusplus/loader && npm run build --workspace chatgpt-plusplus",
     "clean": "rm -rf packages/*/dist packages/installer/assets/runtime",
-    "test": "npm run build --workspace @codex-plusplus/sdk && npm run build --workspace @codex-plusplus/native-host && node --import tsx --test packages/*/test/*.test.ts",
+    "test": "npm run build --workspace @chatgpt-plusplus/sdk && npm run build --workspace @chatgpt-plusplus/native-host && node --import tsx --test packages/*/test/*.test.ts",
     "audit": "npm audit --workspaces --include-workspace-root",
     "prepare": "npm run build"
   },

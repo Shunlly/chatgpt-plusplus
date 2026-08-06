@@ -25,7 +25,7 @@ runtime compatibility.
 | `minRuntime` | `string` | Minimum runtime version or range, for example `1.0.0` or `>=1.0.0`. Store compatibility currently treats this as a minimum version. |
 | `scope` | `"renderer"`, `"main"`, or `"both"` | Set this explicitly. If omitted, current runtime behavior is effectively `both`. |
 | `main` | `string` | Entry file relative to the tweak directory. |
-| `mcp` | `TweakMcpServer` | Declares an MCP server managed by Codex++. |
+| `mcp` | `TweakMcpServer` | Declares an MCP server managed by ChatGPT++. |
 | `permissions` | `TweakPermission[]` | Declared capabilities shown to users/validators. Native bridge permissions are enforced at runtime. |
 
 ## Full Example
@@ -102,7 +102,7 @@ permissions and Owl view permissions are also enforced at runtime:
   calls.
 
 Local/dev tweaks may load unsigned native code from their own directory when
-the permission is declared. Codex++ resolves the real target path and rejects
+the permission is declared. ChatGPT++ resolves the real target path and rejects
 traversal or symlink escapes outside the tweak directory. Store-facing native
 tweaks require stricter review of modules, frameworks, dylibs, and helper
 binaries.
@@ -146,7 +146,7 @@ scope, malformed author/tags/permissions/MCP fields, and missing entry files.
 Programmatic validation is available from the SDK:
 
 ```js
-const { validateTweakManifest } = require("@codex-plusplus/sdk");
+const { validateTweakManifest } = require("@chatgpt-plusplus/sdk");
 const result = validateTweakManifest(manifest);
 ```
 
@@ -154,7 +154,7 @@ See [SDK and API reference](./api-reference.md#validatetweakmanifestmanifest).
 
 ## Update Checks
 
-Codex++ checks GitHub Releases at most once per day per installed tweak:
+ChatGPT++ checks GitHub Releases at most once per day per installed tweak:
 
 - Repository comes from `githubRepo`.
 - Current version comes from `manifest.version`.
@@ -162,5 +162,5 @@ Codex++ checks GitHub Releases at most once per day per installed tweak:
 - Tags are compared as semver with optional leading `v`.
 - If newer, Settings -> Tweaks shows update UI that links to the GitHub release.
 
-Codex++ does not auto-install arbitrary tweak releases. Store-approved tweaks
+ChatGPT++ does not auto-install arbitrary tweak releases. Store-approved tweaks
 are pinned to reviewed commit SHAs and installed through the Tweak Store.
