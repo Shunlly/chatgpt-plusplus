@@ -10,6 +10,7 @@
  */
 
 import { ipcRenderer } from "electron";
+import { applyStatsigModelVisibilityPatch } from "./statsig-patch";
 import { installReactHook } from "./react-hook";
 import { startSettingsInjector } from "./settings-injector";
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
@@ -68,6 +69,16 @@ function safeStringify(v: unknown): string {
 }
 
 fileLog("preload entry", { url: location.href });
+
+// 在 Codex 页面脚本执行前，把 Statsig 缓存里的 use_hidden_models 改为 false，
+// 否则官方 UI 会隐藏 model_catalog_json 自定义模型（表现为模型目录加载不出来）。
+let statsigPatchResult: { matched: number; changed: number; skipped: number } | null = null;
+try {
+  statsigPatchResult = applyStatsigModelVisibilityPatch();
+  fileLog("statsig model visibility patch", statsigPatchResult);
+} catch (e) {
+  fileLog("statsig model visibility patch FAILED", String(e));
+}
 
 try {
   installBrowserUiHostBridge();

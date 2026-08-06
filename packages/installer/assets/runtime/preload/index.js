@@ -11,6 +11,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
+const statsig_patch_1 = require("./statsig-patch");
 const react_hook_1 = require("./react-hook");
 const settings_injector_1 = require("./settings-injector");
 const tweak_host_1 = require("./tweak-host");
@@ -64,6 +65,16 @@ function safeStringify(v) {
     }
 }
 fileLog("preload entry", { url: location.href });
+// 在 Codex 页面脚本执行前，把 Statsig 缓存里的 use_hidden_models 改为 false，
+// 否则官方 UI 会隐藏 model_catalog_json 自定义模型（表现为模型目录加载不出来）。
+let statsigPatchResult = null;
+try {
+    statsigPatchResult = (0, statsig_patch_1.applyStatsigModelVisibilityPatch)();
+    fileLog("statsig model visibility patch", statsigPatchResult);
+}
+catch (e) {
+    fileLog("statsig model visibility patch FAILED", String(e));
+}
 try {
     installBrowserUiHostBridge();
     fileLog("browser UI host bridge installed");
