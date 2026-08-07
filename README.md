@@ -182,9 +182,9 @@ Default user data paths:
 
 | OS | Path |
 |---|---|
-| macOS | `~/Library/Application Support/codex-plusplus/` |
-| Windows | `%APPDATA%/codex-plusplus/` |
-| Linux | `$XDG_DATA_HOME/codex-plusplus/` or `~/.local/share/codex-plusplus/` |
+| macOS | `~/Library/Application Support/chatgpt-plusplus/` |
+| Windows | `%APPDATA%/chatgpt-plusplus/` |
+| Linux | `$XDG_DATA_HOME/chatgpt-plusplus/` or `~/.local/share/chatgpt-plusplus/` |
 
 On Windows Store installs, ChatGPT++ also creates a writable managed app copy
 under `%LOCALAPPDATA%/codex-plusplus/store-apps/`. Use the ChatGPT++ shortcut for

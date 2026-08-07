@@ -22,7 +22,7 @@ identity, but that can involve Keychain access prompts.
 ## App launches but nothing about codex-plusplus appears
 
 1. Open DevTools (View menu) and look for `[codex-plusplus]` lines.
-2. Check `~/Library/Application Support/codex-plusplus/log/loader.log`.
+2. Check `~/Library/Application Support/chatgpt-plusplus/log/loader.log`.
 3. If empty, the loader is not being executed → integrity check failed and the app silently fell back. Run `codex-plusplus repair`.
 
 ## Codex auto-updated and the patch is gone
