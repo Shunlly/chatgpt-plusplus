@@ -800,12 +800,22 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
   box-shadow: none !important;
 }
 
+/* 新版 Codex 的首页工具栏使用 data 属性承载标题栏浅色底；在壁纸上必须清除，
+   同时保留旧版 class 选择器的兼容。 */
 html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
-  > header.app-header-tint {
+  > header.app-header-tint,
+html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+  > header[data-app-shell-application-menu-bar] {
   background: transparent !important;
   border-bottom: 0 !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
+}
+
+html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+  [data-app-shell-main-content-top-fade] {
+  background-image: none !important;
+  opacity: 0 !important;
 }
 
 html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface]

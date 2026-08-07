@@ -61,6 +61,8 @@ test("dream-skin 新版首页识别会清除欢迎区白色面板", () => {
   assert.match(template, /getElementsByClassName\("group\/home-suggestions"\)\[0\] \|\| null/);
   assert.match(template, /shellMain\.classList\.toggle\("dream-skin-home-shell", Boolean\(home\)\)/);
   assert.match(css, /main\[data-app-shell-main-surface\]\.dream-skin-home-shell\s*\{\s*background: transparent !important;/);
+  assert.match(css, /header\[data-app-shell-application-menu-bar\][\s\S]*?background: transparent !important;/);
+  assert.match(css, /\[data-app-shell-main-content-top-fade\]\s*\{\s*background-image: none !important;/);
 });
 
 test("dream-skin payload 组装后可被 JS 解析（无占位符残留）", () => {
