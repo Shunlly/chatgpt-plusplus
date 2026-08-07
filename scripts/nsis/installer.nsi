@@ -43,9 +43,12 @@ SectionEnd
 
 Section "给 ChatGPT/Codex 打补丁"
   DetailPrint "正在给 ChatGPT/Codex 应用安装 ChatGPT++ 补丁..."
-  ExecWait '"$INSTDIR\chatgpt-plusplus.exe" install' $0
-  IntCmp $0 0 +3 0 0
-    MessageBox MB_ICONINFORMATION|MB_OK "补丁安装未完成（退出码 $0）。`n`n可稍后从开始菜单运行「ChatGPT++ 安装与修复」，或在终端执行：`n$INSTDIR\chatgpt-plusplus.exe install"
+  ; ExecToLog 会把 CLI 输出显示在安装详情里，失败原因不再黑盒。
+  nsExec::ExecToLog '"$INSTDIR\chatgpt-plusplus.exe" install'
+  Pop $0
+  IntCmp $0 0 +4 0 0
+    DetailPrint "补丁安装未完成（退出码 $0），可稍后手动重试。"
+    MessageBox MB_ICONINFORMATION|MB_OK "补丁安装未完成（退出码 $0）。$\r$\n$\r$\n常见原因：杀毒软件拦截了 chatgpt-plusplus.exe。$\r$\n$\r$\n请手动在终端执行：$\r$\n$INSTDIR\chatgpt-plusplus.exe install$\r$\n$\r$\n若被杀毒软件拦截，请在 Windows 安全中心允许此应用运行后重试。"
 SectionEnd
 
 Section "Uninstall"
