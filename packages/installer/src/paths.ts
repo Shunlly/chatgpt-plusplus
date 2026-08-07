@@ -1,6 +1,6 @@
 import { platform } from "node:os";
-import { join } from "node:path";
-import { mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, renameSync } from "node:fs";
 import { chownForTargetUser, targetUserHome } from "./ownership.js";
 
 /**
@@ -58,6 +58,25 @@ function userRoot(): string {
   if (process.env.CODEX_PLUSPLUS_HOME) return process.env.CODEX_PLUSPLUS_HOME;
 
   const home = targetUserHome();
+  const legacyRoot = legacyUserRoot(home);
+  switch (platform()) {
+    case "darwin":
+      return migrateUserRoot(join(home, "Library", "Application Support", "chatgpt-plusplus"), legacyRoot);
+    case "win32":
+      return migrateUserRoot(
+        join(process.env.APPDATA ?? join(home, "AppData", "Roaming"), "chatgpt-plusplus"),
+        legacyRoot,
+      );
+    default:
+      return migrateUserRoot(
+        join(process.env.XDG_DATA_HOME ?? join(home, ".local", "share"), "chatgpt-plusplus"),
+        legacyRoot,
+      );
+  }
+}
+
+/** 老版本的用户数据目录（项目还叫 codex-plusplus 时期的命名）。 */
+function legacyUserRoot(home: string): string {
   switch (platform()) {
     case "darwin":
       return join(home, "Library", "Application Support", "codex-plusplus");
@@ -69,4 +88,21 @@ function userRoot(): string {
         "codex-plusplus",
       );
   }
+}
+
+/**
+ * 一次性迁移：老版本（v1.0.4 及更早）的数据目录叫 codex-plusplus。
+ * 新目录不存在且旧目录有数据时整体搬移，保留补丁备份、状态与 tweaks。
+ * 首次调用后目录已就位，后续直接返回新路径。
+ */
+export function migrateUserRoot(current: string, legacy: string): string {
+  if (current === legacy || existsSync(current) || !existsSync(legacy)) return current;
+  try {
+    mkdirSync(dirname(current), { recursive: true });
+    renameSync(legacy, current);
+  } catch {
+    // 迁移失败（例如跨卷或占用）时退回旧目录，保证功能不中断。
+    return legacy;
+  }
+  return current;
 }

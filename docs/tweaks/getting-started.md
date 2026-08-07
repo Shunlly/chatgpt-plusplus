@@ -9,9 +9,9 @@ open Codex-native windows.
 
 | Platform | Directory |
 |---|---|
-| macOS | `~/Library/Application Support/codex-plusplus/tweaks/` |
+| macOS | `~/Library/Application Support/chatgpt-plusplus/tweaks/` |
 | Linux | `~/.local/share/codex-plusplus/tweaks/` |
-| Windows | `%APPDATA%/codex-plusplus/tweaks/` |
+| Windows | `%APPDATA%/chatgpt-plusplus/tweaks/` |
 
 ChatGPT++ watches this directory and hot-reloads when files change. You can also
 reload from Settings -> Tweaks or restart Codex.

@@ -48,7 +48,7 @@ Section "给 ChatGPT/Codex 打补丁"
   Pop $0
   IntCmp $0 0 +4 0 0
     DetailPrint "补丁安装未完成（退出码 $0），可稍后手动重试。"
-    MessageBox MB_ICONINFORMATION|MB_OK "补丁安装未完成（退出码 $0）。$\r$\n$\r$\n失败详情已写入日志文件，请打开并把内容发送给开发者：$\r$\n$%APPDATA%\codex-plusplus\log\installer.log$\r$\n$\r$\n常见原因：$\r$\n1. ChatGPT 正在运行，请完全退出后重试；$\r$\n2. 杀毒软件/SmartScreen 拦截了 chatgpt-plusplus.exe；$\r$\n3. 未找到 ChatGPT 安装目录（Microsoft Store 版安装位置受限）。$\r$\n$\r$\n也可手动在终端执行：$\r$\n$INSTDIR\chatgpt-plusplus.exe install"
+    MessageBox MB_ICONINFORMATION|MB_OK "补丁安装未完成（退出码 $0）。$\r$\n$\r$\n失败详情已写入日志文件，请打开并把内容发送给开发者：$\r$\n$%APPDATA%\chatgpt-plusplus\log\installer.log$\r$\n$\r$\n常见原因：$\r$\n1. ChatGPT 正在运行，请完全退出后重试；$\r$\n2. 杀毒软件/SmartScreen 拦截了 chatgpt-plusplus.exe；$\r$\n3. 未找到 ChatGPT 安装目录（Microsoft Store 版安装位置受限）。$\r$\n$\r$\n也可手动在终端执行：$\r$\n$INSTDIR\chatgpt-plusplus.exe install"
 SectionEnd
 
 Section "Uninstall"
