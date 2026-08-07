@@ -43,13 +43,18 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
         const command = process.argv[2];
-        console.error("\n" + kleur.red().bold("✗ chatgpt-plusplus failed"));
-        console.error(msg);
-        console.error("");
-        console.error(
-          kleur.yellow("If the message above does not explain how to fix it, please report this on GitHub:"),
-        );
-        console.error(buildCliFailureIssueUrl(command, msg));
+        // 错误同时打到 stdout：NSIS 安装器用 nsExec::ExecToLog 只显示 stdout，
+        // 只写 stderr 会让安装详情看不到失败原因。
+        const lines = [
+          "\n✗ chatgpt-plusplus failed",
+          msg,
+          "",
+          "If the message above does not explain how to fix it, please report this on GitHub:",
+          buildCliFailureIssueUrl(command, msg),
+        ];
+        const out = kleur.red().bold(lines[0]) + "\n" + lines.slice(1).join("\n");
+        console.log(out);
+        console.error(out);
         maybeShowPatchFailedAlert(msg);
         process.exit(1);
       });
