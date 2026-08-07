@@ -21,10 +21,15 @@
     "clean": "rm -rf packages/*/dist packages/installer/assets/runtime",
     "test": "npm run build --workspace @chatgpt-plusplus/sdk && npm run build --workspace @chatgpt-plusplus/native-host && node --import tsx --test packages/*/test/*.test.ts",
     "audit": "npm audit --workspaces --include-workspace-root",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "package": "node scripts/package.mjs",
+    "package:dmg": "node scripts/package.mjs --platform=darwin",
+    "package:exe": "node scripts/package.mjs --platform=win32"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "postject": "^1.0.0-alpha.6",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },

@@ -12,6 +12,7 @@ import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
 import { clearUpdateMode, isUpdateModeFresh, readUpdateMode, writeUpdateMode } from "../update-mode.js";
 import { findSourceRoot } from "../source-root.js";
+import { standaloneSourceRoot } from "../standalone.js";
 import {
   isCodexRunning,
   openCodex,
@@ -32,7 +33,7 @@ interface Opts {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-const sourceRoot = findSourceRoot(here);
+const sourceRoot = standaloneSourceRoot() ?? findSourceRoot(here);
 const SETTLE_TIMEOUT_MS = 120_000;
 const WATCHER_SETTLE_TIMEOUT_MS = 15 * 60_000;
 const SETTLE_SAMPLE_MS = 2_000;

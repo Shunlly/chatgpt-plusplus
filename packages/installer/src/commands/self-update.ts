@@ -18,6 +18,7 @@ import { extract as extractTar } from "tar";
 import { ensureUserPaths } from "../paths.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { describeInstallationSource, findSourceRoot } from "../source-root.js";
+import { isStandalone, standaloneCliPath, standaloneSourceRoot } from "../standalone.js";
 import {
   readSelfUpdateState,
   type SelfUpdateChannel,
@@ -79,8 +80,24 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
   const config = readRuntimeConfig(paths.configFile);
   const repo = opts.repo ?? process.env.CODEX_PLUSPLUS_REPO ?? config.updateRepo ?? "Shunlly/chatgpt-plusplus";
-  const sourceRoot = findSourceRoot(here);
+  const sourceRoot = standaloneSourceRoot() ?? findSourceRoot(here);
   const parent = dirname(sourceRoot);
+
+  // 独立安装包（dmg/exe）：源码自更新会把二进制换成源码目录，无法生效，
+  // 直接降级为"提示下载新版安装包 + 照常 repair"。
+  if (isStandalone()) {
+    writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
+      status: "disabled",
+      repo,
+      channel: config.updateChannel ?? "stable",
+      sourceRoot,
+      error: "Standalone 安装包不支持源码自更新，请从 GitHub Releases 下载新版安装包。",
+    }));
+    log(opts, kleur.yellow("Standalone 安装包不使用源码自更新；请从 GitHub Releases 下载新版安装包。"));
+    runRepairIfRequested(opts, sourceRoot, parent);
+    return;
+  }
+
   const work = mkdtempSync(join(tmpdir(), "codexpp-update-"));
   const archive = join(work, "source.tar.gz");
   const next = join(work, "source");
@@ -336,11 +353,11 @@ function refreshMovedWorkspaceLinks(sourceRoot: string): void {
 
 function runRepairIfRequested(opts: Opts, sourceRoot: string, cwd: string): void {
   if (opts.repair === false) return;
-  const cli = join(sourceRoot, "packages", "installer", "dist", "cli.js");
-  const args = [cli, "repair"];
+  const cli = standaloneCliPath();
+  const args = cli ? ["repair"] : [join(sourceRoot, "packages", "installer", "dist", "cli.js"), "repair"];
   if (opts.watcher) args.push("--watcher");
   if (opts.quiet) args.push("--quiet");
-  run(process.execPath, args, cwd, opts);
+  run(cli ?? process.execPath, args, cwd, opts);
 }
 
 function run(command: string, args: string[], cwd: string, opts: RunOptions = {}): void {

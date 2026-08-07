@@ -3,6 +3,7 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import kleur from "kleur";
+import { standaloneCliPath } from "./standalone.js";
 
 const COMMANDS = ["codexplusplus", "codex-plusplus"] as const;
 
@@ -41,39 +42,35 @@ export function formatCliShimResult(result: CliShimResult): string {
   );
 }
 
+/** CLI 调用方式：独立二进制直接以自身运行；源码安装用 node + dist/cli.js。 */
+function cliInvocation(): { exec: string; args: string[] } {
+  const cli = standaloneCliPath();
+  return cli ? { exec: cli, args: [] } : { exec: process.execPath, args: [currentCliPath()] };
+}
+
+function shimScript(win32: boolean): string {
+  const { exec, args } = cliInvocation();
+  const argText = args.join(" ");
+  if (win32) {
+    return `@echo off\r\n"${exec}"${argText ? ` ${argText}` : ""} %*\r\n`;
+  }
+  return `#!/bin/sh\nexec "${exec}"${argText ? ` ${argText}` : ""} "$@"\n`;
+}
+
 function writeShim(path: string): void {
   if (platform() === "win32") {
-    writeFileSync(
-      `${path}.cmd`,
-      `@echo off\r\n"${process.execPath}" "${currentCliPath()}" %*\r\n`,
-      "utf8",
-    );
+    writeFileSync(`${path}.cmd`, shimScript(true), "utf8");
     return;
   }
 
-  writeFileSync(
-    path,
-    `#!/bin/sh\nexec "${process.execPath}" "${currentCliPath()}" "$@"\n`,
-    "utf8",
-  );
+  writeFileSync(path, shimScript(false), "utf8");
   chmodSync(path, 0o755);
 }
 
 function writeShimFile(path: string): void {
-  if (platform() === "win32") {
-    writeFileSync(
-      path,
-      `@echo off\r\n"${process.execPath}" "${currentCliPath()}" %*\r\n`,
-      "utf8",
-    );
-    return;
-  }
-  writeFileSync(
-    path,
-    `#!/bin/sh\nexec "${process.execPath}" "${currentCliPath()}" "$@"\n`,
-    "utf8",
-  );
-  chmodSync(path, 0o755);
+  const content = shimScript(platform() === "win32");
+  writeFileSync(path, content, "utf8");
+  if (platform() !== "win32") chmodSync(path, 0o755);
 }
 
 function installIntoPath(shimDir: string): string | null {
@@ -148,7 +145,7 @@ function replaceSymlink(source: string, target: string): void {
 }
 
 function currentCliPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "cli.js");
+  return standaloneCliPath() ?? join(dirname(fileURLToPath(import.meta.url)), "cli.js");
 }
 
 function isHomebrewCli(): boolean {

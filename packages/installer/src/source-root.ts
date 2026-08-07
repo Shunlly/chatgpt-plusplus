@@ -18,7 +18,13 @@ export function findSourceRoot(start: string): string {
   return resolve(start, "..", "..", "..", "..");
 }
 
-export type InstallationSourceKind = "github-source" | "homebrew" | "local-dev" | "source-archive" | "unknown";
+export type InstallationSourceKind =
+  | "github-source"
+  | "homebrew"
+  | "local-dev"
+  | "source-archive"
+  | "standalone-package"
+  | "unknown";
 
 export interface InstallationSource {
   kind: InstallationSourceKind;
@@ -36,6 +42,9 @@ export function describeInstallationSource(sourceRoot: string | null | undefined
   }
 
   const normalized = sourceRoot.replace(/\\/g, "/");
+  if (existsSync(join(sourceRoot, "standalone.json"))) {
+    return { kind: "standalone-package", label: "Standalone 安装包", detail: sourceRoot };
+  }
   if (/\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(normalized)) {
     return { kind: "homebrew", label: "Homebrew", detail: sourceRoot };
   }

@@ -20,6 +20,7 @@ import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chownForTargetUser, targetUserHome, targetUserOwnership } from "./ownership.js";
+import { isStandalone, standaloneCliPath } from "./standalone.js";
 
 export type WatcherKind = "launchd" | "login-item" | "scheduled-task" | "systemd" | "none";
 
@@ -273,6 +274,9 @@ function installScheduledTask(_appRoot: string): WatcherKind {
 }
 
 function cliShellCommand(command: string, args: string[] = []): string {
+  if (isStandalone()) {
+    return ["CODEX_PLUSPLUS_WATCHER=1", shellQuote(process.execPath), command, ...args].join(" ");
+  }
   const cli = currentCliPath();
   return [
     "CODEX_PLUSPLUS_WATCHER=1",
@@ -295,6 +299,8 @@ export function watcherShellScript(logPath?: string): string {
 }
 
 function currentCliPath(): string {
+  const cli = standaloneCliPath();
+  if (cli) return cli;
   const currentModulePath = fileURLToPath(import.meta.url);
   const extension = currentModulePath.endsWith(".ts") ? ".ts" : ".js";
   return join(dirname(currentModulePath), `cli${extension}`);
@@ -316,6 +322,9 @@ function xmlEscape(value: string): string {
 }
 
 function windowsCommand(command: string, args: string[] = []): string {
+  if (isStandalone()) {
+    return [windowsQuote(process.execPath), command, ...args].join(" ");
+  }
   const cli = currentCliPath();
   return [
     windowsQuote(process.execPath),
