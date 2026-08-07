@@ -316,10 +316,13 @@ function buildExe(binary) {
 
   const exe = join(OUT, `${APP_NAME}-${ver}-win-x64-setup.exe`);
   rmSync(exe, { force: true });
+  // Windows 下 join 产生反斜杠路径，NSIS 的 File 指令解析混合路径会失败，统一转正斜杠
+  const stageArg = stage.replace(/\\/g, "/");
+  const exeArg = exe.replace(/\\/g, "/");
   run("makensis", [
     `-DVERSION=${ver}`,
-    `-DSTAGEDIR=${stage}`,
-    `-DOUTFILE=${exe}`,
+    `-DSTAGEDIR=${stageArg}`,
+    `-DOUTFILE=${exeArg}`,
     join(ROOT, "scripts", "nsis", "installer.nsi"),
   ], ROOT);
   console.log(`✅ EXE 安装器已生成：${exe}`);
