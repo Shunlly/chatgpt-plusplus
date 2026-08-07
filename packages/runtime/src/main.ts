@@ -144,7 +144,7 @@ interface SelfUpdateState {
 }
 
 interface InstallationSource {
-  kind: "github-source" | "homebrew" | "local-dev" | "source-archive" | "unknown";
+  kind: "github-source" | "homebrew" | "local-dev" | "source-archive" | "standalone-package" | "unknown";
   label: string;
   detail: string;
 }
@@ -624,6 +624,13 @@ ipcMain.handle("codexpp:run-codexpp-update", async () => {
   const sourceRoot = readInstallerState()?.sourceRoot ?? fallbackSourceRoot();
   if (!sourceRoot) {
     throw new Error("Codex++ source CLI was not found. Run the installer once, then try again.");
+  }
+  // 独立安装包（dmg/exe）：源码 CLI 不存在，更新方式为下载新版安装包，直接打开 GitHub Releases
+  if (existsSync(join(sourceRoot, "standalone.json"))) {
+    const s = readState();
+    const releaseUrl = s.codexPlusPlus?.updateCheck?.releaseUrl ?? `https://github.com/${CODEX_PLUSPLUS_REPO}/releases`;
+    shell.openExternal(releaseUrl).catch(() => {});
+    return { standalone: true, releaseUrl };
   }
   const cli = join(sourceRoot, "packages", "installer", "dist", "cli.js");
   if (!existsSync(cli)) {
@@ -1543,6 +1550,9 @@ function describeInstallationSource(sourceRoot: string | null): InstallationSour
     };
   }
   const normalized = sourceRoot.replace(/\\/g, "/");
+  if (existsSync(join(sourceRoot, "standalone.json"))) {
+    return { kind: "standalone-package", label: "Standalone 安装包", detail: sourceRoot };
+  }
   if (/\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(normalized)) {
     return { kind: "homebrew", label: "Homebrew", detail: sourceRoot };
   }

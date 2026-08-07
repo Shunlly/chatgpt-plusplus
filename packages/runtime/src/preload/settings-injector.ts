@@ -98,7 +98,7 @@ interface SelfUpdateState {
 }
 
 interface InstallationSource {
-  kind: "github-source" | "homebrew" | "local-dev" | "source-archive" | "unknown";
+  kind: "github-source" | "homebrew" | "local-dev" | "source-archive" | "standalone-package" | "unknown";
   label: string;
   detail: string;
 }
@@ -1219,8 +1219,9 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
         });
     }),
   );
+  const isStandalone = config.installationSource?.kind === "standalone-package";
   actions.appendChild(
-    compactButton("Download Update", () => {
+    compactButton(isStandalone ? "Open Releases" : "Download Update", () => {
       row.style.opacity = "0.65";
       const buttons = actions.querySelectorAll("button");
       buttons.forEach((button) => (button.disabled = true));
