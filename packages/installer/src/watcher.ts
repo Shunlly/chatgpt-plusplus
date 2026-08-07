@@ -20,7 +20,7 @@ import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chownForTargetUser, targetUserHome, targetUserOwnership } from "./ownership.js";
-import { isStandalone, standaloneCliPath } from "./standalone.js";
+import { standaloneCliPath } from "./standalone.js";
 
 export type WatcherKind = "launchd" | "login-item" | "scheduled-task" | "systemd" | "none";
 
@@ -274,15 +274,18 @@ function installScheduledTask(_appRoot: string): WatcherKind {
 }
 
 function cliShellCommand(command: string, args: string[] = []): string {
-  if (isStandalone()) {
-    return ["CODEX_PLUSPLUS_WATCHER=1", shellQuote(process.execPath), command, ...args].join(" ");
+  // 独立包优先用持久 CLI（macOS 克隆流程会覆盖安装器 app，旁置文件随克隆消失，
+  // 不能依赖 isStandalone() 在安装后期仍为 true）。
+  const cli = standaloneCliPath();
+  if (cli) {
+    return ["CODEX_PLUSPLUS_WATCHER=1", shellQuote(cli), command, ...args].join(" ");
   }
-  const cli = currentCliPath();
+  const moduleCli = currentCliPath();
   return [
     "CODEX_PLUSPLUS_WATCHER=1",
     shellQuote(process.execPath),
-    ...nodeExecArgsForCli(cli).map(shellQuote),
-    shellQuote(cli),
+    ...nodeExecArgsForCli(moduleCli).map(shellQuote),
+    shellQuote(moduleCli),
     command,
     ...args,
   ].join(" ");
@@ -322,8 +325,9 @@ function xmlEscape(value: string): string {
 }
 
 function windowsCommand(command: string, args: string[] = []): string {
-  if (isStandalone()) {
-    return [windowsQuote(process.execPath), command, ...args].join(" ");
+  const standaloneCli = standaloneCliPath();
+  if (standaloneCli) {
+    return [windowsQuote(standaloneCli), command, ...args].join(" ");
   }
   const cli = currentCliPath();
   return [

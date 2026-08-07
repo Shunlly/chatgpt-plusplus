@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { install, readCodexVersion, stageAssets } from "./install.js";
 import { ensureUserPaths } from "../paths.js";
 import { readState, writeState } from "../state.js";
-import { locateCodex } from "../platform.js";
+import { isDedicatedMacApp, locateCodex, locateOriginalMacCodexApp } from "../platform.js";
 import { readHeaderHash } from "../asar.js";
 import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
@@ -61,11 +61,14 @@ export async function repair(opts: Opts = {}): Promise<void> {
 
   let settledBeforeHashCheck = false;
   if (state && !opts.force) {
-    announceCodexUpdateDetected(paths.updateModeFile, opts.app ?? state.appRoot);
-    notifyUpdateModePaused(paths.updateModeFile, opts.app ?? state.appRoot);
-    await waitForMacAppUpdateToSettle(opts.app ?? state.appRoot, settleOptions(opts, paths.updateModeFile));
+    const stateAppRoot = opts.app ?? state.appRoot;
+    const watchRoot =
+      stateAppRoot && isDedicatedMacApp(stateAppRoot) && existsSync(stateAppRoot) ? stateAppRoot : undefined;
+    announceCodexUpdateDetected(paths.updateModeFile, stateAppRoot);
+    notifyUpdateModePaused(paths.updateModeFile, stateAppRoot);
+    await waitForMacAppUpdateToSettle(watchRoot ?? stateAppRoot, settleOptions(opts, stateAppRoot));
     settledBeforeHashCheck = true;
-    const codex = locateCodex(opts.app ?? state.appRoot);
+    const codex = locateCodex(stateAppRoot);
     const updateMode = readUpdateMode(paths.updateModeFile);
     if (updateMode) {
       const codexVersion = readCodexVersion(codex.metaPath);
@@ -90,7 +93,12 @@ export async function repair(opts: Opts = {}): Promise<void> {
       clearUpdateMode(paths.updateModeFile);
     }
     const { headerHash } = readHeaderHash(codex.asarPath);
-    if (headerHash === state.patchedAsarHash) {
+    const original = locateOriginalMacCodexApp();
+    const codexVersion = readCodexVersion(codex.metaPath);
+    const originalVersion = readCodexVersion(original?.metaPath ?? null);
+    const originalNewer =
+      original != null && originalVersion != null && (codexVersion == null || compareSemver(originalVersion, codexVersion) > 0);
+    if (headerHash === state.patchedAsarHash && !originalNewer) {
       const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
       if (compareSemver(CODEX_PLUSPLUS_VERSION, state.version) > 0) {
         if (!isAutoUpdateEnabled(paths.configFile)) {
@@ -146,7 +154,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
   }
 
   await install({
-    app: opts.app ?? state?.appRoot,
+    app: opts.app,
     fuse: state?.fuseFlipped ?? true,
     resign: state?.resigned ?? true,
     localSigning: opts.localSigning === true,
@@ -225,7 +233,8 @@ function isWatcherRepair(opts: Opts): boolean {
 }
 
 async function waitForMacAppUpdateToSettle(appRoot: string | undefined, opts: SettleOptions = {}): Promise<void> {
-  if (platform() !== "darwin" || !appRoot) return;
+  // app 不存在（副本被删除）时无需等待，直接走 install 重建。
+  if (platform() !== "darwin" || !appRoot || !existsSync(appRoot)) return;
 
   const paths = [
     join(appRoot, "Contents", "Info.plist"),

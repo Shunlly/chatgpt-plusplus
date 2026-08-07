@@ -28,6 +28,7 @@ Section "安装 ChatGPT++"
   File "${STAGEDIR}${SEP}chatgpt-plusplus.exe"
   File "${STAGEDIR}${SEP}standalone.json"
   File /r "${STAGEDIR}${SEP}assets${SEP}*.*"
+  File /r "${STAGEDIR}${SEP}tweaks${SEP}*.*"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\ChatGPT++"

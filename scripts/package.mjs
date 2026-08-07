@@ -197,6 +197,7 @@ function buildDmg(binary) {
     kind: "standalone",
   }, null, 2));
   cpSync(join(ROOT, "packages", "installer", "assets"), join(resourcesDir, "assets"), { recursive: true });
+  cpSync(join(ROOT, "tweaks"), join(resourcesDir, "tweaks"), { recursive: true });
   writeFileSync(join(app, "Contents", "Info.plist"), infoPlist(ver));
 
   const stage = join(OUT, "dmg");
@@ -323,6 +324,7 @@ function buildExe(binary) {
     kind: "standalone",
   }, null, 2));
   cpSync(join(ROOT, "packages", "installer", "assets"), join(stage, "assets"), { recursive: true });
+  cpSync(join(ROOT, "tweaks"), join(stage, "tweaks"), { recursive: true });
 
   const exe = join(OUT, `${APP_NAME}-${ver}-win-x64-setup.exe`);
   rmSync(exe, { force: true });
