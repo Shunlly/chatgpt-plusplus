@@ -1069,6 +1069,11 @@ html.codex-dream-skin [data-message-author-role] { border-radius: 16px; }
   .dream-skin-home .group\/home-suggestions button { min-height: 112px !important; font-size: 12px !important; }
 }
 
+/* 底部工具栏顶部的官方 0.5px 半透明分割线在换肤背景下会显示成亮白细线（渲染接缝感），隐藏 */
+html.codex-dream-skin [class*="h-[0.5px]"][class*="bg-token-foreground/10"]:has(+ [class*="h-toolbar"]) {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.codex-dream-skin *,
   html.codex-dream-skin *::before,
