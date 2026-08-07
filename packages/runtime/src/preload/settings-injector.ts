@@ -176,10 +176,10 @@ interface InjectorState {
   outerWrapper: HTMLElement | null;
   /** Our "General" label for Codex's native settings group. */
   nativeNavHeader: HTMLElement | null;
-  /** Our "Codex++" nav group (Config/Tweaks). */
+  /** Our "ChatGPT++" nav group (Config/Tweaks). */
   navGroup: HTMLElement | null;
   navButtons: { config: HTMLButtonElement; tweaks: HTMLButtonElement; store: HTMLButtonElement } | null;
-  /** Sidebar update pill shown only when GitHub has a newer Codex++ release. */
+  /** Sidebar update pill shown only when GitHub has a newer ChatGPT++ release. */
   codexPlusPlusUpdateButton: HTMLButtonElement | null;
   /** Our "Tweaks" nav group (per-tweak pages). Created lazily. */
   pagesGroup: HTMLElement | null;
@@ -193,6 +193,8 @@ interface InjectorState {
   sidebarRestoreHandler: ((e: Event) => void) | null;
   settingsSurfaceVisible: boolean;
   settingsSurfaceHideTimer: ReturnType<typeof setTimeout> | null;
+  /** 侧边栏最近一次是否找到（避免每次 DOM 变化都重复打日志） */
+  sidebarFound: boolean | null;
   tweakStore: TweakStoreRegistryView | null;
   tweakStorePromise: Promise<TweakStoreRegistryView> | null;
   tweakStoreError: unknown;
@@ -218,6 +220,7 @@ const state: InjectorState = {
   sidebarRestoreHandler: null,
   settingsSurfaceVisible: false,
   settingsSurfaceHideTimer: null,
+  sidebarFound: null,
   tweakStore: null,
   tweakStorePromise: null,
   tweakStoreError: null,
@@ -375,8 +378,15 @@ function tryInject(): void {
   const itemsGroup = findSidebarItemsGroup();
   if (!itemsGroup) {
     scheduleSettingsSurfaceHidden();
-    plog("sidebar not found");
+    if (state.sidebarFound !== false) {
+      state.sidebarFound = false;
+      plog("sidebar not found");
+    }
     return;
+  }
+  if (state.sidebarFound !== true) {
+    state.sidebarFound = true;
+    plog("sidebar found");
   }
   if (state.settingsSurfaceHideTimer) {
     clearTimeout(state.settingsSurfaceHideTimer);
@@ -446,7 +456,7 @@ function tryInject(): void {
 
   const updateButton = sidebarUpdatePillButton();
   state.codexPlusPlusUpdateButton = updateButton;
-  group.appendChild(sidebarGroupHeader("Codex++", "pt-3", updateButton));
+  group.appendChild(sidebarGroupHeader("ChatGPT++", "pt-3", updateButton));
   refreshSidebarCodexPlusPlusUpdateButton();
 
   // ── Sidebar items ────────────────────────────────────────────────────
@@ -1017,13 +1027,13 @@ function rerender(): void {
 
   const title =
     ap.kind === "tweaks" ? "Tweaks" :
-    ap.kind === "store" ? "Tweak Store" : "Codex++";
+    ap.kind === "store" ? "Tweak Store" : "ChatGPT++";
   const subtitle =
     ap.kind === "tweaks"
-      ? "Manage your installed Codex++ tweaks."
+      ? "Manage your installed ChatGPT++ tweaks."
       : ap.kind === "store"
         ? "Install reviewed tweaks pinned to approved GitHub commits."
-        : "Checking installed Codex++ version.";
+        : "Checking installed ChatGPT++ version.";
   const root = panelShell(title, subtitle);
   host.appendChild(root.outer);
   if (ap.kind === "tweaks") renderTweaksPage(root.sectionsWrap);
@@ -1039,10 +1049,10 @@ function renderConfigPage(
 ): void {
   const section = document.createElement("section");
   section.className = "flex flex-col gap-2";
-  section.appendChild(sectionTitle("Codex++ Updates"));
+  section.appendChild(sectionTitle("ChatGPT++ Updates"));
   const card = roundedCard();
   card.dataset.codexppConfigCard = "true";
-  const loading = rowSimple("Loading update settings", "Checking current Codex++ configuration.");
+  const loading = rowSimple("Loading update settings", "Checking current ChatGPT++ configuration.");
   card.appendChild(loading);
   section.appendChild(card);
   sectionsWrap.appendChild(section);
@@ -1051,13 +1061,13 @@ function renderConfigPage(
     .invoke("codexpp:get-config")
     .then((config) => {
       if (subtitle) {
-        subtitle.textContent = `You have Codex++ ${(config as CodexPlusPlusConfig).version} installed.`;
+        subtitle.textContent = `You have ChatGPT++ ${(config as CodexPlusPlusConfig).version} installed.`;
       }
       card.textContent = "";
       renderCodexPlusPlusConfig(card, config as CodexPlusPlusConfig);
     })
     .catch((e) => {
-      if (subtitle) subtitle.textContent = "Could not load installed Codex++ version.";
+      if (subtitle) subtitle.textContent = "Could not load installed ChatGPT++ version.";
       card.textContent = "";
       card.appendChild(rowSimple("Could not load update settings", String(e)));
     });
@@ -1098,10 +1108,10 @@ function autoUpdateRow(config: CodexPlusPlusConfig): HTMLElement {
   left.className = "flex min-w-0 flex-col gap-1";
   const title = document.createElement("div");
   title.className = "min-w-0 text-sm text-token-text-primary";
-  title.textContent = "Automatically refresh Codex++";
+  title.textContent = "Automatically refresh ChatGPT++";
   const desc = document.createElement("div");
   desc.className = "text-token-text-secondary min-w-0 text-sm";
-  desc.textContent = `Installed version v${config.version}. The watcher checks hourly and can refresh the Codex++ runtime automatically.`;
+  desc.textContent = `Installed version v${config.version}. The watcher checks hourly and can refresh the ChatGPT++ runtime automatically.`;
   left.appendChild(title);
   left.appendChild(desc);
   row.appendChild(left);
@@ -1163,7 +1173,7 @@ function installationSourceRow(source: InstallationSource): HTMLElement {
 }
 
 function selfUpdateStatusRow(state: SelfUpdateState | null): HTMLElement {
-  const row = rowSimple("Last Codex++ update", selfUpdateSummary(state));
+  const row = rowSimple("Last ChatGPT++ update", selfUpdateSummary(state));
   const left = row.firstElementChild as HTMLElement | null;
   if (left && state) left.prepend(statusBadge(selfUpdateStatusTone(state.status), selfUpdateStatusLabel(state.status)));
   return row;
@@ -1177,7 +1187,7 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
   left.className = "flex min-w-0 flex-col gap-1";
   const title = document.createElement("div");
   title.className = "min-w-0 text-sm text-token-text-primary";
-  title.textContent = check?.updateAvailable ? "Codex++ update available" : "Check for Codex++ updates";
+  title.textContent = check?.updateAvailable ? "ChatGPT++ update available" : "Check for ChatGPT++ updates";
   const desc = document.createElement("div");
   desc.className = "text-token-text-secondary min-w-0 text-sm";
   desc.textContent = updateSummary(check);
@@ -1203,7 +1213,7 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
           setSidebarCodexPlusPlusUpdateButton(check as CodexPlusPlusUpdateCheck);
           refreshConfigCard(row);
         })
-        .catch((e) => plog("Codex++ release check failed", String(e)))
+        .catch((e) => plog("ChatGPT++ release check failed", String(e)))
         .finally(() => {
           row.style.opacity = "";
         });
@@ -1221,7 +1231,7 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
           refreshConfigCard(row);
         })
         .catch((e) => {
-          plog("Codex++ self-update failed", String(e));
+          plog("ChatGPT++ self-update failed", String(e));
           void refreshConfigCard(row);
         })
         .finally(() => {
@@ -1486,7 +1496,7 @@ function updateChannelSummary(config: CodexPlusPlusConfig): string {
 }
 
 function selfUpdateSummary(state: SelfUpdateState | null): string {
-  if (!state) return "No automatic Codex++ update has run yet.";
+  if (!state) return "No automatic ChatGPT++ update has run yet.";
   const checked = new Date(state.completedAt ?? state.checkedAt).toLocaleString();
   const target = state.latestVersion ? ` Target v${state.latestVersion}.` : state.targetRef ? ` Target ${state.targetRef}.` : "";
   const source = state.installationSource?.label ?? "unknown source";
@@ -1515,7 +1525,7 @@ function refreshConfigCard(row: HTMLElement): void {
   const card = row.closest("[data-codexpp-config-card]") as HTMLElement | null;
   if (!card) return;
   card.textContent = "";
-  card.appendChild(rowSimple("Refreshing", "Loading current Codex++ update status."));
+  card.appendChild(rowSimple("Refreshing", "Loading current ChatGPT++ update status."));
   void ipcRenderer
     .invoke("codexpp:get-config")
     .then((config) => {
@@ -1530,7 +1540,7 @@ function refreshConfigCard(row: HTMLElement): void {
 
 function uninstallRow(): HTMLElement {
   const row = actionRow(
-    "Uninstall Codex++",
+    "Uninstall ChatGPT++",
     "Copies the uninstall command. Run it from a terminal after quitting Codex.",
   );
   const action = row.querySelector<HTMLElement>("[data-codexpp-row-actions]");
@@ -1561,12 +1571,12 @@ function reportBugRow(): HTMLElement {
           "1. ",
           "",
           "## Environment",
-          "- Codex++ version: ",
+          "- ChatGPT++ version: ",
           "- Codex app version: ",
           "- OS: ",
           "",
           "## Logs",
-          "Attach relevant lines from the Codex++ log directory.",
+          "Attach relevant lines from the ChatGPT++ log directory.",
         ].join("\n"),
       );
       void ipcRenderer.invoke(
@@ -1799,7 +1809,7 @@ function platformLockedLabel(platform: NonNullable<TweakStoreEntryView["platform
 }
 
 function runtimeLockedLabel(runtime: NonNullable<TweakStoreEntryView["runtime"]>): string {
-  return runtime.required ? `Requires Codex++ ${runtime.required}` : "Requires newer Codex++";
+  return runtime.required ? `Requires ChatGPT++ ${runtime.required}` : "Requires newer ChatGPT++";
 }
 
 function showStoreCardMessage(card: HTMLElement, message: string): void {
@@ -2003,7 +2013,7 @@ function sidebarUpdatePillButton(): HTMLButtonElement {
     boxShadow: "0 1px 2px rgba(0, 0, 0, 0.18)",
   });
   btn.textContent = "Update";
-  btn.title = "Open Codex++ update";
+  btn.title = "Open ChatGPT++ update";
   btn.addEventListener("mouseenter", () => {
     btn.style.background = "#0071E3";
   });
@@ -2025,7 +2035,7 @@ function refreshSidebarCodexPlusPlusUpdateButton(force = false): void {
     .invoke("codexpp:check-codexpp-update", force)
     .then((check) => setSidebarCodexPlusPlusUpdateButton(check as CodexPlusPlusUpdateCheck))
     .catch((e) => {
-      plog("Codex++ sidebar release check failed", String(e));
+      plog("ChatGPT++ sidebar release check failed", String(e));
       setSidebarCodexPlusPlusUpdateButton(null);
     });
 }
@@ -2039,8 +2049,8 @@ function setSidebarCodexPlusPlusUpdateButton(check: CodexPlusPlusUpdateCheck | n
   btn.dataset.codexppReleaseUrl = check?.releaseUrl || CODEX_PLUSPLUS_RELEASES_URL;
   btn.title =
     updateAvailable && check?.latestVersion
-      ? `Open Codex++ ${check.latestVersion} update`
-      : "Open Codex++ update";
+      ? `Open ChatGPT++ ${check.latestVersion} update`
+      : "Open ChatGPT++ update";
 }
 
 function updateStoreUpdateBadge(count: number | null): void {
@@ -2601,7 +2611,7 @@ function openPublishTweakDialog(): void {
   title.textContent = "Publish Tweak";
   const subtitle = document.createElement("div");
   subtitle.className = "text-sm text-token-text-secondary";
-  subtitle.textContent = "Submit a GitHub repo for admin review. Codex++ records the exact commit admins must review and pin.";
+  subtitle.textContent = "Submit a GitHub repo for admin review. ChatGPT++ records the exact commit admins must review and pin.";
   titleStack.appendChild(title);
   titleStack.appendChild(subtitle);
   header.appendChild(titleStack);

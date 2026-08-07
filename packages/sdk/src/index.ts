@@ -392,6 +392,12 @@ export interface TweakFs {
   read(relPath: string): Promise<string>;
   write(relPath: string, contents: string): Promise<void>;
   exists(relPath: string): Promise<boolean>;
+  /**
+   * Renderer-only: read a bundled asset inside the tweak directory and
+   * return it as a `data:` URL (the renderer is sandboxed, `file://` won't
+   * load). Useful for theme images, icons, or small text assets.
+   */
+  asset?(relPath: string): Promise<string>;
 }
 
 export interface CodexApi {

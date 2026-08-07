@@ -88,11 +88,11 @@ async function loadTweak(t, paths) {
     if (typeof tweak?.start !== "function") {
         throw new Error(`tweak ${t.manifest.id} has no start()`);
     }
-    const api = makeRendererApi(t.manifest, paths);
+    const api = makeRendererApi(t.manifest, paths, t.dir);
     await tweak.start(api);
     loaded.set(t.manifest.id, { stop: tweak.stop?.bind(tweak) });
 }
-function makeRendererApi(manifest, paths) {
+function makeRendererApi(manifest, paths, tweakDir) {
     const id = manifest.id;
     const log = (level, ...a) => {
         const consoleFn = level === "debug" ? console.debug
@@ -175,7 +175,7 @@ function makeRendererApi(manifest, paths) {
             send: (c, ...args) => electron_1.ipcRenderer.send(`codexpp:${id}:${c}`, ...args),
             invoke: (c, ...args) => electron_1.ipcRenderer.invoke(`codexpp:${id}:${c}`, ...args),
         },
-        fs: rendererFs(id, paths),
+        fs: rendererFs(id, paths, tweakDir),
         codex: rendererCodexApi(id),
     };
 }
@@ -311,13 +311,15 @@ function rendererStorage(id) {
         all: () => read(),
     };
 }
-function rendererFs(id, _paths) {
+function rendererFs(id, _paths, tweakDir) {
     // Sandboxed renderer can't use Node fs directly — proxy through main IPC.
     return {
         dataDir: `<remote>/tweak-data/${id}`,
         read: (p) => electron_1.ipcRenderer.invoke("codexpp:tweak-fs", "read", id, p),
         write: (p, c) => electron_1.ipcRenderer.invoke("codexpp:tweak-fs", "write", id, p, c),
         exists: (p) => electron_1.ipcRenderer.invoke("codexpp:tweak-fs", "exists", id, p),
+        // 读取 tweak 目录内随包资源（主题背景图等），由主进程转成 data: URL。
+        asset: (p) => electron_1.ipcRenderer.invoke("codexpp:read-tweak-asset", tweakDir, p),
     };
 }
 //# sourceMappingURL=tweak-host.js.map

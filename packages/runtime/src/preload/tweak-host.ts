@@ -155,12 +155,12 @@ async function loadTweak(t: ListedTweak, paths: UserPaths): Promise<void> {
   if (typeof tweak?.start !== "function") {
     throw new Error(`tweak ${t.manifest.id} has no start()`);
   }
-  const api = makeRendererApi(t.manifest, paths);
+  const api = makeRendererApi(t.manifest, paths, t.dir);
   await tweak.start(api);
   loaded.set(t.manifest.id, { stop: tweak.stop?.bind(tweak) });
 }
 
-function makeRendererApi(manifest: TweakManifest, paths: UserPaths): TweakApi {
+function makeRendererApi(manifest: TweakManifest, paths: UserPaths, tweakDir: string): TweakApi {
   const id = manifest.id;
   const log = (level: "debug" | "info" | "warn" | "error", ...a: unknown[]) => {
     const consoleFn =
@@ -241,7 +241,7 @@ function makeRendererApi(manifest: TweakManifest, paths: UserPaths): TweakApi {
       invoke: <T>(c: string, ...args: unknown[]) =>
         ipcRenderer.invoke(`codexpp:${id}:${c}`, ...args) as Promise<T>,
     },
-    fs: rendererFs(id, paths),
+    fs: rendererFs(id, paths, tweakDir),
     codex: rendererCodexApi(id),
   };
 }
@@ -455,7 +455,7 @@ function rendererStorage(id: string) {
   };
 }
 
-function rendererFs(id: string, _paths: UserPaths) {
+function rendererFs(id: string, _paths: UserPaths, tweakDir: string) {
   // Sandboxed renderer can't use Node fs directly — proxy through main IPC.
   return {
     dataDir: `<remote>/tweak-data/${id}`,
@@ -465,5 +465,8 @@ function rendererFs(id: string, _paths: UserPaths) {
       ipcRenderer.invoke("codexpp:tweak-fs", "write", id, p, c) as Promise<void>,
     exists: (p: string) =>
       ipcRenderer.invoke("codexpp:tweak-fs", "exists", id, p) as Promise<boolean>,
+    // 读取 tweak 目录内随包资源（主题背景图等），由主进程转成 data: URL。
+    asset: (p: string) =>
+      ipcRenderer.invoke("codexpp:read-tweak-asset", tweakDir, p) as Promise<string>,
   };
 }

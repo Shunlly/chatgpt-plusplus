@@ -475,6 +475,7 @@ interface TweakFs {
   read(relPath: string): Promise<string>;
   write(relPath: string, contents: string): Promise<void>;
   exists(relPath: string): Promise<boolean>;
+  asset?(relPath: string): Promise<string>; // renderer-only
 }
 ```
 
@@ -487,6 +488,9 @@ Sandboxed to:
 Keep paths relative. Renderer calls are proxied through main IPC. Current
 main-side implementation joins paths under `dataDir`; keep to relative paths and
 avoid path traversal.
+
+`asset(relPath)`（仅 renderer）读取 tweak 目录内的随包资源（如图片、CSS）并返回
+`data:` URL；路径会经过主进程校验必须位于该 tweak 目录内，且单文件上限 1 MiB。
 
 ## `CodexApi`
 
