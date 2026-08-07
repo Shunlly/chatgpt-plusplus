@@ -28,6 +28,9 @@ test("standaloneRoot 识别 macOS .app 的 Resources 目录", () => {
 
 test("standaloneRoot 识别 Windows 同目录布局，且缺失标记时返回 null", () => {
   const root = mkdtempSync(join(tmpdir(), "codexpp-standalone-win-"));
+  const prevHome = process.env.CODEX_PLUSPLUS_HOME;
+  // 隔离持久副本探测：macOS 上本机若已有持久 CLI，会优先返回它而非旁置路径。
+  process.env.CODEX_PLUSPLUS_HOME = join(tmpdir(), "codexpp-standalone-home-none");
   try {
     mkdirSync(root, { recursive: true });
     writeFileSync(join(root, "standalone.json"), "{}");
@@ -35,6 +38,8 @@ test("standaloneRoot 识别 Windows 同目录布局，且缺失标记时返回 n
     assert.equal(standaloneRoot(execPath), root);
     assert.equal(standaloneCliPath(execPath), execPath);
   } finally {
+    if (prevHome === undefined) delete process.env.CODEX_PLUSPLUS_HOME;
+    else process.env.CODEX_PLUSPLUS_HOME = prevHome;
     rmSync(root, { recursive: true, force: true });
   }
 

@@ -1,10 +1,10 @@
 import kleur from "kleur";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync, renameSync, chmodSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, closeSync, unlinkSync, readdirSync, rmSync, copyFileSync, renameSync, chmodSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { locateCodex, MAC_CHATGPTPP_DEFAULT, type CodexInstall } from "../platform.js";
+import { isDedicatedMacApp, locateCodex, MAC_CHATGPTPP_DEFAULT, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity } from "../integrity.js";
@@ -13,10 +13,10 @@ import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from
 import { readPlist, writePlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
-import { CODEX_PLUSPLUS_VERSION } from "../version.js";
+import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { formatCliShimResult, installCliShims } from "../cli-shim.js";
 import { findSourceRoot } from "../source-root.js";
-import { standaloneAssetsDir, standaloneSourceRoot } from "../standalone.js";
+import { isStandalone, persistStandaloneCli, standaloneAssetsDir, standaloneResourcesRoot, standaloneSourceRoot } from "../standalone.js";
 import {
   CODEX_WINDOW_SERVICES_KEY,
   describeCodexWindowServicesSource,
@@ -39,9 +39,16 @@ interface Opts {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-const assetsDir = standaloneAssetsDir() ?? resolve(here, "..", "..", "assets");
-const sourceRoot = standaloneSourceRoot() ?? findSourceRoot(here);
 
+// 独立包模式下优先取持久副本根目录：macOS 克隆流程会覆盖安装器 app，
+// 其旁置的 assets/tweaks/standalone.json 会随克隆消失，持久副本在用户目录。
+function resolveAssetsDir(): string {
+  const root = standaloneResourcesRoot();
+  return root ? join(root, "assets") : standaloneAssetsDir() ?? resolve(here, "..", "..", "assets");
+}
+function resolveSourceRoot(): string {
+  return standaloneResourcesRoot() ?? standaloneSourceRoot() ?? findSourceRoot(here);
+}
 export async function install(opts: Opts = {}): Promise<void> {
   const wantsFuseFlip = opts.fuse !== false;
   const resign = opts.resign !== false;
@@ -49,6 +56,11 @@ export async function install(opts: Opts = {}): Promise<void> {
   const wantWatcher = opts.watcher !== false;
 
   const step = makeStepper({ quiet: opts.quiet === true, verbose: opts.verbose === true });
+  // 独立包模式：先把 CLI 复制到用户目录，避免克隆流程覆盖安装器 app 后失去修复入口。
+  if (isStandalone()) {
+    const persistentCli = persistStandaloneCli();
+    if (persistentCli) step(`CLI: ${kleur.cyan(persistentCli)}`);
+  }
   const codex = ensureDedicatedApp(locateCodex(opts.app), step);
   const fuseFlip = shouldFlipElectronFuse(codex, wantsFuseFlip);
   const codexVersion = readCodexVersion(codex.metaPath);
@@ -111,6 +123,8 @@ export async function install(opts: Opts = {}): Promise<void> {
   // 2. Stage runtime + loader into the user dir.
   stageAssets(paths.runtime);
   step("Runtime staged");
+  stageTweaks(paths.tweaks);
+  step.detail(`Tweaks: ${kleur.cyan(paths.tweaks)}`);
 
   // 3. Patch app.asar entry point to require our loader.
   const originalEntry = await injectLoader(codex.asarPath, paths.root, step.detail);
@@ -192,7 +206,7 @@ export async function install(opts: Opts = {}): Promise<void> {
     signingIdentityHash,
     originalEntryPoint: originalEntry,
     watcher,
-    sourceRoot,
+    sourceRoot: resolveSourceRoot(),
   });
   chownForTargetUser(paths.root, { recursive: true });
   if (reopenAfterPatch) {
@@ -228,17 +242,42 @@ export function ensureDedicatedApp(
   codex: CodexInstall,
   step: { detail?: (msg: string) => void; (msg: string): void } = () => {},
 ): CodexInstall {
-  if (codex.platform !== "darwin" || codex.appRoot === MAC_CHATGPTPP_DEFAULT) return codex;
+  if (codex.platform !== "darwin") return codex;
 
   const homeTarget = join(homedir(), "Applications", "ChatGPT++.app");
   const targetRoot = [MAC_CHATGPTPP_DEFAULT, homeTarget].find((p) => existsSync(p)) ?? MAC_CHATGPTPP_DEFAULT;
-  if (existsSync(targetRoot)) {
+
+  // codex 就是副本（watcher/repair 用 --app 指定副本）：确保启动器后直接复用。
+  if (codex.appRoot === targetRoot && isDedicatedMacApp(codex.appRoot)) {
+    step(`Using dedicated ${kleur.cyan(targetRoot)}`);
+    ensureIsolatedLauncher(targetRoot);
+    return codex;
+  }
+
+  // 安装器 app（com.chatgptplusplus.installer）不满足 isMacCodexApp，
+  // locateCodex 不会返回它，但目标位置可能还残留安装器自身：必须重建。
+  // 副本落后于原版（ChatGPT 更新过）时也重建，保证 ChatGPT++ 同步新版。
+  const existing = existsSync(targetRoot) && isDedicatedMacApp(targetRoot) ? locateCodex(targetRoot) : null;
+  const needsClone =
+    !existsSync(targetRoot) ||
+    !isDedicatedMacApp(targetRoot) ||
+    isMacCopyBroken(targetRoot) ||
+    compareSemver(readCodexVersion(codex.metaPath) ?? "", readCodexVersion(existing?.metaPath ?? null) ?? "") > 0;
+  if (!needsClone) {
     step(`Using dedicated ${kleur.cyan(targetRoot)}`);
     ensureIsolatedLauncher(targetRoot);
     return locateCodex(targetRoot);
   }
 
-  step(`Cloning ${kleur.cyan(codex.appRoot)} to ${kleur.cyan(targetRoot)}`);
+  const reason = !existsSync(targetRoot)
+    ? "not found"
+    : !isDedicatedMacApp(targetRoot)
+      ? "not a patched copy"
+      : isMacCopyBroken(targetRoot)
+        ? "binary corrupted"
+        : "source app is newer";
+  step(`Cloning ${kleur.cyan(codex.appRoot)} to ${kleur.cyan(targetRoot)} (${reason})`);
+  rmSync(targetRoot, { recursive: true, force: true });
   execFileSync("ditto", [codex.appRoot, targetRoot], { stdio: "ignore" });
   const plistPath = join(targetRoot, "Contents", "Info.plist");
   const pl = readPlist(plistPath);
@@ -256,12 +295,51 @@ export function ensureDedicatedApp(
  * 会触发单实例锁冲突导致打不开。用 Mach-O 启动器给真实二进制追加
  * --user-data-dir 指向独立目录（原生层生效，JS setPath 无法覆盖）。
  */
+/** 是否为我们的 Mach-O 启动器（编译产物含独立数据目录路径字面量）。 */
+export function isOurIsolatedLauncher(binaryPath: string): boolean {
+  try {
+    return readFileSync(binaryPath).includes(Buffer.from("Application Support/ChatGPT++"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 副本完整性检查：真实二进制（ChatGPT.bin）必须不是我们的启动器。
+ * 若 .bin 已是启动器，说明真二进制已丢失（中断的重装），需要重建副本。
+ */
+export function isMacCopyBroken(appRoot: string): boolean {
+  const realBinary = join(appRoot, "Contents", "MacOS", "ChatGPT.bin");
+  return existsSync(realBinary) && isOurIsolatedLauncher(realBinary);
+}
+
+/**
+ * 副本与原版共享硬编码的 ~/Library/Application Support/Codex 数据目录，
+ * 会触发单实例锁冲突导致打不开。用 Mach-O 启动器给真实二进制追加
+ * --user-data-dir 指向独立目录（原生层生效，JS setPath 无法覆盖）。
+ */
 function ensureIsolatedLauncher(appRoot: string): void {
   const macosDir = join(appRoot, "Contents", "MacOS");
   const launcher = join(macosDir, "ChatGPT");
   const realBinary = join(macosDir, "ChatGPT.bin");
-  if (existsSync(realBinary)) return; // 已装过启动器
+  if (!existsSync(launcher)) {
+    throw new Error(`找不到 ${launcher}，无法安装独立数据目录启动器。`);
+  }
+  // 防呆：.bin 已是启动器意味着真二进制已丢失，必须重建副本而非继续。
+  if (existsSync(realBinary) && isOurIsolatedLauncher(realBinary)) {
+    throw new Error(`${appRoot} 的 ChatGPT.bin 不是真实二进制（启动器覆盖了真二进制），需要重建副本。`);
+  }
+  if (existsSync(realBinary)) {
+    // .bin 是真二进制：确保 launcher 是最新启动器（旧版分离参数会被 Chromium 忽略）。
+    if (isOurIsolatedLauncher(launcher)) return;
+    compileIsolatedLauncher(launcher);
+    return;
+  }
   renameSync(launcher, realBinary);
+  compileIsolatedLauncher(launcher);
+}
+
+function compileIsolatedLauncher(launcher: string): void {
   execFileSync("clang", ["-O2", "-o", launcher, "-x", "c", "-"], {
     input: LAUNCHER_C,
     stdio: ["pipe", "ignore", "ignore"],
@@ -384,7 +462,7 @@ async function injectLoader(
     }
 
     // Copy our loader stub into the asar root.
-    const loaderSrc = join(assetsDir, "loader.cjs");
+    const loaderSrc = join(resolveAssetsDir(), "loader.cjs");
     if (!existsSync(loaderSrc)) {
       // Fall back to the in-repo path during development.
       const devLoader = resolve(here, "..", "..", "..", "..", "loader", "loader.cjs");
@@ -556,9 +634,42 @@ function formatWindowServicesHookFailure(
   return lines.join("\n");
 }
 
+/**
+ * 把安装包内置的 tweaks（如 Dream Skin 皮肤）复制到用户 tweaks 目录；
+ * 不覆盖用户已有的同名 tweak。非独立安装且有仓库 tweaks 时同样生效。
+ */
+export function stageTweaks(tweaksDir: string): void {
+  const candidates = [
+    // 独立包：<Resources>/tweaks
+    join(dirname(resolveAssetsDir()), "tweaks"),
+    // 源码安装：仓库根目录 tweaks
+    resolve(here, "..", "..", "..", "..", "tweaks"),
+  ];
+  const src = candidates.find(existsSync);
+  if (!src) return;
+  mkdirSync(tweaksDir, { recursive: true });
+  for (const entry of readdirSync(src)) {
+    const from = join(src, entry);
+    if (!statSync(from).isDirectory()) continue;
+    const to = join(tweaksDir, entry);
+    // 旧版本会把仓库 tweaks 以软链接方式安装；与真实目录并存会导致
+    // 同一 manifest.id 被加载两次，统一替换为真实副本。
+    if (existsSync(to)) {
+      const st = statSync(to);
+      if (!st.isDirectory()) {
+        unlinkSync(to);
+      } else {
+        continue;
+      }
+    }
+    cpSync(from, to, { recursive: true });
+  }
+  chownForTargetUser(tweaksDir, { recursive: true });
+}
+
 export function stageAssets(runtimeDir: string): void {
   mkdirSync(runtimeDir, { recursive: true });
-  const src = join(assetsDir, "runtime");
+  const src = join(resolveAssetsDir(), "runtime");
   if (existsSync(src)) {
     cpSync(src, runtimeDir, { recursive: true });
     chownForTargetUser(runtimeDir, { recursive: true });

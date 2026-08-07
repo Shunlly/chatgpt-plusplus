@@ -53,8 +53,8 @@ function locateMac(override?: string): CodexInstall {
     override,
     MAC_DEFAULT,
     MAC_BETA_DEFAULT,
-    MAC_CHATGPTPP_DEFAULT,
     MAC_CHATGPT_DEFAULT,
+    MAC_CHATGPTPP_DEFAULT,
     join(homedir(), "Applications", "Codex.app"),
     join(homedir(), "Applications", "Codex (Beta).app"),
     join(homedir(), "Applications", "ChatGPT.app"),
@@ -113,6 +113,37 @@ function isMacCodexApp(appRoot: string): boolean {
   if (!existsSync(infoPath)) return false;
   const info = readMacAppInfo(appRoot);
   return inferCodexChannel(info.bundleId, info.name) !== "unknown";
+}
+
+/** 是否是 ChatGPT++ 独立副本（bundle id 已被改写）。 */
+export function isDedicatedMacApp(appRoot: string): boolean {
+  const infoPath = join(appRoot, "Contents", "Info.plist");
+  if (!existsSync(infoPath)) return false;
+  try {
+    return readMacAppInfo(appRoot).bundleId === "com.openai.chatgptpp";
+  } catch {
+    return false;
+  }
+}
+
+const HOME_CHATGPTPP_DEFAULT = () => join(homedir(), "Applications", "ChatGPT++.app");
+
+/**
+ * 查找原版 ChatGPT/Codex.app（排除 ChatGPT++ 副本），用于副本落后时重新克隆。
+ * 找不到返回 null。
+ */
+export function locateOriginalMacCodexApp(): CodexInstall | null {
+  const homeChatGpt = join(homedir(), "Applications", "ChatGPT.app");
+  const candidates = [
+    MAC_CHATGPT_DEFAULT,
+    homeChatGpt,
+    ...findMacCodexApps("/Applications"),
+    ...findMacCodexApps(join(homedir(), "Applications")),
+  ];
+  const path = unique(candidates).find(
+    (p) => p !== MAC_CHATGPTPP_DEFAULT && p !== HOME_CHATGPTPP_DEFAULT() && isMacCodexApp(p),
+  );
+  return path ? locateMac(path) : null;
 }
 
 function unique(values: string[]): string[] {

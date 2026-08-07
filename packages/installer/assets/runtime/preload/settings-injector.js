@@ -990,7 +990,8 @@ function checkForUpdatesRow(config) {
             row.style.opacity = "";
         });
     }));
-    actions.appendChild(compactButton("Download Update", () => {
+    const isStandalone = config.installationSource?.kind === "standalone-package";
+    actions.appendChild(compactButton(isStandalone ? "Open Releases" : "Download Update", () => {
         row.style.opacity = "0.65";
         const buttons = actions.querySelectorAll("button");
         buttons.forEach((button) => (button.disabled = true));
