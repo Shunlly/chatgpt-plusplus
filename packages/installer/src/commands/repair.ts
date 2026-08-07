@@ -8,7 +8,7 @@ import { ensureUserPaths } from "../paths.js";
 import { readState, writeState } from "../state.js";
 import { isDedicatedMacApp, locateCodex, locateOriginalMacCodexApp } from "../platform.js";
 import { readHeaderHash } from "../asar.js";
-import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
+import { CHATGPT_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { installWatcher } from "../watcher.js";
 import { clearUpdateMode, isUpdateModeFresh, readUpdateMode, writeUpdateMode } from "../update-mode.js";
 import { findSourceRoot } from "../source-root.js";
@@ -88,7 +88,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
         return;
       }
       if (codexVersion === updateMode.codexVersion && !opts.quiet) {
-        console.log(kleur.yellow("Codex update mode is stale; clearing it and repairing Codex++."));
+        console.log(kleur.yellow("Codex update mode is stale; clearing it and repairing ChatGPT++."));
       }
       clearUpdateMode(paths.updateModeFile);
     }
@@ -100,26 +100,26 @@ export async function repair(opts: Opts = {}): Promise<void> {
       original != null && originalVersion != null && (codexVersion == null || compareSemver(originalVersion, codexVersion) > 0);
     if (headerHash === state.patchedAsarHash && !originalNewer) {
       const watcher = refreshWatcher(state.watcher, codex.appRoot, opts.quiet);
-      if (compareSemver(CODEX_PLUSPLUS_VERSION, state.version) > 0) {
+      if (compareSemver(CHATGPT_PLUSPLUS_VERSION, state.version) > 0) {
         if (!isAutoUpdateEnabled(paths.configFile)) {
-          if (!opts.quiet) console.log(kleur.yellow("Codex++ auto-update is disabled."));
+          if (!opts.quiet) console.log(kleur.yellow("ChatGPT++ auto-update is disabled."));
           return;
         }
         stageAssets(paths.runtime);
         writeState(paths.stateFile, {
           ...state,
           watcher,
-          version: CODEX_PLUSPLUS_VERSION,
+          version: CHATGPT_PLUSPLUS_VERSION,
           sourceRoot,
           runtimeUpdatedAt: new Date().toISOString(),
         });
         if (!opts.quiet) {
           console.log(
-            kleur.green(`Updated Codex++ runtime ${state.version} → ${CODEX_PLUSPLUS_VERSION}.`),
+            kleur.green(`Updated ChatGPT++ runtime ${state.version} → ${CHATGPT_PLUSPLUS_VERSION}.`),
           );
         }
         if (isCodexRunning(codex.appRoot)) {
-          promptRestartCodexAfterRuntimeUpdate(codex.appRoot, CODEX_PLUSPLUS_VERSION);
+          promptRestartCodexAfterRuntimeUpdate(codex.appRoot, CHATGPT_PLUSPLUS_VERSION);
         }
         return;
       }
@@ -145,7 +145,7 @@ export async function repair(opts: Opts = {}): Promise<void> {
       codexWasRunning = false;
     } else if (codexWasRunning && process.platform === "darwin") {
       if (!opts.quiet) {
-        console.log(kleur.yellow("Repair postponed. Codex is still running without the updated Codex++ patch."));
+        console.log(kleur.yellow("Repair postponed. Codex is still running without the updated ChatGPT++ patch."));
       }
       return;
     }
@@ -204,9 +204,11 @@ function isAutoUpdateEnabled(configFile: string): boolean {
   if (!existsSync(configFile)) return true;
   try {
     const config = JSON.parse(readFileSync(configFile, "utf8")) as {
+      chatgptPlusPlus?: { autoUpdate?: boolean };
+      /** 旧版本配置键名（v1.0.5 之前），读取时兼容。 */
       codexPlusPlus?: { autoUpdate?: boolean };
     };
-    return config.codexPlusPlus?.autoUpdate !== false;
+    return config.chatgptPlusPlus?.autoUpdate !== false && config.codexPlusPlus?.autoUpdate !== false;
   } catch {
     return true;
   }
@@ -229,7 +231,7 @@ function settleOptions(opts: Opts, updateModeFile: string): SettleOptions {
 }
 
 function isWatcherRepair(opts: Opts): boolean {
-  return opts.watcher === true || process.env.CODEX_PLUSPLUS_WATCHER === "1";
+  return opts.watcher === true || process.env.CHATGPT_PLUSPLUS_WATCHER === "1" || process.env.CODEX_PLUSPLUS_WATCHER === "1";
 }
 
 async function waitForMacAppUpdateToSettle(appRoot: string | undefined, opts: SettleOptions = {}): Promise<void> {

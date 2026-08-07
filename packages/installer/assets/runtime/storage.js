@@ -53,7 +53,7 @@ function createDiskStorage(rootDir, id) {
         }
         catch (e) {
             // Leave dirty=true so a future flush retries.
-            console.error("[codex-plusplus] storage flush failed:", id, e);
+            console.error("[chatgpt-plusplus] storage flush failed:", id, e);
         }
     };
     return {

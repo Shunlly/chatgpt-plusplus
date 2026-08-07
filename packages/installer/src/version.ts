@@ -1,4 +1,4 @@
-export const CODEX_PLUSPLUS_VERSION = "1.0.1";
+export const CHATGPT_PLUSPLUS_VERSION = "1.0.6";
 
 const SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 

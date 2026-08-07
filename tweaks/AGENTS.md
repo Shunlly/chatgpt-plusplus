@@ -70,8 +70,8 @@ Full manifest example:
   "githubRepo": "example/my-tweak",
   "description": "Minimal example tweak. Adds a section to the Tweaks tab.",
   "author": {
-    "name": "codex-plusplus",
-    "url": "https://github.com/anomalyco/codex-plusplus"
+    "name": "chatgpt-plusplus",
+    "url": "https://github.com/Shunlly/chatgpt-plusplus"
   },
   "homepage": "https://github.com/example/my-tweak",
   "tags": ["example", "demo"],

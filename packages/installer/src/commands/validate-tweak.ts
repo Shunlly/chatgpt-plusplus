@@ -37,7 +37,7 @@ export function validateTweak(target = "."): void {
     throw new Error(`tweak validation failed with ${errors.length} error(s)`);
   }
 
-  console.log(kleur.green(`✓ ${basename(tweakDir)} is a valid Codex++ tweak`));
+  console.log(kleur.green(`✓ ${basename(tweakDir)} is a valid ChatGPT++ tweak`));
 }
 
 function resolveManifestPath(target: string): string {

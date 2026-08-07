@@ -6,7 +6,7 @@ import {
   WINDOWS_WATCHER_TASK_NAMES,
 } from "../src/windows-cleanup";
 
-test("Windows cleanup removes only Codex++ managed context menu entries", () => {
+test("Windows cleanup removes only ChatGPT++ managed context menu entries", () => {
   const script = buildWindowsManagedCleanupScript({
     localAppData: "C:\\Users\\Admin\\AppData\\Local",
     appData: "C:\\Users\\Admin\\AppData\\Roaming",
@@ -15,11 +15,11 @@ test("Windows cleanup removes only Codex++ managed context menu entries", () => 
 
   assert.match(script, /OpenProjectInCodex/);
   assert.match(script, /GetValue\(''\)/);
-  assert.match(script, /\\codex-plusplus\\store-apps\\/);
+  assert.match(script, /\\chatgpt-plusplus\\store-apps\\/);
   assert.match(script, /Remove-Item -LiteralPath \$key -Recurse -Force/);
-  assert.match(script, /codex-plusplus-codex\.cmd/);
+  assert.match(script, /chatgpt-plusplus-codex\.cmd/);
   assert.match(script, /watcher\.cmd/);
-  assert.match(script, /Codex\+\+\.lnk/);
+  assert.match(script, /ChatGPT\+\+\.lnk/);
   assert.match(script, /store-apps/);
   assert.match(script, /Get-ScheduledTask -TaskName \$taskName/);
   assert.match(script, /Unregister-ScheduledTask -InputObject \$_ -Confirm:\$false/);

@@ -46,7 +46,7 @@ function desktopWorkerForViewChannel(workerId) {
 // Codex's renderer is sandboxed (sandbox: true), so `require("node:fs")` is
 // unavailable. We forward log lines to main via IPC; main writes the file.
 function fileLog(stage, extra) {
-    const msg = `[codex-plusplus preload] ${stage}${extra === undefined ? "" : " " + safeStringify(extra)}`;
+    const msg = `[chatgpt-plusplus preload] ${stage}${extra === undefined ? "" : " " + safeStringify(extra)}`;
     try {
         console.error(msg);
     }
@@ -112,7 +112,7 @@ async function boot() {
     }
     catch (e) {
         fileLog("boot FAILED", String(e?.stack ?? e));
-        console.error("[codex-plusplus] preload boot failed:", e);
+        console.error("[chatgpt-plusplus] preload boot failed:", e);
     }
 }
 // Hot reload: gated behind a small in-flight lock so a flurry of fs events
@@ -124,13 +124,13 @@ function subscribeReload() {
             return;
         reloading = (async () => {
             try {
-                console.info("[codex-plusplus] hot-reloading tweaks");
+                console.info("[chatgpt-plusplus] hot-reloading tweaks");
                 (0, tweak_host_1.teardownTweakHost)();
                 await (0, tweak_host_1.startTweakHost)();
                 await (0, manager_1.mountManager)();
             }
             catch (e) {
-                console.error("[codex-plusplus] hot reload failed:", e);
+                console.error("[chatgpt-plusplus] hot reload failed:", e);
             }
             finally {
                 reloading = null;
@@ -205,7 +205,7 @@ async function runBrowserUiBridgeMethod(method, args, workerListeners) {
         case "triggerSentryTestError":
             return electron_1.ipcRenderer.invoke(DESKTOP_TRIGGER_SENTRY_TEST);
         default:
-            throw new Error(`Unknown Codex++ browser UI bridge method: ${method}`);
+            throw new Error(`Unknown ChatGPT++ browser UI bridge method: ${method}`);
     }
 }
 function subscribeBrowserUiWorkerMessages(workerId, workerListeners) {

@@ -42,17 +42,17 @@ test("watcher health warns when automatic refresh is disabled", () => {
 
 test("watcher log health points privileged repair failures to terminal repair", () => {
   const check = analyzeWatcherLogTail(`
-✗ codex-plusplus failed
+✗ chatgpt-plusplus failed
 Cannot write to /Applications/Codex.app/Contents/Info.plist.
 
 macOS App Management or file ownership is blocking modification of /Applications/Codex.app/Contents/Info.plist.
 Fix:
-  Open Terminal and run: codexplusplus repair
+  Open Terminal and run: chatgptplusplus repair
 `);
 
   assert.equal(check.name, "watcher log");
   assert.equal(check.status, "warn");
-  assert.equal(check.detail, "auto-repair needs app permissions; run `codexplusplus repair` from Terminal");
+  assert.equal(check.detail, "auto-repair needs app permissions; run `chatgptplusplus repair` from Terminal");
 });
 
 function withTempDir(fn: (root: string) => void): void {

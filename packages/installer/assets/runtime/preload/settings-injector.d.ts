@@ -12,7 +12,7 @@
  *
  *   GENERAL                       (uppercase group label)
  *   [Codex's existing items group]
- *   CODEX++                       (uppercase group label)
+ *   CHATGPT++                     (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
  *   ◇ Tweak Store

@@ -37,7 +37,7 @@ export function describeInstallationSource(sourceRoot: string | null | undefined
     return {
       kind: "unknown",
       label: "Unknown",
-      detail: "Codex++ source location is not recorded yet. Run codexplusplus install or repair.",
+      detail: "ChatGPT++ source location is not recorded yet. Run chatgptplusplus install or repair.",
     };
   }
 
@@ -45,13 +45,19 @@ export function describeInstallationSource(sourceRoot: string | null | undefined
   if (existsSync(join(sourceRoot, "standalone.json"))) {
     return { kind: "standalone-package", label: "Standalone 安装包", detail: sourceRoot };
   }
-  if (/\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(normalized)) {
+  if (/\/(?:Homebrew|homebrew)\/Cellar\/(?:chatgptplusplus|codexplusplus)\//.test(normalized)) {
     return { kind: "homebrew", label: "Homebrew", detail: sourceRoot };
   }
   if (existsSync(join(sourceRoot, ".git"))) {
     return { kind: "local-dev", label: "Local development checkout", detail: sourceRoot };
   }
-  if (normalized.endsWith("/.codex-plusplus/source") || normalized.includes("/.codex-plusplus/source/")) {
+  if (
+    normalized.endsWith("/.chatgpt-plusplus/source") ||
+    normalized.includes("/.chatgpt-plusplus/source/") ||
+    // 兼容旧项目名路径（老用户升级前的安装位置）。
+    normalized.endsWith("/.codex-plusplus/source") ||
+    normalized.includes("/.codex-plusplus/source/")
+  ) {
     return { kind: "github-source", label: "GitHub source installer", detail: sourceRoot };
   }
   if (existsSync(join(sourceRoot, "package.json"))) {

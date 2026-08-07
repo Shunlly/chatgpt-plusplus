@@ -13,7 +13,7 @@ import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from
 import { readPlist, writePlist } from "../plist.js";
 import { writeState } from "../state.js";
 import { installWatcher, type WatcherKind } from "../watcher.js";
-import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
+import { CHATGPT_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { formatCliShimResult, installCliShims } from "../cli-shim.js";
 import { findSourceRoot } from "../source-root.js";
 import { isStandalone, persistStandaloneCli, standaloneAssetsDir, standaloneResourcesRoot, standaloneSourceRoot } from "../standalone.js";
@@ -106,7 +106,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   let appBackupRefreshed = false;
   if (pristineAppBackup) {
     appBackupRefreshed = backupUnpatchedApp(codex.appRoot, pristineAppBackup, {
-      hasPatchMarker: hasCodexPlusPlusAsarMarker(codex.asarPath),
+      hasPatchMarker: hasChatgptPlusPlusAsarMarker(codex.asarPath),
       step: step.detail,
     });
   }
@@ -191,7 +191,7 @@ export async function install(opts: Opts = {}): Promise<void> {
 
   // 8. Persist state.
   writeState(paths.stateFile, {
-    version: CODEX_PLUSPLUS_VERSION,
+    version: CHATGPT_PLUSPLUS_VERSION,
     installedAt: new Date().toISOString(),
     appRoot: codex.appRoot,
     originalAsarHash,
@@ -417,13 +417,17 @@ export function backupUnpatchedApp(
   return true;
 }
 
-export function hasCodexPlusPlusAsarMarker(asarPath: string): boolean {
+export function hasChatgptPlusPlusAsarMarker(asarPath: string): boolean {
   try {
     const pkg = JSON.parse(readFileInAsar(asarPath, "package.json").toString("utf8")) as {
       main?: unknown;
       __codexpp?: unknown;
     };
-    return pkg.main === "codex-plusplus-loader.cjs" || typeof pkg.__codexpp === "object";
+    return (
+      pkg.main === "chatgpt-plusplus-loader.cjs" ||
+      pkg.main === "codex-plusplus-loader.cjs" ||
+      typeof pkg.__codexpp === "object"
+    );
   } catch {
     return false;
   }
@@ -455,9 +459,9 @@ async function injectLoader(
       pkg["__codexpp"] = {
         originalMain,
         userRoot,
-        loader: "codex-plusplus-loader.cjs",
+        loader: "chatgpt-plusplus-loader.cjs",
       };
-      pkg.main = "codex-plusplus-loader.cjs";
+      pkg.main = "chatgpt-plusplus-loader.cjs";
       writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
     }
 
@@ -469,9 +473,9 @@ async function injectLoader(
       if (!existsSync(devLoader)) {
         throw new Error(`loader.cjs not found at ${loaderSrc} or ${devLoader}`);
       }
-      cpSync(devLoader, join(dir, "codex-plusplus-loader.cjs"));
+      cpSync(devLoader, join(dir, "chatgpt-plusplus-loader.cjs"));
     } else {
-      cpSync(loaderSrc, join(dir, "codex-plusplus-loader.cjs"));
+      cpSync(loaderSrc, join(dir, "chatgpt-plusplus-loader.cjs"));
     }
 
     patchCodexWindowServices(dir, originalMain, step);
@@ -898,7 +902,10 @@ function escapePowerShellSingleQuotedString(value: string): string {
 
 function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths: string[] } | null {
   if (codex.platform !== "win32") return null;
-  if (!/\\codex-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`)) {
+  if (
+    !/\\chatgpt-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`) &&
+    !/\\codex-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`)
+  ) {
     return null;
   }
 
@@ -907,7 +914,7 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
 
   const shimDir = join(localAppData, "Microsoft", "WindowsApps");
   mkdirSync(shimDir, { recursive: true });
-  const commandPath = join(shimDir, "codex-plusplus-codex.cmd");
+  const commandPath = join(shimDir, "chatgpt-plusplus-codex.cmd");
   writeFileSync(
     commandPath,
     `@echo off\r\nstart "" "${codex.executable}" %*\r\n`,

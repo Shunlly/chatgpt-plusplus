@@ -10,7 +10,7 @@ import { uninstallWatcher } from "../watcher.js";
 import { chownForTargetUser } from "../ownership.js";
 import { cleanupWindowsManagedArtifacts } from "../windows-cleanup.js";
 import { readHeaderHash } from "../asar.js";
-import { hasCodexPlusPlusAsarMarker, readCodexVersion } from "./install.js";
+import { hasChatgptPlusPlusAsarMarker, readCodexVersion } from "./install.js";
 import { isCodexRunning } from "../alerts.js";
 import type { CodexInstall } from "../platform.js";
 
@@ -26,7 +26,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
 
   if (isCodexRunning(codex.appRoot)) {
     throw new Error(
-      `[!] Close Codex before uninstalling Codex++\n\n` +
+      `[!] Close Codex before uninstalling ChatGPT++\n\n` +
         `Codex is currently running from:\n` +
         `  ${codex.appRoot}\n\n` +
         `Quit Codex completely, then rerun this command. ` +
@@ -43,7 +43,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
     state,
     currentAsarHash: safeReadHeaderHash(codex.asarPath),
     currentCodexVersion: readCodexVersion(codex.metaPath),
-    hasPatchMarker: hasCodexPlusPlusAsarMarker(codex.asarPath),
+    hasPatchMarker: hasChatgptPlusPlusAsarMarker(codex.asarPath),
     fullAppBackup,
     partialAsarBackup: backupAsar,
   });
@@ -72,7 +72,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   console.log(kleur.green("Cleaned up runtime + state."));
   if (opts.purge) {
     purgeUserData(paths);
-    console.log(kleur.green("Removed Codex++ user data."));
+    console.log(kleur.green("Removed ChatGPT++ user data."));
   } else {
     console.log(
       kleur.dim(`Your tweaks remain at ${paths.tweaks} (use --purge if you want a clean reset).`),
@@ -108,11 +108,11 @@ export function chooseRestorePlan(input: {
       return { kind: "skip", reason: "current app already matches the original backup hash" };
     }
     if (input.currentAsarHash === null) {
-      return { kind: "skip", reason: "current app.asar could not be inspected and no Codex++ marker was found" };
+      return { kind: "skip", reason: "current app.asar could not be inspected and no ChatGPT++ marker was found" };
     }
     return {
       kind: "skip",
-      reason: "current app does not appear to contain the Codex++ patch",
+      reason: "current app does not appear to contain the ChatGPT++ patch",
     };
   }
 
@@ -132,10 +132,10 @@ export function chooseRestorePlan(input: {
     input.state.codexVersion !== input.currentCodexVersion
   ) {
     throw new Error(
-      `Cannot safely uninstall with partial backups because Codex changed since Codex++ was installed.\n\n` +
+      `Cannot safely uninstall with partial backups because Codex changed since ChatGPT++ was installed.\n\n` +
         `Installed against: ${input.state.codexVersion}\n` +
         `Current Codex:     ${input.currentCodexVersion}\n\n` +
-        `Update or reinstall Codex from the official app, then remove Codex++ state manually if needed.`,
+        `Update or reinstall Codex from the official app, then remove ChatGPT++ state manually if needed.`,
     );
   }
 
@@ -270,10 +270,10 @@ function cleanupPermissionError(error: unknown, path: string, label: string): Er
   }
 
   return new Error(
-    `Cannot remove Codex++ ${label} at ${path}.\n` +
+    `Cannot remove ChatGPT++ ${label} at ${path}.\n` +
       "This usually means files were left owned by root from a previous sudo install or repair.\n" +
       `Fix ownership with:\n  sudo chown -R "$(id -u)":"$(id -g)" ${shellQuote(path)}\n` +
-      "Then run:\n  codexplusplus uninstall",
+      "Then run:\n  chatgptplusplus uninstall",
   );
 }
 

@@ -9,10 +9,10 @@ export const WINDOWS_CODEX_CONTEXT_MENU_KEYS = [
 ];
 
 export const WINDOWS_WATCHER_TASK_NAMES = [
-  "codex-plusplus-watcher",
-  "codex-plusplus-watcher-interval",
-  "codex-plusplus-watcher-hourly",
-  "codex-plusplus-watcher-daily",
+  "chatgpt-plusplus-watcher",
+  "chatgpt-plusplus-watcher-interval",
+  "chatgpt-plusplus-watcher-hourly",
+  "chatgpt-plusplus-watcher-daily",
 ];
 
 export function cleanupWindowsManagedArtifacts(): void {
@@ -42,15 +42,15 @@ export function buildWindowsManagedCleanupScript(input: {
   home: string;
 }): string {
   const cleanupPaths = [
-    input.localAppData ? join(input.localAppData, "Microsoft", "WindowsApps", "codex-plusplus-codex.cmd") : null,
-    input.localAppData ? join(input.localAppData, "codex-plusplus", "store-apps") : null,
-    input.appData ? join(input.appData, "codex-plusplus", "bin", "watcher.cmd") : null,
-    input.appData ? join(input.appData, "Microsoft", "Windows", "Start Menu", "Programs", "Codex++.lnk") : null,
-    join(input.home, "Desktop", "Codex++.lnk"),
+    input.localAppData ? join(input.localAppData, "Microsoft", "WindowsApps", "chatgpt-plusplus-codex.cmd") : null,
+    input.localAppData ? join(input.localAppData, "chatgpt-plusplus", "store-apps") : null,
+    input.appData ? join(input.appData, "chatgpt-plusplus", "bin", "watcher.cmd") : null,
+    input.appData ? join(input.appData, "Microsoft", "Windows", "Start Menu", "Programs", "ChatGPT++.lnk") : null,
+    join(input.home, "Desktop", "ChatGPT++.lnk"),
   ].filter((path): path is string => path !== null);
 
   const emptyDirs = [
-    input.appData ? join(input.appData, "codex-plusplus", "bin") : null,
+    input.appData ? join(input.appData, "chatgpt-plusplus", "bin") : null,
   ].filter((path): path is string => path !== null);
 
   return [
@@ -68,14 +68,14 @@ export function buildWindowsManagedCleanupScript(input: {
     "$currentPid = $PID",
     "Get-CimInstance Win32_Process | Where-Object {",
     "  $_.ProcessId -ne $currentPid -and $_.CommandLine -and",
-    "  $_.CommandLine.ToString().ToLowerInvariant().Contains('codex-plusplus') -and",
+    "  $_.CommandLine.ToString().ToLowerInvariant().Contains('chatgpt-plusplus') -and",
     "  ($_.CommandLine.ToString().ToLowerInvariant().Contains('watcher.cmd') -or",
     "    $_.CommandLine.ToString().ToLowerInvariant().Contains('--watcher') -or",
-    "    $_.CommandLine.ToString().ToLowerInvariant().Contains('codex-plusplus-watcher'))",
+    "    $_.CommandLine.ToString().ToLowerInvariant().Contains('chatgpt-plusplus-watcher'))",
     "} | ForEach-Object {",
     "  try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}",
     "}",
-    "$managedPattern = '\\codex-plusplus\\store-apps\\'",
+    "$managedPattern = '\\chatgpt-plusplus\\store-apps\\'",
     "$contextKeys = @(",
     ...WINDOWS_CODEX_CONTEXT_MENU_KEYS.map((key) => `  '${escapePowerShellSingleQuotedString(key)}'`),
     ")",

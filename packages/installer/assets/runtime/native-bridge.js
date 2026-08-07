@@ -39,7 +39,7 @@ class NativeBridge {
         const fullPath = resolveTweakPath(ctx, options.path);
         const kind = options.kind ?? inferModuleKind(fullPath);
         if (kind !== "node-addon") {
-            throw new Error(`${kind} native modules must be loaded through a .node Objective-C++ shim in Codex++ 1.0.0`);
+            throw new Error(`${kind} native modules must be loaded through a .node Objective-C++ shim in ChatGPT++ 1.0.0`);
         }
         if (!fullPath.endsWith(".node")) {
             throw new Error("node-addon native modules must use a .node file");
@@ -71,10 +71,10 @@ class NativeBridge {
     launchHelper(ctx, options) {
         const id = assertBridgeId(options.id, "native helper id");
         if ((options.transport ?? "stdio") !== "stdio") {
-            throw new Error("native helpers support only stdio transport in Codex++ 1.0.0");
+            throw new Error("native helpers support only stdio transport in ChatGPT++ 1.0.0");
         }
         if ((options.restart ?? "never") !== "never") {
-            throw new Error("native helper restart policies are not available in Codex++ 1.0.0");
+            throw new Error("native helper restart policies are not available in ChatGPT++ 1.0.0");
         }
         const executable = resolveTweakPath(ctx, options.executable);
         const args = options.args ?? [];
@@ -237,7 +237,7 @@ class NativeBridge {
         const target = moduleId ? this.moduleFor(ctx.id, moduleId).exports : this.loadNativeHost(true);
         const fn = asRecord(target)?.[factory];
         if (typeof fn !== "function") {
-            const label = moduleId ? `native module ${ctx.id}:${moduleId}` : "Codex++ native host";
+            const label = moduleId ? `native module ${ctx.id}:${moduleId}` : "ChatGPT++ native host";
             throw new Error(`${label} has no factory ${factory}()`);
         }
         const parentWindow = typeof options.parentWindowId === "number"
@@ -282,7 +282,7 @@ class NativeBridge {
             return null;
         const nativeHostPath = this.options.nativeHostPath;
         if (!nativeHostPath || !(0, node_fs_1.existsSync)(nativeHostPath)) {
-            const error = new Error("Codex++ native host is not installed");
+            const error = new Error("ChatGPT++ native host is not installed");
             this.nativeHostLoadError = error;
             if (required)
                 throw error;
@@ -291,12 +291,12 @@ class NativeBridge {
         try {
             this.nativeHostExports = require(nativeHostPath);
             this.nativeHostLoadError = null;
-            this.log("info", "loaded Codex++ native host", { path: nativeHostPath });
+            this.log("info", "loaded ChatGPT++ native host", { path: nativeHostPath });
             return this.nativeHostExports;
         }
         catch (error) {
             this.nativeHostLoadError = error instanceof Error ? error : new Error(String(error));
-            this.log("error", "failed to load Codex++ native host", this.nativeHostLoadError);
+            this.log("error", "failed to load ChatGPT++ native host", this.nativeHostLoadError);
             if (required)
                 throw this.nativeHostLoadError;
             return null;
@@ -311,7 +311,7 @@ class NativeBridge {
             return asRecord(capabilities) ?? {};
         }
         catch (error) {
-            this.log("warn", "Codex++ native host capability probe failed", error);
+            this.log("warn", "ChatGPT++ native host capability probe failed", error);
             return {};
         }
     }

@@ -27,7 +27,7 @@ export async function doctor(): Promise<void> {
     checks.push({
       name: "installed",
       ok: false,
-      detail: "no state file — run `codex-plusplus install`",
+      detail: "no state file — run `chatgpt-plusplus install`",
     });
     print(checks);
     return;
@@ -56,7 +56,7 @@ export async function doctor(): Promise<void> {
         headerHash === state.patchedAsarHash
           ? "matches patched"
           : headerHash === state.originalAsarHash
-            ? "matches ORIGINAL — Codex updated; run `codex-plusplus repair`"
+            ? "matches ORIGINAL — Codex updated; run `chatgpt-plusplus repair`"
             : "drift from both original and patched",
     });
   }
@@ -91,7 +91,7 @@ function tryWrite(p: string): boolean {
 }
 
 function print(checks: Check[]): void {
-  console.log(kleur.bold("codex-plusplus doctor\n"));
+  console.log(kleur.bold("chatgpt-plusplus doctor\n"));
   for (const c of checks) {
     const mark =
       c.ok === true

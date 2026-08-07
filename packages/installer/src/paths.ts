@@ -13,7 +13,7 @@ import { chownForTargetUser, targetUserHome } from "./ownership.js";
  *     config.json     — installer state + per-tweak enable flags
  *     log/            — runtime + installer logs
  *     state.json      — installer state (paths, hashes, version installed against)
- *     self-update-state.json — last Codex++ self-update result
+ *     self-update-state.json — last ChatGPT++ self-update result
  */
 export interface UserPaths {
   root: string;
@@ -55,6 +55,8 @@ export function ensureUserPaths(): UserPaths {
 }
 
 function userRoot(): string {
+  // 兼容旧项目名的环境变量（老用户可能已配置）。
+  if (process.env.CHATGPT_PLUSPLUS_HOME) return process.env.CHATGPT_PLUSPLUS_HOME;
   if (process.env.CODEX_PLUSPLUS_HOME) return process.env.CODEX_PLUSPLUS_HOME;
 
   const home = targetUserHome();

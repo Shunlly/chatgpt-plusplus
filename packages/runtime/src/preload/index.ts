@@ -50,7 +50,7 @@ function desktopWorkerForViewChannel(workerId: string): string {
 // Codex's renderer is sandboxed (sandbox: true), so `require("node:fs")` is
 // unavailable. We forward log lines to main via IPC; main writes the file.
 function fileLog(stage: string, extra?: unknown): void {
-  const msg = `[codex-plusplus preload] ${stage}${
+  const msg = `[chatgpt-plusplus preload] ${stage}${
     extra === undefined ? "" : " " + safeStringify(extra)
   }`;
   try {
@@ -116,7 +116,7 @@ async function boot() {
     fileLog("boot complete");
   } catch (e) {
     fileLog("boot FAILED", String((e as Error)?.stack ?? e));
-    console.error("[codex-plusplus] preload boot failed:", e);
+    console.error("[chatgpt-plusplus] preload boot failed:", e);
   }
 }
 
@@ -128,12 +128,12 @@ function subscribeReload(): void {
     if (reloading) return;
     reloading = (async () => {
       try {
-        console.info("[codex-plusplus] hot-reloading tweaks");
+        console.info("[chatgpt-plusplus] hot-reloading tweaks");
         teardownTweakHost();
         await startTweakHost();
         await mountManager();
       } catch (e) {
-        console.error("[codex-plusplus] hot reload failed:", e);
+        console.error("[chatgpt-plusplus] hot reload failed:", e);
       } finally {
         reloading = null;
       }
@@ -215,7 +215,7 @@ async function runBrowserUiBridgeMethod(
     case "triggerSentryTestError":
       return ipcRenderer.invoke(DESKTOP_TRIGGER_SENTRY_TEST);
     default:
-      throw new Error(`Unknown Codex++ browser UI bridge method: ${method}`);
+      throw new Error(`Unknown ChatGPT++ browser UI bridge method: ${method}`);
   }
 }
 

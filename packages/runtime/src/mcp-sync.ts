@@ -2,8 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import type { TweakMcpServer } from "@chatgpt-plusplus/sdk";
 
-export const MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
-export const MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
+export const MCP_MANAGED_START = "# BEGIN CHATGPT++ MANAGED MCP SERVERS";
+export const MCP_MANAGED_END = "# END CHATGPT++ MANAGED MCP SERVERS";
+/** 旧版标记（v1.0.5 之前），同步时一并清理，避免旧块残留在 Codex 配置里。 */
+export const LEGACY_MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
+export const LEGACY_MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
 
 export interface McpSyncTweak {
   dir: string;
@@ -80,7 +83,13 @@ export function buildManagedMcpBlock(
 }
 
 export function mergeManagedMcpBlock(currentToml: string, managedBlock: string): string {
-  if (!managedBlock && !currentToml.includes(MCP_MANAGED_START)) return currentToml;
+  if (
+    !managedBlock &&
+    !currentToml.includes(MCP_MANAGED_START) &&
+    !currentToml.includes(LEGACY_MCP_MANAGED_START)
+  ) {
+    return currentToml;
+  }
   const stripped = stripManagedMcpBlock(currentToml).trimEnd();
   if (!managedBlock) return stripped ? `${stripped}\n` : "";
   return `${stripped ? `${stripped}\n\n` : ""}${managedBlock}\n`;
@@ -88,7 +97,8 @@ export function mergeManagedMcpBlock(currentToml: string, managedBlock: string):
 
 export function stripManagedMcpBlock(toml: string): string {
   const pattern = new RegExp(
-    `\\n?${escapeRegExp(MCP_MANAGED_START)}[\\s\\S]*?${escapeRegExp(MCP_MANAGED_END)}\\n?`,
+    `\\n?(?:${escapeRegExp(MCP_MANAGED_START)}|${escapeRegExp(LEGACY_MCP_MANAGED_START)})` +
+      `[\\s\\S]*?(?:${escapeRegExp(MCP_MANAGED_END)}|${escapeRegExp(LEGACY_MCP_MANAGED_END)})\\n?`,
     "g",
   );
   return toml.replace(pattern, "\n").replace(/\n{3,}/g, "\n\n");

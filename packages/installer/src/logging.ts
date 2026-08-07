@@ -40,6 +40,6 @@ export function capKnownLogFiles(): void {
     capLogFile(join(paths.logDir, file));
   }
   if (platform() === "darwin") {
-    capLogFile(join(targetUserHome(), "Library", "Logs", "codex-plusplus-watcher.log"));
+    capLogFile(join(targetUserHome(), "Library", "Logs", "chatgpt-plusplus-watcher.log"));
   }
 }

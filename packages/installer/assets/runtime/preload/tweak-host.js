@@ -42,14 +42,14 @@ async function startTweakHost() {
             await loadTweak(t, paths);
         }
         catch (e) {
-            console.error("[codex-plusplus] tweak load failed:", t.manifest.id, e);
+            console.error("[chatgpt-plusplus] tweak load failed:", t.manifest.id, e);
             try {
                 electron_1.ipcRenderer.send("codexpp:preload-log", "error", "tweak load failed: " + t.manifest.id + ": " + String(e?.stack ?? e));
             }
             catch { }
         }
     }
-    console.info(`[codex-plusplus] renderer host loaded ${loaded.size} tweak(s):`, [...loaded.keys()].join(", ") || "(none)");
+    console.info(`[chatgpt-plusplus] renderer host loaded ${loaded.size} tweak(s):`, [...loaded.keys()].join(", ") || "(none)");
     electron_1.ipcRenderer.send("codexpp:preload-log", "info", `renderer host loaded ${loaded.size} tweak(s): ${[...loaded.keys()].join(", ") || "(none)"}`);
 }
 /**
@@ -63,7 +63,7 @@ function teardownTweakHost() {
             t.stop?.();
         }
         catch (e) {
-            console.warn("[codex-plusplus] tweak stop failed:", id, e);
+            console.warn("[chatgpt-plusplus] tweak stop failed:", id, e);
         }
         finally {
             void electron_1.ipcRenderer.invoke("codexpp:codex-view-dispose-tweak", id).catch(() => { });
@@ -99,7 +99,7 @@ function makeRendererApi(manifest, paths, tweakDir) {
             : level === "warn" ? console.warn
                 : level === "error" ? console.error
                     : console.log;
-        consoleFn(`[codex-plusplus][${id}]`, ...a);
+        consoleFn(`[chatgpt-plusplus][${id}]`, ...a);
         // Also mirror to main's log file so we can diagnose tweak behavior
         // without attaching DevTools. Stringify each arg defensively.
         try {

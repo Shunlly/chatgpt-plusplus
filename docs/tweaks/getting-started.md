@@ -10,7 +10,7 @@ open Codex-native windows.
 | Platform | Directory |
 |---|---|
 | macOS | `~/Library/Application Support/chatgpt-plusplus/tweaks/` |
-| Linux | `~/.local/share/codex-plusplus/tweaks/` |
+| Linux | `~/.local/share/chatgpt-plusplus/tweaks/` |
 | Windows | `%APPDATA%/chatgpt-plusplus/tweaks/` |
 
 ChatGPT++ watches this directory and hot-reloads when files change. You can also

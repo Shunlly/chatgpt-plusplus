@@ -41,11 +41,11 @@ chatgptplusplus debug
 | `<userRoot>/log/preload.log` | renderer preload, renderer tweaks, settings injector. |
 | `<userRoot>/log/loader.log` | loader startup before runtime handoff. |
 
-Renderer logs also appear in DevTools with `[codex-plusplus]` prefixes.
+Renderer logs also appear in DevTools with `[chatgpt-plusplus]` prefixes.
 
 ## Debugging Renderer Tweaks
 
-- Filter DevTools console for `[codex-plusplus]`.
+- Filter DevTools console for `[chatgpt-plusplus]`.
 - Prefer `api.log.info()` for persistent logs.
 - Use `api.react.waitForElement(selector, timeoutMs)` instead of patching before
   Codex has rendered.

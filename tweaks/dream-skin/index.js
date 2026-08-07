@@ -1,4 +1,4 @@
-// Dream Skin 换肤 tweak —— 把 Codex Dream Skin 的渲染器注入脚本搬进 codex-plusplus。
+// Dream Skin 换肤 tweak —— 把 Codex Dream Skin 的渲染器注入脚本搬进 chatgpt-plusplus。
 // 预设目录（theme.json + background.jpg）作为随包资源读取；上传图片可新建并
 // 持久化自定义主题（图片 data URL 存 tweak 数据目录，索引文件管理列表）。
 // 选中项持久化在 api.storage，切换主题即热更新；tweak 被禁用或卸载时 stop() 清理现场。
@@ -217,7 +217,7 @@ async function applySaved(api) {
   }
 }
 
-// ── 设置页 UI（沿用 codex-plusplus 文档里的 Codex token 样式）──
+// ── 设置页 UI（沿用 chatgpt-plusplus 文档里的 Codex token 样式）──
 
 let statusEl = null;
 let renderSeq = 0; // 渲染代次：重建页面后丢弃过期异步回调（如“我的主题”列表）

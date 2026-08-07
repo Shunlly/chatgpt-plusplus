@@ -15,7 +15,7 @@ async function mountManager() {
     const tweaks = (await electron_1.ipcRenderer.invoke("codexpp:list-tweaks"));
     const paths = (await electron_1.ipcRenderer.invoke("codexpp:user-paths"));
     (0, settings_injector_1.registerSection)({
-        id: "codex-plusplus:manager",
+        id: "chatgpt-plusplus:manager",
         title: "Tweak Manager",
         description: `${tweaks.length} tweak(s) installed. User dir: ${paths.userRoot}`,
         render(root) {

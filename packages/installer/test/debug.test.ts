@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   collectOwlBridgeReport,
-  codexPlusPlusPaths,
+  chatgptPlusPlusPaths,
   detectRuntime,
   parsePsOutput,
   type DataPath,
@@ -71,7 +71,7 @@ test("parsePsOutput extracts pids, start times, and commands", () => {
   assert.equal(rows[1]?.command, "/Applications/Codex.app/Contents/Resources/codex --agent");
 });
 
-test("codexPlusPlusPaths reports paths without creating them", () => {
+test("chatgptPlusPlusPaths reports paths without creating them", () => {
   const root = mkdtempSync(join(tmpdir(), "codexpp-debug-"));
   const home = join(root, "clean-home");
   const paths: UserPaths = {
@@ -88,7 +88,7 @@ test("codexPlusPlusPaths reports paths without creating them", () => {
   };
 
   try {
-    const reported = codexPlusPlusPaths(paths);
+    const reported = chatgptPlusPlusPaths(paths);
     assert.equal(reported.some((item: DataPath) => item.exists), false);
     assert.equal(reported.find((item) => item.label === "Root")?.path, home);
   } finally {

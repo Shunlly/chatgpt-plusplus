@@ -39,7 +39,7 @@ export function createTweak(target: string, opts: CreateTweakOpts = {}): void {
     name: opts.name ?? titleize(slug),
     version: "0.1.0",
     githubRepo: opts.repo ?? `example/${slug}`,
-    description: "A Codex++ tweak.",
+    description: "A ChatGPT++ tweak.",
     scope,
     main: "index.js",
     permissions: permissionsForScope(scope),
@@ -60,7 +60,7 @@ export function createTweak(target: string, opts: CreateTweakOpts = {}): void {
     private: true,
     type: "commonjs",
     scripts: {
-      validate: "codexplusplus validate-tweak .",
+      validate: "chatgptplusplus validate-tweak .",
     },
     devDependencies: {
       "@chatgpt-plusplus/sdk": "^0.1.3",
@@ -68,14 +68,14 @@ export function createTweak(target: string, opts: CreateTweakOpts = {}): void {
   });
   writeFileSync(resolve(dir, "README.md"), readme(manifest), "utf8");
 
-  console.log(kleur.green().bold("✓ Created Codex++ tweak"));
+  console.log(kleur.green().bold("✓ Created ChatGPT++ tweak"));
   console.log(`  Directory: ${kleur.cyan(dir)}`);
   console.log(`  Manifest:  ${kleur.cyan(resolve(dir, "manifest.json"))}`);
   console.log();
   console.log("Next:");
   console.log(`  1. Edit ${kleur.cyan(resolve(dir, "manifest.json"))}`);
-  console.log(`  2. Run ${kleur.cyan(`codexplusplus validate-tweak ${dir}`)}`);
-  console.log("  3. Copy or symlink this directory into your Codex++ tweaks directory");
+  console.log(`  2. Run ${kleur.cyan(`chatgptplusplus validate-tweak ${dir}`)}`);
+  console.log("  3. Copy or symlink this directory into your ChatGPT++ tweaks directory");
 }
 
 function permissionsForScope(scope: TweakScope): TweakManifest["permissions"] {
@@ -159,10 +159,10 @@ ${manifest.description}
 ## Development
 
 \`\`\`sh
-codexplusplus validate-tweak .
+chatgptplusplus validate-tweak .
 \`\`\`
 
-Install by copying or symlinking this directory into your Codex++ tweaks directory.
+Install by copying or symlinking this directory into your ChatGPT++ tweaks directory.
 `;
 }
 

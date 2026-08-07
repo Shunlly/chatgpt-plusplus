@@ -6,8 +6,10 @@ const node_child_process_1 = require("node:child_process");
 const node_fs_1 = require("node:fs");
 const node_os_1 = require("node:os");
 const node_path_1 = require("node:path");
-const LAUNCHD_LABEL = "com.codexplusplus.watcher";
-const WATCHER_LOG = (0, node_path_1.join)((0, node_os_1.homedir)(), "Library", "Logs", "codex-plusplus-watcher.log");
+const LAUNCHD_LABEL = "com.chatgptplusplus.watcher";
+const LEGACY_LAUNCHD_LABEL = "com.codexplusplus.watcher";
+const WATCHER_LOG = (0, node_path_1.join)((0, node_os_1.homedir)(), "Library", "Logs", "chatgpt-plusplus-watcher.log");
+const LEGACY_WATCHER_LOG = (0, node_path_1.join)((0, node_os_1.homedir)(), "Library", "Logs", "codex-plusplus-watcher.log");
 function getWatcherHealth(userRoot) {
     const checks = [];
     const state = readJson((0, node_path_1.join)(userRoot, "state.json"));
@@ -16,15 +18,15 @@ function getWatcherHealth(userRoot) {
     checks.push({
         name: "Install state",
         status: state ? "ok" : "error",
-        detail: state ? `Codex++ ${state.version ?? "(unknown version)"}` : "state.json is missing",
+        detail: state ? `ChatGPT++ ${state.version ?? "(unknown version)"}` : "state.json is missing",
     });
     if (!state)
         return summarize("none", checks);
-    const autoUpdate = config.codexPlusPlus?.autoUpdate !== false;
+    const autoUpdate = config.chatgptPlusPlus?.autoUpdate !== false && config.codexPlusPlus?.autoUpdate !== false;
     checks.push({
         name: "Automatic refresh",
         status: autoUpdate ? "ok" : "warn",
-        detail: autoUpdate ? "enabled" : "disabled in Codex++ config",
+        detail: autoUpdate ? "enabled" : "disabled in ChatGPT++ config",
     });
     checks.push({
         name: "Watcher kind",
@@ -63,21 +65,21 @@ function selfUpdateCheck(state) {
     const at = state.completedAt ?? state.checkedAt ?? "unknown time";
     if (state.status === "failed") {
         return {
-            name: "last Codex++ update",
+            name: "last ChatGPT++ update",
             status: "warn",
             detail: state.error ? `failed ${at}: ${state.error}` : `failed ${at}`,
         };
     }
     if (state.status === "disabled") {
-        return { name: "last Codex++ update", status: "warn", detail: `skipped ${at}: automatic refresh disabled` };
+        return { name: "last ChatGPT++ update", status: "warn", detail: `skipped ${at}: automatic refresh disabled` };
     }
     if (state.status === "updated") {
-        return { name: "last Codex++ update", status: "ok", detail: `updated ${at} to ${state.latestVersion ?? "new release"}` };
+        return { name: "last ChatGPT++ update", status: "ok", detail: `updated ${at} to ${state.latestVersion ?? "new release"}` };
     }
     if (state.status === "up-to-date") {
-        return { name: "last Codex++ update", status: "ok", detail: `up to date ${at}` };
+        return { name: "last ChatGPT++ update", status: "ok", detail: `up to date ${at}` };
     }
-    return { name: "last Codex++ update", status: "warn", detail: `checking since ${at}` };
+    return { name: "last ChatGPT++ update", status: "warn", detail: `checking since ${at}` };
 }
 function checkLaunchdWatcher(appRoot) {
     const checks = [];
@@ -92,7 +94,7 @@ function checkLaunchdWatcher(appRoot) {
     if (plist) {
         checks.push({
             name: "launchd label",
-            status: plist.includes(LAUNCHD_LABEL) ? "ok" : "error",
+            status: plist.includes(LAUNCHD_LABEL) || plist.includes(LEGACY_LAUNCHD_LABEL) ? "ok" : "error",
             detail: LAUNCHD_LABEL,
         });
         checks.push({
@@ -102,7 +104,8 @@ function checkLaunchdWatcher(appRoot) {
         });
         checks.push({
             name: "watcher command",
-            status: plist.includes("CODEX_PLUSPLUS_WATCHER=1") && plist.includes(" update --watcher --quiet")
+            status: (plist.includes("CHATGPT_PLUSPLUS_WATCHER=1") || plist.includes("CODEX_PLUSPLUS_WATCHER=1")) &&
+                plist.includes(" update --watcher --quiet")
                 ? "ok"
                 : "error",
             detail: commandSummary(plist),
@@ -127,9 +130,9 @@ function checkLaunchdWatcher(appRoot) {
 }
 function checkSystemdWatcher(appRoot) {
     const dir = (0, node_path_1.join)((0, node_os_1.homedir)(), ".config", "systemd", "user");
-    const service = (0, node_path_1.join)(dir, "codex-plusplus-watcher.service");
-    const timer = (0, node_path_1.join)(dir, "codex-plusplus-watcher.timer");
-    const pathUnit = (0, node_path_1.join)(dir, "codex-plusplus-watcher.path");
+    const service = (0, node_path_1.join)(dir, "chatgpt-plusplus-watcher.service");
+    const timer = (0, node_path_1.join)(dir, "chatgpt-plusplus-watcher.timer");
+    const pathUnit = (0, node_path_1.join)(dir, "chatgpt-plusplus-watcher.path");
     const expectedPath = appRoot ? (0, node_path_1.join)(appRoot, "resources", "app.asar") : "";
     const pathBody = (0, node_fs_1.existsSync)(pathUnit) ? readFileSafe(pathUnit) : "";
     return [
@@ -150,13 +153,13 @@ function checkSystemdWatcher(appRoot) {
         },
         {
             name: "path unit active",
-            status: commandSucceeds("systemctl", ["--user", "is-active", "--quiet", "codex-plusplus-watcher.path"]) ? "ok" : "warn",
-            detail: "systemctl --user is-active codex-plusplus-watcher.path",
+            status: commandSucceeds("systemctl", ["--user", "is-active", "--quiet", "chatgpt-plusplus-watcher.path"]) ? "ok" : "warn",
+            detail: "systemctl --user is-active chatgpt-plusplus-watcher.path",
         },
         {
             name: "timer active",
-            status: commandSucceeds("systemctl", ["--user", "is-active", "--quiet", "codex-plusplus-watcher.timer"]) ? "ok" : "warn",
-            detail: "systemctl --user is-active codex-plusplus-watcher.timer",
+            status: commandSucceeds("systemctl", ["--user", "is-active", "--quiet", "chatgpt-plusplus-watcher.timer"]) ? "ok" : "warn",
+            detail: "systemctl --user is-active chatgpt-plusplus-watcher.timer",
         },
     ];
 }
@@ -164,33 +167,34 @@ function checkScheduledTaskWatcher() {
     return [
         {
             name: "logon task",
-            status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "codex-plusplus-watcher"]) ? "ok" : "error",
-            detail: "codex-plusplus-watcher",
+            status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "chatgpt-plusplus-watcher"]) ? "ok" : "error",
+            detail: "chatgpt-plusplus-watcher",
         },
         {
             name: "hourly task",
-            status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "codex-plusplus-watcher-hourly"]) ? "ok" : "warn",
-            detail: "codex-plusplus-watcher-hourly",
+            status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "chatgpt-plusplus-watcher-hourly"]) ? "ok" : "warn",
+            detail: "chatgpt-plusplus-watcher-hourly",
         },
     ];
 }
 function watcherLogCheck() {
-    if (!(0, node_fs_1.existsSync)(WATCHER_LOG)) {
+    const logPath = (0, node_fs_1.existsSync)(WATCHER_LOG) ? WATCHER_LOG : LEGACY_WATCHER_LOG;
+    if (!(0, node_fs_1.existsSync)(logPath)) {
         return { name: "watcher log", status: "warn", detail: "no watcher log yet" };
     }
-    const tail = readFileSafe(WATCHER_LOG).split(/\r?\n/).slice(-40).join("\n");
+    const tail = readFileSafe(logPath).split(/\r?\n/).slice(-40).join("\n");
     return analyzeWatcherLogTail(tail);
 }
 function analyzeWatcherLogTail(tail) {
-    const hasError = /✗ codex-plusplus failed|codex-plusplus failed|error|failed/i.test(tail);
+    const hasError = /✗ (?:chatgpt|codex)-plusplus failed|(?:chatgpt|codex)-plusplus failed|error|failed/i.test(tail);
     const needsManualRepair = hasError &&
-        /Cannot write to .*Codex.*\.app|App Management|file ownership|sudo codexplusplus (?:install|repair)|EACCES|EPERM/i.test(tail);
+        /Cannot write to .*Codex.*\.app|App Management|file ownership|sudo (?:chatgptplusplus|codexplusplus) (?:install|repair)|EACCES|EPERM/i.test(tail);
     return {
         name: "watcher log",
         status: hasError ? "warn" : "ok",
         detail: hasError
             ? needsManualRepair
-                ? "auto-repair needs app permissions; run `codexplusplus repair` from Terminal"
+                ? "auto-repair needs app permissions; run `chatgptplusplus repair` from Terminal"
                 : "recent watcher log contains an error"
             : WATCHER_LOG,
     };
@@ -207,7 +211,7 @@ function summarize(watcher, checks) {
             ? "Auto-repair watcher needs review"
             : "Auto-repair watcher is not ready";
     const summary = status === "ok"
-        ? "Codex++ should automatically repair itself after Codex updates."
+        ? "ChatGPT++ should automatically repair itself after Codex updates."
         : `${failed} failing check(s), ${warned} warning(s).`;
     return {
         checkedAt: new Date().toISOString(),

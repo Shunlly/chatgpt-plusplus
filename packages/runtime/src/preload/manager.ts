@@ -21,7 +21,7 @@ export async function mountManager(): Promise<void> {
   };
 
   registerSection({
-    id: "codex-plusplus:manager",
+    id: "chatgpt-plusplus:manager",
     title: "Tweak Manager",
     description: `${tweaks.length} tweak(s) installed. User dir: ${paths.userRoot}`,
     render(root) {

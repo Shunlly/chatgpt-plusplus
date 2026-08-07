@@ -54,7 +54,7 @@ test("uninstall skips app restore when the current app no longer looks patched",
   assert.match(plan.reason, /does not appear/);
 });
 
-test("purge removes all Codex++ user data", () => {
+test("purge removes all ChatGPT++ user data", () => {
   const root = mkdtempSync(join(tmpdir(), "codexpp-uninstall-"));
   mkdirSync(join(root, "tweaks", "example"), { recursive: true });
   mkdirSync(join(root, "backup"), { recursive: true });
@@ -128,7 +128,7 @@ test("uninstall refuses partial restore after a Codex version change", () => {
           fullAppBackup: null,
           partialAsarBackup: partial,
         }),
-      /Codex changed since Codex\+\+ was installed/,
+      /Codex changed since ChatGPT\+\+ was installed/,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

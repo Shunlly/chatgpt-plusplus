@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MCP_MANAGED_END = exports.MCP_MANAGED_START = void 0;
+exports.LEGACY_MCP_MANAGED_END = exports.LEGACY_MCP_MANAGED_START = exports.MCP_MANAGED_END = exports.MCP_MANAGED_START = void 0;
 exports.syncManagedMcpServers = syncManagedMcpServers;
 exports.buildManagedMcpBlock = buildManagedMcpBlock;
 exports.mergeManagedMcpBlock = mergeManagedMcpBlock;
@@ -8,8 +8,11 @@ exports.stripManagedMcpBlock = stripManagedMcpBlock;
 exports.mcpServerNameFromTweakId = mcpServerNameFromTweakId;
 const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
-exports.MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
-exports.MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
+exports.MCP_MANAGED_START = "# BEGIN CHATGPT++ MANAGED MCP SERVERS";
+exports.MCP_MANAGED_END = "# END CHATGPT++ MANAGED MCP SERVERS";
+/** 旧版标记（v1.0.5 之前），同步时一并清理，避免旧块残留在 Codex 配置里。 */
+exports.LEGACY_MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
+exports.LEGACY_MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
 function syncManagedMcpServers({ configPath, tweaks, }) {
     const current = (0, node_fs_1.existsSync)(configPath) ? (0, node_fs_1.readFileSync)(configPath, "utf8") : "";
     const built = buildManagedMcpBlock(tweaks, current);
@@ -50,15 +53,19 @@ function buildManagedMcpBlock(tweaks, existingToml = "") {
     };
 }
 function mergeManagedMcpBlock(currentToml, managedBlock) {
-    if (!managedBlock && !currentToml.includes(exports.MCP_MANAGED_START))
+    if (!managedBlock &&
+        !currentToml.includes(exports.MCP_MANAGED_START) &&
+        !currentToml.includes(exports.LEGACY_MCP_MANAGED_START)) {
         return currentToml;
+    }
     const stripped = stripManagedMcpBlock(currentToml).trimEnd();
     if (!managedBlock)
         return stripped ? `${stripped}\n` : "";
     return `${stripped ? `${stripped}\n\n` : ""}${managedBlock}\n`;
 }
 function stripManagedMcpBlock(toml) {
-    const pattern = new RegExp(`\\n?${escapeRegExp(exports.MCP_MANAGED_START)}[\\s\\S]*?${escapeRegExp(exports.MCP_MANAGED_END)}\\n?`, "g");
+    const pattern = new RegExp(`\\n?(?:${escapeRegExp(exports.MCP_MANAGED_START)}|${escapeRegExp(exports.LEGACY_MCP_MANAGED_START)})` +
+        `[\\s\\S]*?(?:${escapeRegExp(exports.MCP_MANAGED_END)}|${escapeRegExp(exports.LEGACY_MCP_MANAGED_END)})\\n?`, "g");
     return toml.replace(pattern, "\n").replace(/\n{3,}/g, "\n\n");
 }
 function mcpServerNameFromTweakId(id) {

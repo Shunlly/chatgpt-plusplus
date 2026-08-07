@@ -13,7 +13,7 @@
  *
  *   GENERAL                       (uppercase group label)
  *   [Codex's existing items group]
- *   CODEX++                       (uppercase group label)
+ *   CHATGPT++                     (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
  *   ◇ Tweak Store
@@ -30,7 +30,7 @@ exports.registerPage = registerPage;
 exports.setListedTweaks = setListedTweaks;
 const electron_1 = require("electron");
 const tweak_store_1 = require("../tweak-store");
-const CODEX_PLUSPLUS_RELEASES_URL = "https://github.com/Shunlly/chatgpt-plusplus/releases";
+const CHATGPT_PLUSPLUS_RELEASES_URL = "https://github.com/Shunlly/chatgpt-plusplus/releases";
 const state = {
     sections: new Map(),
     pages: new Map(),
@@ -39,7 +39,7 @@ const state = {
     nativeNavHeader: null,
     navGroup: null,
     navButtons: null,
-    codexPlusPlusUpdateButton: null,
+    chatgptPlusPlusUpdateButton: null,
     pagesGroup: null,
     pagesGroupKey: null,
     panelHost: null,
@@ -249,14 +249,14 @@ function tryInject() {
         state.activePage = null;
         state.panelHost = null;
     }
-    const existingCodexPpNavGroup = outer.querySelector(':scope > [data-codexpp="nav-group"]') ??
+    const existingChatgptPpNavGroup = outer.querySelector(':scope > [data-codexpp="nav-group"]') ??
         outer.querySelector('[data-codexpp="nav-group"]');
-    if (existingCodexPpNavGroup) {
-        state.navGroup = existingCodexPpNavGroup;
-        state.codexPlusPlusUpdateButton = existingCodexPpNavGroup.querySelector("[data-codexpp-sidebar-update]");
+    if (existingChatgptPpNavGroup) {
+        state.navGroup = existingChatgptPpNavGroup;
+        state.chatgptPlusPlusUpdateButton = existingChatgptPpNavGroup.querySelector("[data-codexpp-sidebar-update]");
         state.sidebarRoot = outer;
         syncPagesGroup();
-        refreshSidebarCodexPlusPlusUpdateButton();
+        refreshSidebarChatgptPlusPlusUpdateButton();
         if (state.activePage !== null)
             syncCodexNativeNavActive(true);
         return;
@@ -266,9 +266,9 @@ function tryInject() {
     group.dataset.codexpp = "nav-group";
     group.className = "flex flex-col gap-px";
     const updateButton = sidebarUpdatePillButton();
-    state.codexPlusPlusUpdateButton = updateButton;
+    state.chatgptPlusPlusUpdateButton = updateButton;
     group.appendChild(sidebarGroupHeader("ChatGPT++", "pt-3", updateButton));
-    refreshSidebarCodexPlusPlusUpdateButton();
+    refreshSidebarChatgptPlusPlusUpdateButton();
     // ── Sidebar items ────────────────────────────────────────────────────
     const configBtn = makeSidebarItem("Config", configIconSvg());
     const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
@@ -847,7 +847,7 @@ function renderConfigPage(sectionsWrap, subtitle) {
             subtitle.textContent = `You have ChatGPT++ ${config.version} installed.`;
         }
         card.textContent = "";
-        renderCodexPlusPlusConfig(card, config);
+        renderChatgptPlusPlusConfig(card, config);
     })
         .catch((e) => {
         if (subtitle)
@@ -872,8 +872,8 @@ function renderConfigPage(sectionsWrap, subtitle) {
     maintenance.appendChild(maintenanceCard);
     sectionsWrap.appendChild(maintenance);
 }
-function renderCodexPlusPlusConfig(card, config) {
-    setSidebarCodexPlusPlusUpdateButton(config.updateCheck);
+function renderChatgptPlusPlusConfig(card, config) {
+    setSidebarChatgptPlusPlusUpdateButton(config.updateCheck);
     card.appendChild(autoUpdateRow(config));
     card.appendChild(updateChannelRow(config));
     card.appendChild(installationSourceRow(config.installationSource));
@@ -982,7 +982,7 @@ function checkForUpdatesRow(config) {
         void electron_1.ipcRenderer
             .invoke("codexpp:check-codexpp-update", true)
             .then((check) => {
-            setSidebarCodexPlusPlusUpdateButton(check);
+            setSidebarChatgptPlusPlusUpdateButton(check);
             refreshConfigCard(row);
         })
             .catch((e) => plog("ChatGPT++ release check failed", String(e)))
@@ -998,7 +998,7 @@ function checkForUpdatesRow(config) {
         void electron_1.ipcRenderer
             .invoke("codexpp:run-codexpp-update")
             .then(() => {
-            refreshSidebarCodexPlusPlusUpdateButton(true);
+            refreshSidebarChatgptPlusPlusUpdateButton(true);
             refreshConfigCard(row);
         })
             .catch((e) => {
@@ -1299,7 +1299,7 @@ function refreshConfigCard(row) {
         .invoke("codexpp:get-config")
         .then((config) => {
         card.textContent = "";
-        renderCodexPlusPlusConfig(card, config);
+        renderChatgptPlusPlusConfig(card, config);
     })
         .catch((e) => {
         card.textContent = "";
@@ -1311,7 +1311,7 @@ function uninstallRow() {
     const action = row.querySelector("[data-codexpp-row-actions]");
     action?.appendChild(compactButton("Copy Command", () => {
         void electron_1.ipcRenderer
-            .invoke("codexpp:copy-text", "node ~/.codex-plusplus/source/packages/installer/dist/cli.js uninstall")
+            .invoke("codexpp:copy-text", "node ~/.chatgpt-plusplus/source/packages/installer/dist/cli.js uninstall")
             .catch((e) => plog("copy uninstall command failed", String(e)));
     }));
     return row;
@@ -1741,30 +1741,30 @@ function sidebarUpdatePillButton() {
     btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        void electron_1.ipcRenderer.invoke("codexpp:open-external", btn.dataset.codexppReleaseUrl || CODEX_PLUSPLUS_RELEASES_URL);
+        void electron_1.ipcRenderer.invoke("codexpp:open-external", btn.dataset.codexppReleaseUrl || CHATGPT_PLUSPLUS_RELEASES_URL);
     });
     return btn;
 }
-function refreshSidebarCodexPlusPlusUpdateButton(force = false) {
-    const btn = state.codexPlusPlusUpdateButton;
+function refreshSidebarChatgptPlusPlusUpdateButton(force = false) {
+    const btn = state.chatgptPlusPlusUpdateButton;
     if (!btn)
         return;
     void electron_1.ipcRenderer
         .invoke("codexpp:check-codexpp-update", force)
-        .then((check) => setSidebarCodexPlusPlusUpdateButton(check))
+        .then((check) => setSidebarChatgptPlusPlusUpdateButton(check))
         .catch((e) => {
         plog("ChatGPT++ sidebar release check failed", String(e));
-        setSidebarCodexPlusPlusUpdateButton(null);
+        setSidebarChatgptPlusPlusUpdateButton(null);
     });
 }
-function setSidebarCodexPlusPlusUpdateButton(check) {
-    const btn = state.codexPlusPlusUpdateButton;
+function setSidebarChatgptPlusPlusUpdateButton(check) {
+    const btn = state.chatgptPlusPlusUpdateButton;
     if (!btn)
         return;
     const updateAvailable = check?.updateAvailable === true;
     btn.style.display = updateAvailable ? "inline-flex" : "none";
     btn.hidden = !updateAvailable;
-    btn.dataset.codexppReleaseUrl = check?.releaseUrl || CODEX_PLUSPLUS_RELEASES_URL;
+    btn.dataset.codexppReleaseUrl = check?.releaseUrl || CHATGPT_PLUSPLUS_RELEASES_URL;
     btn.title =
         updateAvailable && check?.latestVersion
             ? `Open ChatGPT++ ${check.latestVersion} update`
@@ -2625,7 +2625,7 @@ function resetCodexPpInjectedSettingsGroupState(group) {
     if (state.navGroup === group || (state.navGroup && group.contains(state.navGroup))) {
         state.navGroup = null;
         state.navButtons = null;
-        state.codexPlusPlusUpdateButton = null;
+        state.chatgptPlusPlusUpdateButton = null;
     }
     if (state.pagesGroup === group || (state.pagesGroup && group.contains(state.pagesGroup))) {
         state.pagesGroup = null;

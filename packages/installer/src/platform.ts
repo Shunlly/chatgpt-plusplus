@@ -70,7 +70,7 @@ function locateMac(override?: string): CodexInstall {
         `Ensure Codex.app, Codex (Beta).app or ChatGPT.app is installed in /Applications or ~/Applications.\n` +
         `Tried:\n  ${unique(candidates).join("\n  ")}\n\n` +
         `If Codex is somewhere else, rerun with:\n` +
-        `  codex-plusplus install --app /path/to/Codex.app`,
+        `  chatgpt-plusplus install --app /path/to/Codex.app`,
     );
   }
   const info = readMacAppInfo(appRoot);
@@ -234,7 +234,7 @@ function locateWin(override?: string): CodexInstall {
         .join("\n");
       throw new Error(
         `[!] Codex App Not Found\n\n` +
-          `Codex appears to be installed from the Microsoft Store, but Codex++ could not find app.asar under the expected package layout.\n\n` +
+          `Codex appears to be installed from the Microsoft Store, but ChatGPT++ could not find app.asar under the expected package layout.\n\n` +
           `Store package(s):\n${storeText}\n\n` +
           `Expected one of:\n` +
           `  <package>\\app\\resources\\app.asar\n` +
@@ -306,8 +306,17 @@ function ensureWindowsStoreMirror(storeAppRoot: string): string {
   const packageRoot = dirname(sourceAppRoot);
   const packageName = basename(packageRoot);
   const local = process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local");
-  const mirrorAppRoot = join(local, "codex-plusplus", "store-apps", packageName, "app");
+  const mirrorAppRoot = join(local, "chatgpt-plusplus", "store-apps", packageName, "app");
+  // 老版本镜像在 codex-plusplus/store-apps 下：先同步新位置，成功后再删旧目录，避免中途失败丢镜像。
+  const legacyMirrorAppRoot = join(local, "codex-plusplus", "store-apps", packageName, "app");
   mirrorDirectory(sourceAppRoot, mirrorAppRoot);
+  if (legacyMirrorAppRoot !== mirrorAppRoot && existsSync(legacyMirrorAppRoot)) {
+    try {
+      rmSync(legacyMirrorAppRoot, { recursive: true, force: true });
+    } catch {
+      // 删除失败（占用）不阻塞安装。
+    }
+  }
   return mirrorAppRoot;
 }
 

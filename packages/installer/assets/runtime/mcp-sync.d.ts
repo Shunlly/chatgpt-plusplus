@@ -1,6 +1,9 @@
 import type { TweakMcpServer } from "@chatgpt-plusplus/sdk";
-export declare const MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
-export declare const MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
+export declare const MCP_MANAGED_START = "# BEGIN CHATGPT++ MANAGED MCP SERVERS";
+export declare const MCP_MANAGED_END = "# END CHATGPT++ MANAGED MCP SERVERS";
+/** 旧版标记（v1.0.5 之前），同步时一并清理，避免旧块残留在 Codex 配置里。 */
+export declare const LEGACY_MCP_MANAGED_START = "# BEGIN CODEX++ MANAGED MCP SERVERS";
+export declare const LEGACY_MCP_MANAGED_END = "# END CODEX++ MANAGED MCP SERVERS";
 export interface McpSyncTweak {
     dir: string;
     manifest: {

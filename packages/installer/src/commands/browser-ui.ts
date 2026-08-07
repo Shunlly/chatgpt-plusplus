@@ -17,7 +17,7 @@ const DEFAULT_BUNDLE_ID = "com.openai.codex";
 
 export async function browserUi(opts: BrowserUiOpts = {}): Promise<void> {
   if (platform() !== "darwin") {
-    throw new Error("codexplusplus browser is currently macOS-only.");
+    throw new Error("chatgptplusplus browser is currently macOS-only.");
   }
 
   const codex = locateCodex(opts.app);
@@ -77,7 +77,7 @@ async function waitForBrowserUi(url: string): Promise<void> {
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`Timed out waiting for Codex++ browser UI at ${healthUrl}: ${String(lastError)}`);
+  throw new Error(`Timed out waiting for ChatGPT++ browser UI at ${healthUrl}: ${String(lastError)}`);
 }
 
 function parsePort(value: string | number | undefined, fallback: number): number {

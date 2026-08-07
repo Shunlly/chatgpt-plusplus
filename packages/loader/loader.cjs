@@ -1,6 +1,6 @@
 /* eslint-disable */
 /**
- * codex-plusplus loader stub. This file is copied into Codex.app/Contents/Resources/app.asar
+ * chatgpt-plusplus loader stub. This file is copied into Codex.app/Contents/Resources/app.asar
  * by the installer, and `package.json#main` is rewritten to point at it.
  *
  * Responsibilities:
@@ -55,7 +55,7 @@ function safe(label, fn) {
       appendCappedLog(path.join(logDir, "loader.log"), line);
     } catch (_) {
       // last resort: stderr
-      process.stderr.write(`[codex-plusplus loader] ${label}: ${e}\n`);
+      process.stderr.write(`[chatgpt-plusplus loader] ${label}: ${e}\n`);
     }
   }
 }
@@ -72,6 +72,9 @@ safe("init", () => {
   const runtimeDir = path.join(userRoot, "runtime");
   if (fs.existsSync(runtimeDir)) {
     Module.globalPaths.push(path.join(runtimeDir, "node_modules"));
+    process.env.CHATGPT_PLUSPLUS_USER_ROOT = userRoot;
+    process.env.CHATGPT_PLUSPLUS_RUNTIME = runtimeDir;
+    // 兼容旧版运行时：同时写入旧环境变量名。
     process.env.CODEX_PLUSPLUS_USER_ROOT = userRoot;
     process.env.CODEX_PLUSPLUS_RUNTIME = runtimeDir;
     // Load the runtime main-process bootstrap. It will hook BrowserWindow
@@ -79,7 +82,7 @@ safe("init", () => {
     safe("runtime", () => require(path.join(runtimeDir, "main.js")));
   } else {
     process.stderr.write(
-      `[codex-plusplus] runtime missing at ${runtimeDir}; loading Codex untweaked.\n`,
+      `[chatgpt-plusplus] runtime missing at ${runtimeDir}; loading Codex untweaked.\n`,
     );
   }
 });

@@ -3,12 +3,12 @@ import { platform } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { readPlist } from "./plist.js";
-import { CODEX_PLUSPLUS_VERSION } from "./version.js";
+import { CHATGPT_PLUSPLUS_VERSION } from "./version.js";
 import { locateCodex } from "./platform.js";
 import { getOpenReport, type OpenReport } from "./commands/debug.js";
 
 const CODEX_BUNDLE_ID = "com.openai.codex";
-const CODEX_PLUSPLUS_REPO_URL = "https://github.com/Shunlly/chatgpt-plusplus";
+const CHATGPT_PLUSPLUS_REPO_URL = "https://github.com/Shunlly/chatgpt-plusplus";
 
 export function showPatchFailedAlert(errorMessage: string): void {
   if (isMacAppManagementError(errorMessage)) {
@@ -17,11 +17,11 @@ export function showPatchFailedAlert(errorMessage: string): void {
   }
 
   const button = showAlert({
-    title: "Codex++ could not patch Codex",
+    title: "ChatGPT++ could not patch Codex",
     message:
-      "Codex was updated, but Codex++ could not reapply itself automatically.\n\n" +
+      "Codex was updated, but ChatGPT++ could not reapply itself automatically.\n\n" +
       `${errorMessage}\n\n` +
-      "Run codexplusplus repair from Terminal after Codex finishes updating, or report this failure on GitHub.",
+      "Run chatgptplusplus repair from Terminal after Codex finishes updating, or report this failure on GitHub.",
     buttons: ["Dismiss", "Report on GitHub"],
     defaultButton: "Dismiss",
     critical: true,
@@ -34,8 +34,8 @@ export function showPatchFailedAlert(errorMessage: string): void {
 
 function showAppManagementPatchFailedAlert(errorMessage: string): void {
   const button = showAlert({
-    title: "Codex++ needs app repair",
-    message: 'Run "codexplusplus repair" in your terminal.',
+    title: "ChatGPT++ needs app repair",
+    message: 'Run "chatgptplusplus repair" in your terminal.',
     buttons: ["Dismiss", "Report Issue on GitHub"],
     defaultButton: "Dismiss",
     critical: true,
@@ -50,11 +50,11 @@ export function showUpdateModePausedAlert(appRoot: string, codexVersion: string 
   if (platform() !== "darwin") return;
 
   showAlert({
-    title: "Codex++ is waiting for Codex to update",
+    title: "ChatGPT++ is waiting for Codex to update",
     message:
-      "Codex++ is paused while Codex installs its update.\n\n" +
+      "ChatGPT++ is paused while Codex installs its update.\n\n" +
       `Current Codex: ${codexVersion ?? "unknown"}\n\n` +
-      "After the update finishes, Codex++ will patch itself again.",
+      "After the update finishes, ChatGPT++ will patch itself again.",
     buttons: ["OK"],
     defaultButton: "OK",
     timeoutSeconds: 20,
@@ -67,7 +67,7 @@ export function showCodexUpdateDetectedNotification(): void {
 
   showNotification({
     title: "Codex update detected",
-    message: "Codex++ is checking the app, then it will patch itself.",
+    message: "ChatGPT++ is checking the app, then it will patch itself.",
   });
 }
 
@@ -75,10 +75,10 @@ export function promptRestartCodexAfterPatch(appRoot: string): void {
   if (platform() !== "darwin") return;
 
   const button = showAlert({
-    title: "Codex++ needs to restart Codex",
+    title: "ChatGPT++ needs to restart Codex",
     message:
-      "Codex++ re-patched Codex on disk, but the open Codex window is still running the old app code.\n\n" +
-      "Restart Codex now to finish loading Codex++.",
+      "ChatGPT++ re-patched Codex on disk, but the open Codex window is still running the old app code.\n\n" +
+      "Restart Codex now to finish loading ChatGPT++.",
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
     timeoutSeconds: 120,
@@ -93,10 +93,10 @@ export function promptRestartCodexAfterRuntimeUpdate(appRoot: string, version: s
   if (platform() !== "darwin") return;
 
   const button = showAlert({
-    title: "Codex++ needs to restart Codex",
+    title: "ChatGPT++ needs to restart Codex",
     message:
-      `Codex++ updated its runtime to v${version}, but the open Codex window is still running the previous Codex++ code.\n\n` +
-      "Restart Codex now to load the updated Codex++ runtime.",
+      `ChatGPT++ updated its runtime to v${version}, but the open Codex window is still running the previous ChatGPT++ code.\n\n` +
+      "Restart Codex now to load the updated ChatGPT++ runtime.",
     buttons: ["Later", "Quit and Restart Codex"],
     defaultButton: "Quit and Restart Codex",
     timeoutSeconds: 120,
@@ -111,10 +111,10 @@ export function promptRestartCodexToRepatch(appRoot: string): boolean {
   if (platform() !== "darwin") return true;
 
   const button = showAlert({
-    title: "Codex++ needs to restart Codex",
+    title: "ChatGPT++ needs to restart Codex",
     message:
-      "Codex is running without the latest Codex++ patch.\n\n" +
-      "Codex++ needs to quit Codex, re-patch the app, then reopen it.",
+      "Codex is running without the latest ChatGPT++ patch.\n\n" +
+      "ChatGPT++ needs to quit Codex, re-patch the app, then reopen it.",
     buttons: ["Later", "Restart and Re-Patch"],
     defaultButton: "Restart and Re-Patch",
     timeoutSeconds: 120,
@@ -318,10 +318,10 @@ function codexOpenReport(appRoot: string): OpenReport | null {
 }
 
 export function buildPatchFailureIssueUrl(errorMessage: string): string {
-  const title = "Codex++ failed to patch Codex after update";
+  const title = "ChatGPT++ failed to patch Codex after update";
   const body = [
     "## Summary",
-    "Codex++ could not reapply its patch after Codex updated.",
+    "ChatGPT++ could not reapply its patch after Codex updated.",
     "",
     "## Error",
     "```text",
@@ -337,23 +337,23 @@ export function buildPatchFailureIssueUrl(errorMessage: string): string {
     "- Codex app path: ",
     "- Codex version shown in app, if known: ",
     "- Was Codex running during the update? ",
-    "- Did rerunning `codexplusplus repair` change the result? ",
+    "- Did rerunning `chatgptplusplus repair` change the result? ",
   ].join("\n");
 
   const params = new URLSearchParams({ title, body });
-  return `${CODEX_PLUSPLUS_REPO_URL}/issues/new?${params.toString()}`;
+  return `${CHATGPT_PLUSPLUS_REPO_URL}/issues/new?${params.toString()}`;
 }
 
 export function buildCliFailureIssueUrl(command: string | undefined, errorMessage: string): string {
   const commandLabel = command?.trim() || "(unknown command)";
-  const title = `Codex++ ${commandLabel} failed`;
+  const title = `ChatGPT++ ${commandLabel} failed`;
   const body = [
     "## Summary",
-    `\`codexplusplus ${commandLabel}\` failed.`,
+    `\`chatgptplusplus ${commandLabel}\` failed.`,
     "",
     "## Command",
     "```text",
-    `codexplusplus ${commandLabel}`,
+    `chatgptplusplus ${commandLabel}`,
     "```",
     "",
     "## Error",
@@ -362,7 +362,7 @@ export function buildCliFailureIssueUrl(command: string | undefined, errorMessag
     "```",
     "",
     "## Environment",
-    `- Codex++: ${CODEX_PLUSPLUS_VERSION}`,
+    `- ChatGPT++: ${CHATGPT_PLUSPLUS_VERSION}`,
     `- Platform: ${process.platform}`,
     `- Arch: ${process.arch}`,
     `- Node: ${process.version}`,
@@ -371,11 +371,11 @@ export function buildCliFailureIssueUrl(command: string | undefined, errorMessag
     "- Codex app path, if shown: ",
     "- Install source: ",
     "- Did rerunning the command change the result? ",
-    "- Any recent Codex or Codex++ update? ",
+    "- Any recent Codex or ChatGPT++ update? ",
   ].join("\n");
 
   const params = new URLSearchParams({ title, body });
-  return `${CODEX_PLUSPLUS_REPO_URL}/issues/new?${params.toString()}`;
+  return `${CHATGPT_PLUSPLUS_REPO_URL}/issues/new?${params.toString()}`;
 }
 
 function trimIssueError(errorMessage: string): string {
