@@ -1074,6 +1074,25 @@ html.codex-dream-skin [class*="h-[0.5px]"][class*="bg-token-foreground/10"]:has(
   display: none !important;
 }
 
+/* Codex 新版 composer 改用 ComposerLayoutRoot 结构，官方近白不透明背景在换肤壁纸上
+   会形成一块白色粗框；这里与旧版 composer-surface-chrome 保持同一套换肤表面 */
+html.codex-dream-skin [class*="ComposerLayoutRoot"] {
+  background: rgb(var(--ds-panel-rgb) / .94) !important;
+  border: 1px solid rgb(var(--ds-muted-rgb) / .18) !important;
+  box-shadow: 0 10px 28px rgb(var(--ds-bg-rgb) / .24) !important;
+  backdrop-filter: blur(16px) saturate(108%) !important;
+}
+
+html.codex-dream-skin[data-dream-art-wide="true"] [class*="ComposerLayoutRoot"] {
+  background: var(--ds-immersive-composer-solid) !important;
+  border: 0 !important;
+  box-shadow:
+    0 10px 30px rgb(var(--ds-bg-rgb) / .20),
+    inset 0 0 0 1px var(--ds-immersive-line),
+    inset 0 1px rgb(var(--ds-text-rgb) / .12) !important;
+  backdrop-filter: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.codex-dream-skin *,
   html.codex-dream-skin *::before,
