@@ -51,6 +51,7 @@ const state = {
     sidebarRestoreHandler: null,
     settingsSurfaceVisible: false,
     settingsSurfaceHideTimer: null,
+    sidebarFound: null,
     tweakStore: null,
     tweakStorePromise: null,
     tweakStoreError: null,
@@ -195,8 +196,15 @@ function tryInject() {
     const itemsGroup = findSidebarItemsGroup();
     if (!itemsGroup) {
         scheduleSettingsSurfaceHidden();
-        plog("sidebar not found");
+        if (state.sidebarFound !== false) {
+            state.sidebarFound = false;
+            plog("sidebar not found");
+        }
         return;
+    }
+    if (state.sidebarFound !== true) {
+        state.sidebarFound = true;
+        plog("sidebar found");
     }
     if (state.settingsSurfaceHideTimer) {
         clearTimeout(state.settingsSurfaceHideTimer);
@@ -259,7 +267,7 @@ function tryInject() {
     group.className = "flex flex-col gap-px";
     const updateButton = sidebarUpdatePillButton();
     state.codexPlusPlusUpdateButton = updateButton;
-    group.appendChild(sidebarGroupHeader("Codex++", "pt-3", updateButton));
+    group.appendChild(sidebarGroupHeader("ChatGPT++", "pt-3", updateButton));
     refreshSidebarCodexPlusPlusUpdateButton();
     // ── Sidebar items ────────────────────────────────────────────────────
     const configBtn = makeSidebarItem("Config", configIconSvg());
@@ -806,12 +814,12 @@ function rerender() {
         return;
     }
     const title = ap.kind === "tweaks" ? "Tweaks" :
-        ap.kind === "store" ? "Tweak Store" : "Codex++";
+        ap.kind === "store" ? "Tweak Store" : "ChatGPT++";
     const subtitle = ap.kind === "tweaks"
-        ? "Manage your installed Codex++ tweaks."
+        ? "Manage your installed ChatGPT++ tweaks."
         : ap.kind === "store"
             ? "Install reviewed tweaks pinned to approved GitHub commits."
-            : "Checking installed Codex++ version.";
+            : "Checking installed ChatGPT++ version.";
     const root = panelShell(title, subtitle);
     host.appendChild(root.outer);
     if (ap.kind === "tweaks")
@@ -825,10 +833,10 @@ function rerender() {
 function renderConfigPage(sectionsWrap, subtitle) {
     const section = document.createElement("section");
     section.className = "flex flex-col gap-2";
-    section.appendChild(sectionTitle("Codex++ Updates"));
+    section.appendChild(sectionTitle("ChatGPT++ Updates"));
     const card = roundedCard();
     card.dataset.codexppConfigCard = "true";
-    const loading = rowSimple("Loading update settings", "Checking current Codex++ configuration.");
+    const loading = rowSimple("Loading update settings", "Checking current ChatGPT++ configuration.");
     card.appendChild(loading);
     section.appendChild(card);
     sectionsWrap.appendChild(section);
@@ -836,14 +844,14 @@ function renderConfigPage(sectionsWrap, subtitle) {
         .invoke("codexpp:get-config")
         .then((config) => {
         if (subtitle) {
-            subtitle.textContent = `You have Codex++ ${config.version} installed.`;
+            subtitle.textContent = `You have ChatGPT++ ${config.version} installed.`;
         }
         card.textContent = "";
         renderCodexPlusPlusConfig(card, config);
     })
         .catch((e) => {
         if (subtitle)
-            subtitle.textContent = "Could not load installed Codex++ version.";
+            subtitle.textContent = "Could not load installed ChatGPT++ version.";
         card.textContent = "";
         card.appendChild(rowSimple("Could not load update settings", String(e)));
     });
@@ -881,10 +889,10 @@ function autoUpdateRow(config) {
     left.className = "flex min-w-0 flex-col gap-1";
     const title = document.createElement("div");
     title.className = "min-w-0 text-sm text-token-text-primary";
-    title.textContent = "Automatically refresh Codex++";
+    title.textContent = "Automatically refresh ChatGPT++";
     const desc = document.createElement("div");
     desc.className = "text-token-text-secondary min-w-0 text-sm";
-    desc.textContent = `Installed version v${config.version}. The watcher checks hourly and can refresh the Codex++ runtime automatically.`;
+    desc.textContent = `Installed version v${config.version}. The watcher checks hourly and can refresh the ChatGPT++ runtime automatically.`;
     left.appendChild(title);
     left.appendChild(desc);
     row.appendChild(left);
@@ -941,7 +949,7 @@ function installationSourceRow(source) {
     return rowSimple("Installation source", `${source.label}: ${source.detail}`);
 }
 function selfUpdateStatusRow(state) {
-    const row = rowSimple("Last Codex++ update", selfUpdateSummary(state));
+    const row = rowSimple("Last ChatGPT++ update", selfUpdateSummary(state));
     const left = row.firstElementChild;
     if (left && state)
         left.prepend(statusBadge(selfUpdateStatusTone(state.status), selfUpdateStatusLabel(state.status)));
@@ -955,7 +963,7 @@ function checkForUpdatesRow(config) {
     left.className = "flex min-w-0 flex-col gap-1";
     const title = document.createElement("div");
     title.className = "min-w-0 text-sm text-token-text-primary";
-    title.textContent = check?.updateAvailable ? "Codex++ update available" : "Check for Codex++ updates";
+    title.textContent = check?.updateAvailable ? "ChatGPT++ update available" : "Check for ChatGPT++ updates";
     const desc = document.createElement("div");
     desc.className = "text-token-text-secondary min-w-0 text-sm";
     desc.textContent = updateSummary(check);
@@ -977,7 +985,7 @@ function checkForUpdatesRow(config) {
             setSidebarCodexPlusPlusUpdateButton(check);
             refreshConfigCard(row);
         })
-            .catch((e) => plog("Codex++ release check failed", String(e)))
+            .catch((e) => plog("ChatGPT++ release check failed", String(e)))
             .finally(() => {
             row.style.opacity = "";
         });
@@ -993,7 +1001,7 @@ function checkForUpdatesRow(config) {
             refreshConfigCard(row);
         })
             .catch((e) => {
-            plog("Codex++ self-update failed", String(e));
+            plog("ChatGPT++ self-update failed", String(e));
             void refreshConfigCard(row);
         })
             .finally(() => {
@@ -1248,7 +1256,7 @@ function updateChannelSummary(config) {
 }
 function selfUpdateSummary(state) {
     if (!state)
-        return "No automatic Codex++ update has run yet.";
+        return "No automatic ChatGPT++ update has run yet.";
     const checked = new Date(state.completedAt ?? state.checkedAt).toLocaleString();
     const target = state.latestVersion ? ` Target v${state.latestVersion}.` : state.targetRef ? ` Target ${state.targetRef}.` : "";
     const source = state.installationSource?.label ?? "unknown source";
@@ -1285,7 +1293,7 @@ function refreshConfigCard(row) {
     if (!card)
         return;
     card.textContent = "";
-    card.appendChild(rowSimple("Refreshing", "Loading current Codex++ update status."));
+    card.appendChild(rowSimple("Refreshing", "Loading current ChatGPT++ update status."));
     void electron_1.ipcRenderer
         .invoke("codexpp:get-config")
         .then((config) => {
@@ -1298,7 +1306,7 @@ function refreshConfigCard(row) {
     });
 }
 function uninstallRow() {
-    const row = actionRow("Uninstall Codex++", "Copies the uninstall command. Run it from a terminal after quitting Codex.");
+    const row = actionRow("Uninstall ChatGPT++", "Copies the uninstall command. Run it from a terminal after quitting Codex.");
     const action = row.querySelector("[data-codexpp-row-actions]");
     action?.appendChild(compactButton("Copy Command", () => {
         void electron_1.ipcRenderer
@@ -1319,12 +1327,12 @@ function reportBugRow() {
             "1. ",
             "",
             "## Environment",
-            "- Codex++ version: ",
+            "- ChatGPT++ version: ",
             "- Codex app version: ",
             "- OS: ",
             "",
             "## Logs",
-            "Attach relevant lines from the Codex++ log directory.",
+            "Attach relevant lines from the ChatGPT++ log directory.",
         ].join("\n"));
         void electron_1.ipcRenderer.invoke("codexpp:open-external", `https://github.com/Shunlly/chatgpt-plusplus/issues/new?title=${title}&body=${body}`);
     }));
@@ -1542,7 +1550,7 @@ function platformLockedLabel(platform) {
     return "Unavailable";
 }
 function runtimeLockedLabel(runtime) {
-    return runtime.required ? `Requires Codex++ ${runtime.required}` : "Requires newer Codex++";
+    return runtime.required ? `Requires ChatGPT++ ${runtime.required}` : "Requires newer ChatGPT++";
 }
 function showStoreCardMessage(card, message) {
     card.querySelector("[data-codexpp-store-card-message]")?.remove();
@@ -1722,7 +1730,7 @@ function sidebarUpdatePillButton() {
         boxShadow: "0 1px 2px rgba(0, 0, 0, 0.18)",
     });
     btn.textContent = "Update";
-    btn.title = "Open Codex++ update";
+    btn.title = "Open ChatGPT++ update";
     btn.addEventListener("mouseenter", () => {
         btn.style.background = "#0071E3";
     });
@@ -1744,7 +1752,7 @@ function refreshSidebarCodexPlusPlusUpdateButton(force = false) {
         .invoke("codexpp:check-codexpp-update", force)
         .then((check) => setSidebarCodexPlusPlusUpdateButton(check))
         .catch((e) => {
-        plog("Codex++ sidebar release check failed", String(e));
+        plog("ChatGPT++ sidebar release check failed", String(e));
         setSidebarCodexPlusPlusUpdateButton(null);
     });
 }
@@ -1758,8 +1766,8 @@ function setSidebarCodexPlusPlusUpdateButton(check) {
     btn.dataset.codexppReleaseUrl = check?.releaseUrl || CODEX_PLUSPLUS_RELEASES_URL;
     btn.title =
         updateAvailable && check?.latestVersion
-            ? `Open Codex++ ${check.latestVersion} update`
-            : "Open Codex++ update";
+            ? `Open ChatGPT++ ${check.latestVersion} update`
+            : "Open ChatGPT++ update";
 }
 function updateStoreUpdateBadge(count) {
     const badge = document.querySelector("[data-codexpp-store-update-badge]");
@@ -2260,7 +2268,7 @@ function openPublishTweakDialog() {
     title.textContent = "Publish Tweak";
     const subtitle = document.createElement("div");
     subtitle.className = "text-sm text-token-text-secondary";
-    subtitle.textContent = "Submit a GitHub repo for admin review. Codex++ records the exact commit admins must review and pin.";
+    subtitle.textContent = "Submit a GitHub repo for admin review. ChatGPT++ records the exact commit admins must review and pin.";
     titleStack.appendChild(title);
     titleStack.appendChild(subtitle);
     header.appendChild(titleStack);

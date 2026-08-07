@@ -1,0 +1,20 @@
+{
+  "id": "com.codexplusplus.dream-skin",
+  "name": "Dream Skin 换肤",
+  "version": "1.1.0",
+  "githubRepo": "Shunlly/codex-plusplus",
+  "description": "集成 Codex Dream Skin 的换肤能力：内置多套预设，支持上传图片新建自定义主题，一键切换并持久化。",
+  "author": {
+    "name": "codex-plusplus",
+    "url": "https://github.com/Shunlly/codex-plusplus"
+  },
+  "tags": [
+    "ui",
+    "theme"
+  ],
+  "scope": "renderer",
+  "permissions": [
+    "settings"
+  ],
+  "main": "index.js"
+}
