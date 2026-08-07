@@ -316,12 +316,15 @@ function buildExe(binary) {
 
   const exe = join(OUT, `${APP_NAME}-${ver}-win-x64-setup.exe`);
   rmSync(exe, { force: true });
-  // Windows 下 join 产生反斜杠路径，NSIS 的 File 指令解析混合路径会失败，统一转正斜杠
-  const stageArg = stage.replace(/\\/g, "/");
+  // Windows 下 makensis 的 File 指令只可靠解析原生反斜杠路径，macOS 只认正斜杠，
+  // 因此路径与分隔符都按平台传入（nsi 里用 ${SEP} 拼接）。
+  const isWin = process.platform === "win32";
+  const stageArg = isWin ? stage.replace(/\//g, "\\") : stage.replace(/\\/g, "/");
   const exeArg = exe.replace(/\\/g, "/");
   run("makensis", [
     `-DVERSION=${ver}`,
     `-DSTAGEDIR=${stageArg}`,
+    `-DSEP=${isWin ? "\\" : "/"}`,
     `-DOUTFILE=${exeArg}`,
     join(ROOT, "scripts", "nsis", "installer.nsi"),
   ], ROOT);

@@ -24,9 +24,10 @@ UninstPage instfiles
 
 Section "安装 ChatGPT++"
   SetOutPath "$INSTDIR"
-  File "${STAGEDIR}/chatgpt-plusplus.exe"
-  File "${STAGEDIR}/standalone.json"
-  File /r "${STAGEDIR}/assets/*.*"
+  ; 路径分隔符由打包脚本按平台传入（macOS: /，Windows: \）
+  File "${STAGEDIR}${SEP}chatgpt-plusplus.exe"
+  File "${STAGEDIR}${SEP}standalone.json"
+  File /r "${STAGEDIR}${SEP}assets${SEP}*.*"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\ChatGPT++"
