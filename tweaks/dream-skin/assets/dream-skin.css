@@ -546,7 +546,9 @@ html.codex-dream-skin .dream-skin-home {
 }
 
 .dream-skin-home > div:first-child {
-  min-height: 100% !important;
+  /* Codex 桌面版 composer 固定在底部，欢迎区不能撑满 100%，
+     否则会把输入框挤出视口（原版针对网页流式布局，不适用） */
+  min-height: 0 !important;
   padding-top: 15px !important;
 }
 

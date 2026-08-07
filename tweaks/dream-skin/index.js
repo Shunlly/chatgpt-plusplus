@@ -505,6 +505,175 @@ function renderPage(api, root) {
 
 
 
+// ── 主侧边栏“主题”一级入口：在“插件”后插入按钮，点击后在主内容区渲染同一套主题页 ──
+// 主界面 main（_MainContentSurface）即内容区；Codex 导航时 React 复用内容 DIV 而不移除
+// 我们的 host，因此点击其它官方侧边栏按钮时必须主动恢复官方视图。
+let mainNavObserver = null;
+let mainThemeBtn = null;
+let mainThemeHost = null;
+let mainSidebarGroup = null;
+
+function findMainPluginBtn() {
+  return [...document.querySelectorAll("button.sidebar-item")]
+    .find((b) => (b.textContent || "").trim() === "插件");
+}
+
+const MAIN_THEME_ICON_SVG =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>';
+
+function makeMainThemeBtn(plug) {
+  // 参照官方 sidebar-item 样式重建：只保留图标 + “主题”文本，
+  // clone 官方按钮会残留原按钮多余的文本节点导致换行乱码
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = plug.className;
+  btn.setAttribute("data-codexpp-main-theme", "true");
+  btn.setAttribute("aria-label", "主题");
+  btn.classList.remove("bg-token-list-hover-background");
+  const inner = document.createElement("div");
+  inner.className = "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
+  inner.innerHTML = MAIN_THEME_ICON_SVG + '<span class="truncate">主题</span>';
+  btn.appendChild(inner);
+  return btn;
+}
+
+function setMainThemeActive(active) {
+  if (!mainThemeBtn) return;
+  if (active) mainThemeBtn.classList.add("bg-token-list-hover-background");
+  else mainThemeBtn.classList.remove("bg-token-list-hover-background");
+}
+
+function restoreMainTheme() {
+  if (!mainThemeHost) return;
+  const mainEl = document.querySelector("main");
+  if (mainEl) {
+    for (const child of Array.from(mainEl.children)) {
+      if (child === mainThemeHost) continue;
+      if (child.dataset && child.dataset.codexppMainHidden !== undefined) {
+        child.style.display = child.dataset.codexppMainHidden;
+        delete child.dataset.codexppMainHidden;
+      }
+    }
+  }
+  mainThemeHost.remove();
+  mainThemeHost = null;
+  setMainThemeActive(false);
+}
+
+function activateMainTheme(api) {
+  const mainEl = document.querySelector("main");
+  if (!mainEl) return;
+  if (mainThemeHost && mainEl.contains(mainThemeHost)) {
+    setMainThemeActive(true);
+    return;
+  }
+  const host = document.createElement("div");
+  host.dataset.codexppMainThemeHost = "true";
+  // 顶部固定标题栏（h-toolbar ≈ 46px）悬于内容区之上，主题页内容从工具栏下方开始
+  host.style.cssText = "width:100%;height:calc(100% - 46px);margin-top:46px;overflow:auto;";
+  for (const child of Array.from(mainEl.children)) {
+    if (child === host) continue;
+    const r = child.getBoundingClientRect();
+    // 固定标题栏与拖拽辅助节点（宽/高极小）不动，只隐藏实际内容容器
+    if (r.width < 50 || r.height < 50) continue;
+    if (child.dataset && child.dataset.codexppMainHidden !== undefined) continue;
+    child.dataset.codexppMainHidden = child.style.display || "";
+    child.style.display = "none";
+  }
+  mainEl.appendChild(host);
+  mainThemeHost = host;
+  renderPage(api, host);
+  setMainThemeActive(true);
+}
+
+function onMainSidebarClick(e) {
+  const t = e.target instanceof Element ? e.target.closest("button") : null;
+  if (!t) return;
+  if (t === mainThemeBtn || (t.dataset && t.dataset.codexppMainTheme)) return;
+  restoreMainTheme();
+}
+
+function syncMainNav(api) {
+  const plug = findMainPluginBtn();
+  if (!plug) {
+    if (mainThemeBtn) {
+      mainThemeBtn.remove();
+      mainThemeBtn = null;
+    }
+    if (mainSidebarGroup) {
+      mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
+      mainSidebarGroup = null;
+    }
+    restoreMainTheme();
+    return;
+  }
+  const group = plug.parentElement;
+  // fingerprint：按钮已在正确位置时跳过，避免 MutationObserver 死循环
+  if (mainThemeBtn && mainThemeBtn.parentElement === group) {
+    if (mainSidebarGroup !== group) {
+      if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
+      mainSidebarGroup = group;
+      group.addEventListener("click", onMainSidebarClick, true);
+    }
+    return;
+  }
+  if (mainThemeBtn) mainThemeBtn.remove();
+  mainThemeBtn = makeMainThemeBtn(plug);
+  mainThemeBtn.addEventListener(
+    "click",
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      activateMainTheme(api);
+    },
+    true,
+  );
+  plug.insertAdjacentElement("afterend", mainThemeBtn);
+  if (mainSidebarGroup !== group) {
+    if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
+    mainSidebarGroup = group;
+    group.addEventListener("click", onMainSidebarClick, true);
+  }
+  setMainThemeActive(!!mainThemeHost);
+}
+
+function cleanupMainNavResidue() {
+  for (const btn of [...document.querySelectorAll("[data-codexpp-main-theme]")]) btn.remove();
+  const mainEl = document.querySelector("main");
+  if (mainEl) {
+    for (const host of [...mainEl.querySelectorAll("[data-codexpp-main-theme-host]")]) host.remove();
+    for (const child of [...mainEl.querySelectorAll("[data-codexpp-main-hidden]")]) {
+      child.style.display = child.dataset.codexppMainHidden || "";
+      delete child.dataset.codexppMainHidden;
+    }
+  }
+}
+
+function startMainNav(api) {
+  if (mainNavObserver) return;
+  cleanupMainNavResidue();
+  syncMainNav(api);
+  mainNavObserver = new MutationObserver(() => syncMainNav(api));
+  mainNavObserver.observe(document.documentElement, { childList: true, subtree: true });
+  api.log.info("main nav ready", JSON.stringify({ href: location.href, plug: !!findMainPluginBtn() }));
+}
+
+function stopMainNav() {
+  if (mainNavObserver) {
+    mainNavObserver.disconnect();
+    mainNavObserver = null;
+  }
+  if (mainSidebarGroup) {
+    mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
+    mainSidebarGroup = null;
+  }
+  if (mainThemeBtn) {
+    mainThemeBtn.remove();
+    mainThemeBtn = null;
+  }
+  restoreMainTheme();
+}
+
 module.exports = {
   async start(api) {
     if (api.process !== "renderer") return;
@@ -525,8 +694,10 @@ module.exports = {
     await migrateLegacySelection(api, list);
     const sel = api.storage.get("selection") || { type: "preset", id: DEFAULT_PRESET };
     await applySaved(api);
+    startMainNav(api);
   },
   stop() {
+    stopMainNav();
     teardownSkin();
   },
 };

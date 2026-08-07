@@ -7,7 +7,7 @@ can change UI, add settings pages, run main-process code, and use native
 OS-level features through the ChatGPT++ bridge.
 [Join the Discord community](https://discord.gg/6bY6gGX36H).
 
-<img width="1413" height="1016" alt="ChatGPT++ settings screenshot" src="https://github.com/user-attachments/assets/ea0b2ffc-c30d-4f68-ae12-dd8d6a997b2f" />
+<img width="1400" alt="ChatGPT++ main sidebar with the Dream Skin Theme entry" src="docs/screenshots/main-nav.png" />
 
 > Unofficial project. Not affiliated with OpenAI. Use at your own risk.
 
@@ -37,6 +37,7 @@ processes, and tweak-owned native modules.
 - [Common Commands](#common-commands)
 - [Where Files Live](#where-files-live)
 - [Writing Tweaks](#writing-tweaks)
+- [Dream Skin Theme](#dream-skin-theme)
 - [Owl And Native Bridge](#owl-and-native-bridge)
 - [Browser Host Mode](#browser-host-mode)
 - [Updates And Recovery](#updates-and-recovery)
@@ -230,6 +231,18 @@ chatgptplusplus dev ./my-tweak
 ```
 
 Full docs are in [Writing Tweaks](./docs/WRITING-TWEAKS.md).
+
+## Dream Skin Theme
+
+This repo ships `tweaks/dream-skin`, a theme switcher that restyles the ChatGPT
+desktop app from uploaded images.
+
+- A **Theme** entry in the main sidebar: New chat → Pull requests → Scheduled → Plugins → **Theme**.
+- One-click switching between saved preset and custom themes.
+- Create a new theme by uploading an image; colors are extracted and applied to the whole app.
+- The new-chat composer stays visible without scrolling, ready to type immediately.
+
+![Dream Skin theme manager](docs/screenshots/theme-page.png)
 
 ## Owl And Native Bridge
 

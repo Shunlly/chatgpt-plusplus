@@ -5,7 +5,7 @@
 ChatGPT++ 让你可以向 OpenAI ChatGPT 桌面应用安装本地 tweak（扩展）。Tweak 可以修改 UI、添加设置页面、运行主进程代码，并通过 ChatGPT++ 桥接层使用操作系统级原生能力。
 [加入 Discord 社区](https://discord.gg/6bY6gGX36H)。
 
-<img width="1413" height="1016" alt="ChatGPT++ 设置界面截图" src="https://github.com/user-attachments/assets/ea0b2ffc-c30d-4f68-ae12-dd8d6a997b2f" />
+<img width="1400" alt="ChatGPT++ 主侧边栏与 Dream Skin 主题入口" src="docs/screenshots/main-nav.png" />
 
 > 非官方项目，与 OpenAI 无关。请自行承担使用风险。
 
@@ -29,6 +29,7 @@ ChatGPT++ 会修改你本地的 ChatGPT 应用，让 ChatGPT 启动时加载一�
 - [常用命令](#常用命令)
 - [文件存放位置](#文件存放位置)
 - [编写 Tweak](#编写-tweak)
+- [Dream Skin 主题换肤](#dream-skin-主题换肤)
 - [Owl 与原生桥接](#owl-与原生桥接)
 - [浏览器宿主模式](#浏览器宿主模式)
 - [更新与恢复](#更新与恢复)
@@ -218,6 +219,17 @@ chatgptplusplus dev ./my-tweak
 ```
 
 完整文档见 [编写 Tweak](./docs/WRITING-TWEAKS.md)。
+
+## Dream Skin 主题换肤
+
+本仓库自带了 `tweaks/dream-skin` 主题换肤 tweak，可以用上传的图片为 ChatGPT 桌面版换主题。
+
+- 主侧边栏新增**主题**一级入口：新对话 → 拉取请求 → 已安排 → 插件 → **主题**，切换更方便。
+- 预设主题与自定义主题一键切换。
+- 上传图片即可**新建主题**，自动提取配色并应用到整个应用界面。
+- 修复新会话输入框需要滚动才能看到的问题，打开即见、立即可输入。
+
+![Dream Skin 主题管理页](docs/screenshots/theme-page.png)
 
 ## Owl 与原生桥接
 
