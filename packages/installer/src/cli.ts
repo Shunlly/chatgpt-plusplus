@@ -13,7 +13,7 @@ import { doctor } from "./commands/doctor.js";
 import { safeMode } from "./commands/safe-mode.js";
 import { CODEX_PLUSPLUS_VERSION } from "./version.js";
 import { buildCliFailureIssueUrl, showPatchFailedAlert } from "./alerts.js";
-import { capKnownLogFiles } from "./logging.js";
+import { appendInstallerError, capKnownLogFiles } from "./logging.js";
 
 interface InstallCliOpts {
   app?: string;
@@ -55,6 +55,7 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
         const out = kleur.red().bold(lines[0]) + "\n" + lines.slice(1).join("\n");
         console.log(out);
         console.error(out);
+        appendInstallerError(`command=${process.argv.slice(2).join(" ")} error=${msg}`);
         maybeShowPatchFailedAlert(msg);
         process.exit(1);
       });
