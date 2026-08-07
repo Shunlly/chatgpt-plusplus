@@ -116,7 +116,7 @@ function installBrowserUiIpcHandlers(log) {
     process.once("exit", () => {
         for (const pending of bridgeRequests.values()) {
             clearTimeout(pending.timer);
-            pending.reject(new Error("Codex++ browser UI server stopped"));
+            pending.reject(new Error("ChatGPT++ browser UI server stopped"));
         }
         bridgeRequests.clear();
         for (const client of controlClients)
@@ -428,7 +428,7 @@ function browserBridgeScript(state) {
       body: JSON.stringify({ method, args }),
     });
     const body = await res.json();
-    if (!body.ok) throw new Error(body.error || "Codex++ browser bridge failed");
+    if (!body.ok) throw new Error(body.error || "ChatGPT++ browser bridge failed");
     return body.value;
   }
 
@@ -1140,7 +1140,7 @@ function mimeType(file) {
 }
 function requireOptions() {
     if (!activeOptions)
-        throw new Error("Codex++ browser UI server is not configured");
+        throw new Error("ChatGPT++ browser UI server is not configured");
     return activeOptions;
 }
 function isBrowserUiHostSender(sender) {

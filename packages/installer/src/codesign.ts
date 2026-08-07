@@ -2,7 +2,7 @@
  * Code signing on macOS. After we mutate Info.plist or the Electron Framework
  * binary, the original signature is invalid. Re-signing with a stable local
  * identity keeps macOS privacy permissions attached to the patched app across
- * Codex++ repair runs on the same machine.
+ * ChatGPT++ repair runs on the same machine.
  *
  * `codesign --deep` does NOT recurse into `app.asar.unpacked` (it's not a
  * standard bundle layout), so native modules like `better-sqlite3.node` keep
@@ -18,7 +18,7 @@ import { lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { platform, tmpdir } from "node:os";
 
-export const DEFAULT_LOCAL_SIGNING_IDENTITY = "Codex++ Local Signing";
+export const DEFAULT_LOCAL_SIGNING_IDENTITY = "ChatGPT++ Local Signing";
 
 export type SigningMode = "local-identity" | "adhoc";
 
@@ -91,13 +91,13 @@ export function prepareCodeSigning(opts: CodeSigningOptions = {}): PreparedSigni
   requireExecutable("codesign", "macOS codesign is required to re-sign Codex.app after patching.");
   if (opts.useLocalIdentity === false) return null;
 
-  requireExecutable("security", "macOS security is required to find Codex++'s local signing identity.");
+  requireExecutable("security", "macOS security is required to find ChatGPT++'s local signing identity.");
 
   const identityName = opts.identityName ?? DEFAULT_LOCAL_SIGNING_IDENTITY;
   const existing = findCodeSigningIdentity(identityName);
   if (existing) return { ...existing, created: false };
 
-  requireExecutable("openssl", "macOS openssl is required to create Codex++'s local signing identity.");
+  requireExecutable("openssl", "macOS openssl is required to create ChatGPT++'s local signing identity.");
   return createLocalSigningIdentity(identityName);
 }
 
@@ -172,7 +172,7 @@ function findCodeSigningIdentity(identityName: string): Omit<PreparedSigningIden
 }
 
 function createLocalSigningIdentity(identityName: string): PreparedSigningIdentity {
-  const dir = mkdtempSync(join(tmpdir(), "codex-plusplus-signing-"));
+  const dir = mkdtempSync(join(tmpdir(), "chatgpt-plusplus-signing-"));
   try {
     const configPath = join(dir, "openssl.cnf");
     const keyPath = join(dir, "identity.key");

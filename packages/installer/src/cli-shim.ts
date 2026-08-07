@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import kleur from "kleur";
 import { standaloneCliPath } from "./standalone.js";
 
-const COMMANDS = ["codexplusplus", "codex-plusplus"] as const;
+const COMMANDS = ["chatgptplusplus", "chatgpt-plusplus"] as const;
+// 旧项目名（codex-plusplus）的命令 shim：安装时删除，避免已装用户混淆。
+const LEGACY_COMMANDS = ["codexplusplus", "codex-plusplus"] as const;
 
 export interface CliShimResult {
   shimDir: string;
@@ -19,6 +21,9 @@ export function installCliShims(shimDir: string): CliShimResult {
   for (const command of COMMANDS) {
     writeShim(join(shimDir, command));
   }
+  for (const command of LEGACY_COMMANDS) {
+    removeShim(join(shimDir, command));
+  }
 
   if (isHomebrewCli()) {
     return { shimDir, pathDir: null, commands: COMMANDS, managedBy: "homebrew" };
@@ -29,7 +34,7 @@ export function installCliShims(shimDir: string): CliShimResult {
 }
 
 export function formatCliShimResult(result: CliShimResult): string {
-  const command = kleur.cyan("codexplusplus");
+  const command = kleur.cyan("chatgptplusplus");
   if (result.managedBy === "homebrew") {
     return `Installed CLI: ${command} (Homebrew)`;
   }
@@ -67,6 +72,17 @@ function writeShim(path: string): void {
   chmodSync(path, 0o755);
 }
 
+function removeShim(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {}
+  if (platform() === "win32") {
+    try {
+      unlinkSync(`${path}.cmd`);
+    } catch {}
+  }
+}
+
 function writeShimFile(path: string): void {
   const content = shimScript(platform() === "win32");
   writeFileSync(path, content, "utf8");
@@ -82,6 +98,12 @@ function installIntoPath(shimDir: string): string | null {
     const source = platform() === "win32" ? join(shimDir, `${command}.cmd`) : join(shimDir, command);
     const target = platform() === "win32" ? join(targetDir, `${command}.cmd`) : join(targetDir, command);
     replaceSymlink(source, target);
+  }
+  for (const command of LEGACY_COMMANDS) {
+    const legacy = platform() === "win32" ? join(targetDir, `${command}.cmd`) : join(targetDir, command);
+    try {
+      unlinkSync(legacy);
+    } catch {}
   }
   return targetDir;
 }
@@ -124,7 +146,7 @@ function ensureDir(path: string): boolean {
 function isWritableDir(path: string): boolean {
   try {
     mkdirSync(path, { recursive: true });
-    const probe = join(path, `.codexpp-${process.pid}`);
+    const probe = join(path, `.chatgptpp-${process.pid}`);
     writeFileSync(probe, "");
     unlinkSync(probe);
     return true;
@@ -149,5 +171,6 @@ function currentCliPath(): string {
 }
 
 function isHomebrewCli(): boolean {
-  return /\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(currentCliPath());
+  // 兼容新旧项目名的 Homebrew Cellar 路径（旧用户升级后路径仍是 codexplusplus）。
+  return /\/(?:Homebrew|homebrew)\/Cellar\/(?:chatgptplusplus|codexplusplus)\//.test(currentCliPath());
 }

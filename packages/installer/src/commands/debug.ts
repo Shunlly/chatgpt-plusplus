@@ -19,7 +19,7 @@ export interface DebugReport {
   runtime: RuntimeReport;
   owlBridge: OwlBridgeReport;
   codexDataPaths: DataPath[];
-  codexPlusPlusPaths: DataPath[];
+  chatgptPlusPlusPaths: DataPath[];
   open: OpenReport;
 }
 
@@ -83,7 +83,7 @@ export function collectDebugReport(opts: DebugOpts = {}): DebugReport {
     runtime,
     owlBridge: collectOwlBridgeReport(codex, runtime, open, paths),
     codexDataPaths: codexDataPaths(codex),
-    codexPlusPlusPaths: codexPlusPlusPaths(paths),
+    chatgptPlusPlusPaths: chatgptPlusPlusPaths(paths),
     open,
   };
 }
@@ -143,7 +143,7 @@ export function codexDataPaths(codex: Pick<CodexInstall, "appName" | "bundleId" 
       ["Roaming data", join(roaming, appName)],
       ["Local data", join(local, appName)],
       ["Local cache", join(local, appName, "Cache")],
-      ["Codex++ Store mirror", join(local, "codex-plusplus", "store-apps")],
+      ["ChatGPT++ Store mirror", join(local, "chatgpt-plusplus", "store-apps")],
     ]);
   }
 
@@ -158,7 +158,7 @@ export function codexDataPaths(codex: Pick<CodexInstall, "appName" | "bundleId" 
   ]);
 }
 
-export function codexPlusPlusPaths(paths: UserPaths = userPaths()): DataPath[] {
+export function chatgptPlusPlusPaths(paths: UserPaths = userPaths()): DataPath[] {
   return existingAware([
     ["Root", paths.root],
     ["Runtime", paths.runtime],
@@ -473,7 +473,7 @@ function probeCdp(): { enabled: boolean; url: string | null } {
 }
 
 function printDebugReport(report: DebugReport): void {
-  console.log(kleur.bold("codex-plusplus debug"));
+  console.log(kleur.bold("chatgpt-plusplus debug"));
   console.log();
 
   console.log(kleur.bold("codex app"));
@@ -518,7 +518,7 @@ function printDebugReport(report: DebugReport): void {
 
   printDataPaths("codex data paths", report.codexDataPaths);
   console.log();
-  printDataPaths("codex-plusplus data paths", report.codexPlusPlusPaths);
+  printDataPaths("chatgpt-plusplus data paths", report.chatgptPlusPlusPaths);
 }
 
 function printDataPaths(title: string, paths: DataPath[]): void {

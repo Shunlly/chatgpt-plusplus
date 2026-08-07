@@ -176,7 +176,7 @@ ChatGPT++ 几乎把所有内容都放在 ChatGPT 之外。
 | Windows | `%APPDATA%/chatgpt-plusplus/` |
 | Linux | `$XDG_DATA_HOME/chatgpt-plusplus/` 或 `~/.local/share/chatgpt-plusplus/` |
 
-在 Windows Store 安装中，ChatGPT++ 还会在 `%LOCALAPPDATA%/codex-plusplus/store-apps/` 下创建一份可写的受管应用副本。请使用 ChatGPT++ 快捷方式启动该副本。
+在 Windows Store 安装中，ChatGPT++ 还会在 `%LOCALAPPDATA%/chatgpt-plusplus/store-apps/` 下创建一份可写的受管应用副本。请使用 ChatGPT++ 快捷方式启动该副本。
 
 ## 编写 Tweak
 

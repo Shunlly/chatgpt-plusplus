@@ -183,7 +183,7 @@ test("safeMode enables safe mode without changing per-tweak flags", async () => 
     withSilencedConsole(() => safeMode());
 
     const config = JSON.parse(readFileSync(join(envRoot, "config.json"), "utf8"));
-    assert.equal(config.codexPlusPlus.safeMode, true);
+    assert.equal(config.chatgptPlusPlus.safeMode, true);
     assert.equal(config.tweaks["com.example.keep"].enabled, true);
     assert.equal(existsSync(join(envRoot, "tweaks", ".codexpp-safe-mode-reload")), true);
   });
@@ -199,7 +199,8 @@ test("safeMode disables safe mode with --off", async () => {
     withSilencedConsole(() => safeMode({ off: true }));
 
     const config = JSON.parse(readFileSync(join(envRoot, "config.json"), "utf8"));
-    assert.equal(config.codexPlusPlus.safeMode, false);
+    assert.equal(config.chatgptPlusPlus.safeMode, false);
+    assert.equal(config.codexPlusPlus, undefined); // 老键已迁移并删除
   });
 });
 
@@ -350,7 +351,7 @@ test("patch failure report URL includes a prefilled GitHub issue", () => {
   const url = new URL(buildPatchFailureIssueUrl("Codex window services hook point not found"));
 
   assert.equal(url.origin + url.pathname, "https://github.com/Shunlly/chatgpt-plusplus/issues/new");
-  assert.equal(url.searchParams.get("title"), "Codex++ failed to patch Codex after update");
+  assert.equal(url.searchParams.get("title"), "ChatGPT++ failed to patch Codex after update");
   assert.match(url.searchParams.get("body") ?? "", /Codex window services hook point not found/);
   assert.match(url.searchParams.get("body") ?? "", /Platform:/);
 });
@@ -359,10 +360,10 @@ test("CLI failure report URL includes command and environment details", () => {
   const url = new URL(buildCliFailureIssueUrl("install", "codesign not installed"));
 
   assert.equal(url.origin + url.pathname, "https://github.com/Shunlly/chatgpt-plusplus/issues/new");
-  assert.equal(url.searchParams.get("title"), "Codex++ install failed");
-  assert.match(url.searchParams.get("body") ?? "", /codexplusplus install/);
+  assert.equal(url.searchParams.get("title"), "ChatGPT++ install failed");
+  assert.match(url.searchParams.get("body") ?? "", /chatgptplusplus install/);
   assert.match(url.searchParams.get("body") ?? "", /codesign not installed/);
-  assert.match(url.searchParams.get("body") ?? "", /Codex\+\+:/);
+  assert.match(url.searchParams.get("body") ?? "", /ChatGPT\+\+:/);
   assert.match(url.searchParams.get("body") ?? "", /Node:/);
 });
 
@@ -519,6 +520,11 @@ test("installation source labels local checkouts", () => {
     mkdirSync(join(root, ".git"));
     assert.equal(describeInstallationSource(root).kind, "local-dev");
   });
+  assert.equal(
+    describeInstallationSource("/opt/homebrew/Cellar/chatgptplusplus/1.0.6").kind,
+    "homebrew",
+  );
+  // 老版本安装路径（v1.0.5 之前）仍需识别，用于诊断升级残留。
   assert.equal(
     describeInstallationSource("/opt/homebrew/Cellar/codexplusplus/0.1.4").kind,
     "homebrew",

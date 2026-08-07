@@ -15,7 +15,7 @@ function installReactHook() {
             const id = nextId++;
             renderers.set(id, renderer);
             // eslint-disable-next-line no-console
-            console.debug("[codex-plusplus] React renderer attached:", renderer.rendererPackageName, renderer.version);
+            console.debug("[chatgpt-plusplus] React renderer attached:", renderer.rendererPackageName, renderer.version);
             return id;
         },
         on(event, fn) {

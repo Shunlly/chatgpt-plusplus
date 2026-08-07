@@ -5,40 +5,40 @@
 The re-sign step failed or was skipped. Run:
 
 ```sh
-codex-plusplus doctor
+chatgptplusplus doctor
 ```
 
 If the signature check fails, manually re-sign:
 
 ```sh
-codex-plusplus repair --force
+chatgptplusplus repair --force
 xattr -dr com.apple.quarantine /Applications/Codex.app
 ```
 
-On macOS, ChatGPT++ signs ad-hoc by default. `codex-plusplus install --local`
-or `codex-plusplus repair --local` opts into a local "ChatGPT++ Local Signing"
+On macOS, ChatGPT++ signs ad-hoc by default. `chatgptplusplus install --local`
+or `chatgptplusplus repair --local` opts into a local "ChatGPT++ Local Signing"
 identity, but that can involve Keychain access prompts.
 
-## App launches but nothing about codex-plusplus appears
+## App launches but nothing about chatgpt-plusplus appears
 
-1. Open DevTools (View menu) and look for `[codex-plusplus]` lines.
+1. Open DevTools (View menu) and look for `[chatgpt-plusplus]` lines.
 2. Check `~/Library/Application Support/chatgpt-plusplus/log/loader.log`.
-3. If empty, the loader is not being executed → integrity check failed and the app silently fell back. Run `codex-plusplus repair`.
+3. If empty, the loader is not being executed → integrity check failed and the app silently fell back. Run `chatgptplusplus repair`.
 
 ## Codex auto-updated and the patch is gone
 
 The watcher should normally re-apply the patch automatically. To force it immediately, run:
 
 ```sh
-codex-plusplus repair
+chatgptplusplus repair
 ```
 
 Check the watcher is installed:
 
 ```sh
 launchctl list | grep chatgptplusplus      # macOS
-systemctl --user status codex-plusplus-watcher  # Linux
-schtasks /Query /TN codex-plusplus-watcher       # Windows
+systemctl --user status chatgpt-plusplus-watcher  # Linux
+schtasks /Query /TN chatgpt-plusplus-watcher       # Windows
 ```
 
 ## "Tweaks" tab doesn't appear in Settings
@@ -53,7 +53,7 @@ Codex's Settings markup may have changed. The injector's heuristics need an upda
 Check the renderer console:
 
 ```
-[codex-plusplus] tweak load failed: <id> <error>
+[chatgpt-plusplus] tweak load failed: <id> <error>
 ```
 
 Common causes:
@@ -65,10 +65,10 @@ Common causes:
 
 ## Uninstall is incomplete
 
-The uninstaller only restores files we backed up at install time. If you've upgraded `codex-plusplus` and the original app version no longer matches, the restored backup may be stale. Either:
+The uninstaller only restores files we backed up at install time. If you've upgraded `chatgpt-plusplus` and the original app version no longer matches, the restored backup may be stale. Either:
 
 - Reinstall Codex from a fresh download
-- Or `codex-plusplus install` against the new Codex, then `uninstall`
+- Or `chatgptplusplus install` against the new Codex, then `uninstall`
 
 ## I want to start fresh
 

@@ -199,7 +199,7 @@ function annotatePermError(e: unknown, target: string): Error {
     const msg =
       `Permission denied writing to ${target}.\n\n` +
       `macOS App Management is blocking modification of /Applications/Codex.app.\n` +
-      `Run "codexplusplus repair" in your terminal.\n\n` +
+      `Run "chatgptplusplus repair" in your terminal.\n\n` +
       `Original error: ${err.message}`;
     const wrapped = new Error(msg);
     (wrapped as NodeJS.ErrnoException).code = err.code;

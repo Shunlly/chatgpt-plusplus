@@ -32,7 +32,7 @@ export async function devTweak(target = ".", opts: DevTweakOpts = {}): Promise<v
   ensureDevLink(sourceDir, linkPath, opts.replace === true);
   touchReloadMarker(linkPath);
 
-  console.log(kleur.green().bold("✓ Codex++ dev link ready"));
+  console.log(kleur.green().bold("✓ ChatGPT++ dev link ready"));
   console.log(`  Source: ${kleur.cyan(sourceDir)}`);
   console.log(`  Linked: ${kleur.cyan(linkPath)}`);
   console.log(`  Tweak:  ${kleur.cyan(manifest.id)} (${manifest.scope ?? "both"})`);

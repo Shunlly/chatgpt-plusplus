@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${CODEX_PLUSPLUS_REPO:-b-nnett/codex-plusplus}"
-REF="${CODEX_PLUSPLUS_REF:-main}"
+REPO="${CHATGPT_PLUSPLUS_REPO:-${CODEX_PLUSPLUS_REPO:-Shunlly/chatgpt-plusplus}}"
+REF="${CHATGPT_PLUSPLUS_REF:-${CODEX_PLUSPLUS_REF:-main}}"
 
 fail() {
   echo "[!] $1" >&2
@@ -44,7 +44,7 @@ resolve_sudo_home() {
 }
 
 resolve_sudo_home
-INSTALL_DIR="${CODEX_PLUSPLUS_SOURCE_DIR:-$HOME/.codex-plusplus/source}"
+INSTALL_DIR="${CHATGPT_PLUSPLUS_SOURCE_DIR:-${CODEX_PLUSPLUS_SOURCE_DIR:-$HOME/.chatgpt-plusplus/source}}"
 
 if ! command -v node >/dev/null 2>&1; then
   fail "Node.js 20+ is required but node was not found."
@@ -55,23 +55,23 @@ if [ "$NODE_MAJOR" -lt 20 ]; then
   fail "Node.js 20+ is required; found $(node -v)."
 fi
 
-require_command npm "npm is required to build codex-plusplus from GitHub source."
-require_command curl "curl is required to download codex-plusplus from GitHub."
-require_command tar "tar is required to unpack the codex-plusplus download."
+require_command npm "npm is required to build chatgpt-plusplus from GitHub source."
+require_command curl "curl is required to download chatgpt-plusplus from GitHub."
+require_command tar "tar is required to unpack the chatgpt-plusplus download."
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/codex-plusplus.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/chatgpt-plusplus.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 ARCHIVE="$WORK/source.tar.gz"
 EXTRACT="$WORK/extract"
 NEXT="$WORK/source"
 
-echo "Downloading codex-plusplus from https://github.com/$REPO ($REF)..."
+echo "Downloading chatgpt-plusplus from https://github.com/$REPO ($REF)..."
 curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$REF" -o "$ARCHIVE" ||
   fail "Download failed from https://github.com/$REPO ($REF). Check the repo, branch, and network connection."
 mkdir -p "$EXTRACT"
 tar -xzf "$ARCHIVE" -C "$EXTRACT" --strip-components 1 ||
-  fail "Could not unpack the codex-plusplus download."
+  fail "Could not unpack the chatgpt-plusplus download."
 mv "$EXTRACT" "$NEXT"
 
 echo "Installing dependencies..."
@@ -82,18 +82,18 @@ echo "Installing dependencies..."
       echo "npm ci failed; regenerating the downloaded lockfile and installing workspace dependencies." >&2
       rm -f package-lock.json
       npm install --workspaces --include-workspace-root --ignore-scripts ||
-        fail "npm install failed while installing codex-plusplus dependencies."
+        fail "npm install failed while installing chatgpt-plusplus dependencies."
     fi
   else
     npm install --workspaces --include-workspace-root --ignore-scripts ||
-      fail "npm install failed while installing codex-plusplus dependencies."
+      fail "npm install failed while installing chatgpt-plusplus dependencies."
   fi
 )
 
-echo "Building codex-plusplus..."
+echo "Building chatgpt-plusplus..."
 (
   cd "$NEXT"
-  npm run build || fail "codex-plusplus build failed."
+  npm run build || fail "chatgpt-plusplus build failed."
 )
 
 mkdir -p "$(dirname "$INSTALL_DIR")"
@@ -106,7 +106,7 @@ chown_to_sudo_user "$INSTALL_DIR"
 
 echo "Running installer..."
 node "$INSTALL_DIR/packages/installer/dist/cli.js" install "$@" ||
-  fail "codex-plusplus installer failed."
+  fail "chatgpt-plusplus installer failed."
 
 echo
-echo "codex-plusplus source installed at: $INSTALL_DIR"
+echo "chatgpt-plusplus source installed at: $INSTALL_DIR"

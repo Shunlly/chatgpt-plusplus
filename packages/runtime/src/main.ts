@@ -57,12 +57,12 @@ import {
 } from "./tweak-store";
 import { maybeStartBrowserUiServer } from "./browser-ui";
 
-const userRoot = process.env.CODEX_PLUSPLUS_USER_ROOT;
-const runtimeDir = process.env.CODEX_PLUSPLUS_RUNTIME;
+const userRoot = process.env.CHATGPT_PLUSPLUS_USER_ROOT ?? process.env.CODEX_PLUSPLUS_USER_ROOT;
+const runtimeDir = process.env.CHATGPT_PLUSPLUS_RUNTIME ?? process.env.CODEX_PLUSPLUS_RUNTIME;
 
 if (!userRoot || !runtimeDir) {
   throw new Error(
-    "codex-plusplus runtime started without CODEX_PLUSPLUS_USER_ROOT/RUNTIME envs",
+    "chatgpt-plusplus runtime started without CHATGPT_PLUSPLUS_USER_ROOT/RUNTIME envs",
   );
 }
 
@@ -76,9 +76,9 @@ const INSTALLER_STATE_FILE = join(userRoot, "state.json");
 const UPDATE_MODE_FILE = join(userRoot, "update-mode.json");
 const SELF_UPDATE_STATE_FILE = join(userRoot, "self-update-state.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
-const CODEX_PLUSPLUS_VERSION = "1.0.0";
-const CODEX_PLUSPLUS_REPO = "Shunlly/chatgpt-plusplus";
-const TWEAK_STORE_INDEX_URL = process.env.CODEX_PLUSPLUS_STORE_INDEX_URL ?? DEFAULT_TWEAK_STORE_INDEX_URL;
+const CHATGPT_PLUSPLUS_VERSION = "1.0.6";
+const CHATGPT_PLUSPLUS_REPO = "Shunlly/chatgpt-plusplus";
+const TWEAK_STORE_INDEX_URL = process.env.CHATGPT_PLUSPLUS_STORE_INDEX_URL ?? process.env.CODEX_PLUSPLUS_STORE_INDEX_URL ?? DEFAULT_TWEAK_STORE_INDEX_URL;
 const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 
 mkdirSync(LOG_DIR, { recursive: true });
@@ -101,13 +101,22 @@ if (process.env.CODEXPP_REMOTE_DEBUG === "1") {
 }
 
 interface PersistedState {
+  /** 旧版本配置键名（v1.0.5 之前），读取时自动迁移到 chatgptPlusPlus。 */
   codexPlusPlus?: {
     autoUpdate?: boolean;
     safeMode?: boolean;
     updateChannel?: SelfUpdateChannel;
     updateRepo?: string;
     updateRef?: string;
-    updateCheck?: CodexPlusPlusUpdateCheck;
+    updateCheck?: ChatgptPlusPlusUpdateCheck;
+  };
+  chatgptPlusPlus?: {
+    autoUpdate?: boolean;
+    safeMode?: boolean;
+    updateChannel?: SelfUpdateChannel;
+    updateRepo?: string;
+    updateRef?: string;
+    updateCheck?: ChatgptPlusPlusUpdateCheck;
   };
   /** Per-tweak enable flags. Missing entries default to enabled. */
   tweaks?: Record<string, { enabled?: boolean }>;
@@ -115,7 +124,7 @@ interface PersistedState {
   tweakUpdateChecks?: Record<string, TweakUpdateCheck>;
 }
 
-interface CodexPlusPlusUpdateCheck {
+interface ChatgptPlusPlusUpdateCheck {
   checkedAt: string;
   currentVersion: string;
   latestVersion: string | null;
@@ -161,11 +170,19 @@ interface TweakUpdateCheck {
 }
 
 function readState(): PersistedState {
+  let state: PersistedState = {};
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf8")) as PersistedState;
+    state = JSON.parse(readFileSync(CONFIG_FILE, "utf8")) as PersistedState;
   } catch {
     return {};
   }
+  // 一次性迁移：v1.0.5 及更早版本用 codexPlusPlus 键存储配置。
+  if (state.codexPlusPlus && !state.chatgptPlusPlus) {
+    state.chatgptPlusPlus = state.codexPlusPlus;
+    delete state.codexPlusPlus;
+    writeState(state);
+  }
+  return state;
 }
 function writeState(s: PersistedState): void {
   try {
@@ -174,33 +191,33 @@ function writeState(s: PersistedState): void {
     log("warn", "writeState failed:", String((e as Error).message));
   }
 }
-function isCodexPlusPlusAutoUpdateEnabled(): boolean {
-  return readState().codexPlusPlus?.autoUpdate !== false;
+function isChatgptPlusPlusAutoUpdateEnabled(): boolean {
+  return readState().chatgptPlusPlus?.autoUpdate !== false;
 }
-function setCodexPlusPlusAutoUpdate(enabled: boolean): void {
+function setChatgptPlusPlusAutoUpdate(enabled: boolean): void {
   const s = readState();
-  s.codexPlusPlus ??= {};
-  s.codexPlusPlus.autoUpdate = enabled;
+  s.chatgptPlusPlus ??= {};
+  s.chatgptPlusPlus.autoUpdate = enabled;
   writeState(s);
 }
-function setCodexPlusPlusUpdateConfig(config: {
+function setChatgptPlusPlusUpdateConfig(config: {
   updateChannel?: SelfUpdateChannel;
   updateRepo?: string;
   updateRef?: string;
 }): void {
   const s = readState();
-  s.codexPlusPlus ??= {};
-  if (config.updateChannel) s.codexPlusPlus.updateChannel = config.updateChannel;
-  if ("updateRepo" in config) s.codexPlusPlus.updateRepo = cleanOptionalString(config.updateRepo);
-  if ("updateRef" in config) s.codexPlusPlus.updateRef = cleanOptionalString(config.updateRef);
+  s.chatgptPlusPlus ??= {};
+  if (config.updateChannel) s.chatgptPlusPlus.updateChannel = config.updateChannel;
+  if ("updateRepo" in config) s.chatgptPlusPlus.updateRepo = cleanOptionalString(config.updateRepo);
+  if ("updateRef" in config) s.chatgptPlusPlus.updateRef = cleanOptionalString(config.updateRef);
   writeState(s);
 }
-function isCodexPlusPlusSafeModeEnabled(): boolean {
-  return readState().codexPlusPlus?.safeMode === true;
+function isChatgptPlusPlusSafeModeEnabled(): boolean {
+  return readState().chatgptPlusPlus?.safeMode === true;
 }
 function isTweakEnabled(id: string): boolean {
   const s = readState();
-  if (s.codexPlusPlus?.safeMode === true) return false;
+  if (s.chatgptPlusPlus?.safeMode === true) return false;
   return s.tweaks?.[id]?.enabled !== false;
 }
 function setTweakEnabled(id: string, enabled: boolean): void {
@@ -257,7 +274,7 @@ function log(level: "info" | "warn" | "error", ...args: unknown[]): void {
   try {
     appendCappedLog(LOG_FILE, line);
   } catch {}
-  if (level === "error") console.error("[codex-plusplus]", ...args);
+  if (level === "error") console.error("[chatgpt-plusplus]", ...args);
 }
 
 function installSparkleUpdateHook(): void {
@@ -269,7 +286,7 @@ function installSparkleUpdateHook(): void {
   const originalLoad = Module._load;
   if (typeof originalLoad !== "function") return;
 
-  Module._load = function codexPlusPlusModuleLoad(request: string, parent: unknown, isMain: boolean) {
+  Module._load = function chatgptPlusPlusModuleLoad(request: string, parent: unknown, isMain: boolean) {
     const loaded = originalLoad.apply(this, [request, parent, isMain]) as unknown;
     if (typeof request === "string" && /sparkle(?:\.node)?$/i.test(request)) {
       wrapSparkleExports(loaded);
@@ -287,7 +304,7 @@ function wrapSparkleExports(loaded: unknown): void {
   for (const name of ["installUpdatesIfAvailable"]) {
     const fn = exports[name];
     if (typeof fn !== "function") continue;
-    exports[name] = function codexPlusPlusSparkleWrapper(this: unknown, ...args: unknown[]) {
+    exports[name] = function chatgptPlusPlusSparkleWrapper(this: unknown, ...args: unknown[]) {
       prepareSignedCodexForSparkleInstall();
       return Reflect.apply(fn, this, args);
     };
@@ -483,7 +500,7 @@ function registerPreload(s: Electron.Session, label: string): void {
       }) => string;
     }).registerPreloadScript;
     if (typeof reg === "function") {
-      reg.call(s, { type: "frame", filePath: PRELOAD_PATH, id: "codex-plusplus" });
+      reg.call(s, { type: "frame", filePath: PRELOAD_PATH, id: "chatgpt-plusplus" });
       log("info", `preload registered (registerPreloadScript) on ${label}:`, PRELOAD_PATH);
       return;
     }
@@ -504,7 +521,7 @@ function registerPreload(s: Electron.Session, label: string): void {
 
 app.whenReady().then(() => {
   log("info", "app ready fired");
-  if (isCodexPlusPlusSafeModeEnabled()) {
+  if (isChatgptPlusPlusSafeModeEnabled()) {
     log("warn", "safe mode is enabled; preload will not be registered");
     return;
   }
@@ -516,7 +533,7 @@ app.whenReady().then(() => {
 });
 
 app.on("session-created", (s) => {
-  if (isCodexPlusPlusSafeModeEnabled()) return;
+  if (isChatgptPlusPlusSafeModeEnabled()) return;
   registerPreload(s, "session-created");
 });
 
@@ -542,7 +559,7 @@ app.on("web-contents-created", (_e, wc) => {
 });
 
 log("info", "main.ts evaluated; app.isReady=" + app.isReady());
-if (isCodexPlusPlusSafeModeEnabled()) {
+if (isChatgptPlusPlusSafeModeEnabled()) {
   log("warn", "safe mode is enabled; tweaks will not be loaded");
 }
 
@@ -585,21 +602,21 @@ ipcMain.handle("codexpp:get-config", () => {
   const installerState = readInstallerState();
   const sourceRoot = installerState?.sourceRoot ?? fallbackSourceRoot();
   return {
-    version: CODEX_PLUSPLUS_VERSION,
-    autoUpdate: s.codexPlusPlus?.autoUpdate !== false,
-    safeMode: s.codexPlusPlus?.safeMode === true,
-    updateChannel: s.codexPlusPlus?.updateChannel ?? "stable",
-    updateRepo: s.codexPlusPlus?.updateRepo ?? CODEX_PLUSPLUS_REPO,
-    updateRef: s.codexPlusPlus?.updateRef ?? "",
-    updateCheck: s.codexPlusPlus?.updateCheck ?? null,
+    version: CHATGPT_PLUSPLUS_VERSION,
+    autoUpdate: s.chatgptPlusPlus?.autoUpdate !== false,
+    safeMode: s.chatgptPlusPlus?.safeMode === true,
+    updateChannel: s.chatgptPlusPlus?.updateChannel ?? "stable",
+    updateRepo: s.chatgptPlusPlus?.updateRepo ?? CHATGPT_PLUSPLUS_REPO,
+    updateRef: s.chatgptPlusPlus?.updateRef ?? "",
+    updateCheck: s.chatgptPlusPlus?.updateCheck ?? null,
     selfUpdate: readSelfUpdateState(),
     installationSource: describeInstallationSource(sourceRoot),
   };
 });
 
 ipcMain.handle("codexpp:set-auto-update", (_e, enabled: boolean) => {
-  setCodexPlusPlusAutoUpdate(!!enabled);
-  return { autoUpdate: isCodexPlusPlusAutoUpdateEnabled() };
+  setChatgptPlusPlusAutoUpdate(!!enabled);
+  return { autoUpdate: isChatgptPlusPlusAutoUpdateEnabled() };
 });
 
 ipcMain.handle("codexpp:set-update-config", (_e, config: {
@@ -607,34 +624,34 @@ ipcMain.handle("codexpp:set-update-config", (_e, config: {
   updateRepo?: string;
   updateRef?: string;
 }) => {
-  setCodexPlusPlusUpdateConfig(config);
+  setChatgptPlusPlusUpdateConfig(config);
   const s = readState();
   return {
-    updateChannel: s.codexPlusPlus?.updateChannel ?? "stable",
-    updateRepo: s.codexPlusPlus?.updateRepo ?? CODEX_PLUSPLUS_REPO,
-    updateRef: s.codexPlusPlus?.updateRef ?? "",
+    updateChannel: s.chatgptPlusPlus?.updateChannel ?? "stable",
+    updateRepo: s.chatgptPlusPlus?.updateRepo ?? CHATGPT_PLUSPLUS_REPO,
+    updateRef: s.chatgptPlusPlus?.updateRef ?? "",
   };
 });
 
 ipcMain.handle("codexpp:check-codexpp-update", async (_e, force?: boolean) => {
-  return ensureCodexPlusPlusUpdateCheck(force === true);
+  return ensureChatgptPlusPlusUpdateCheck(force === true);
 });
 
 ipcMain.handle("codexpp:run-codexpp-update", async () => {
   const sourceRoot = readInstallerState()?.sourceRoot ?? fallbackSourceRoot();
   if (!sourceRoot) {
-    throw new Error("Codex++ source CLI was not found. Run the installer once, then try again.");
+    throw new Error("ChatGPT++ source CLI was not found. Run the installer once, then try again.");
   }
   // 独立安装包（dmg/exe）：源码 CLI 不存在，更新方式为下载新版安装包，直接打开 GitHub Releases
   if (existsSync(join(sourceRoot, "standalone.json"))) {
     const s = readState();
-    const releaseUrl = s.codexPlusPlus?.updateCheck?.releaseUrl ?? `https://github.com/${CODEX_PLUSPLUS_REPO}/releases`;
+    const releaseUrl = s.chatgptPlusPlus?.updateCheck?.releaseUrl ?? `https://github.com/${CHATGPT_PLUSPLUS_REPO}/releases`;
     shell.openExternal(releaseUrl).catch(() => {});
     return { standalone: true, releaseUrl };
   }
   const cli = join(sourceRoot, "packages", "installer", "dist", "cli.js");
   if (!existsSync(cli)) {
-    throw new Error("Codex++ source CLI was not found. Run the installer once, then try again.");
+    throw new Error("ChatGPT++ source CLI was not found. Run the installer once, then try again.");
   }
   const pending = markSelfUpdateStarted(sourceRoot);
   startInstalledCli(cli, ["update", "--watcher"]);
@@ -981,7 +998,7 @@ function syncMcpServersFromEnabledTweaks(): void {
     if (result.skippedServerNames.length > 0) {
       log(
         "info",
-        `skipped Codex++ managed MCP server(s) already configured by user: ${result.skippedServerNames.join(", ")}`,
+        `skipped ChatGPT++ managed MCP server(s) already configured by user: ${result.skippedServerNames.join(", ")}`,
       );
     }
   } catch (e) {
@@ -1037,35 +1054,35 @@ function safeRealpath(filePath: string): string {
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 
-async function ensureCodexPlusPlusUpdateCheck(force = false): Promise<CodexPlusPlusUpdateCheck> {
+async function ensureChatgptPlusPlusUpdateCheck(force = false): Promise<ChatgptPlusPlusUpdateCheck> {
   const state = readState();
-  const cached = state.codexPlusPlus?.updateCheck;
-  const channel = state.codexPlusPlus?.updateChannel ?? "stable";
-  const repo = state.codexPlusPlus?.updateRepo ?? CODEX_PLUSPLUS_REPO;
+  const cached = state.chatgptPlusPlus?.updateCheck;
+  const channel = state.chatgptPlusPlus?.updateChannel ?? "stable";
+  const repo = state.chatgptPlusPlus?.updateRepo ?? CHATGPT_PLUSPLUS_REPO;
   if (
     !force &&
     cached &&
-    cached.currentVersion === CODEX_PLUSPLUS_VERSION &&
+    cached.currentVersion === CHATGPT_PLUSPLUS_VERSION &&
     Date.now() - Date.parse(cached.checkedAt) < UPDATE_CHECK_INTERVAL_MS
   ) {
     return cached;
   }
 
-  const release = await fetchLatestRelease(repo, CODEX_PLUSPLUS_VERSION, channel === "prerelease");
+  const release = await fetchLatestRelease(repo, CHATGPT_PLUSPLUS_VERSION, channel === "prerelease");
   const latestVersion = release.latestTag ? normalizeVersion(release.latestTag) : null;
-  const check: CodexPlusPlusUpdateCheck = {
+  const check: ChatgptPlusPlusUpdateCheck = {
     checkedAt: new Date().toISOString(),
-    currentVersion: CODEX_PLUSPLUS_VERSION,
+    currentVersion: CHATGPT_PLUSPLUS_VERSION,
     latestVersion,
     releaseUrl: release.releaseUrl ?? `https://github.com/${repo}/releases`,
     releaseNotes: release.releaseNotes,
     updateAvailable: latestVersion
-      ? compareVersions(normalizeVersion(latestVersion), CODEX_PLUSPLUS_VERSION) > 0
+      ? compareVersions(normalizeVersion(latestVersion), CHATGPT_PLUSPLUS_VERSION) > 0
       : false,
     ...(release.error ? { error: release.error } : {}),
   };
-  state.codexPlusPlus ??= {};
-  state.codexPlusPlus.updateCheck = check;
+  state.chatgptPlusPlus ??= {};
+  state.chatgptPlusPlus.updateCheck = check;
   writeState(state);
   return check;
 }
@@ -1116,7 +1133,7 @@ async function fetchLatestRelease(
       const res = await fetch(`https://api.github.com/repos/${repo}/${endpoint}`, {
         headers: {
           "Accept": "application/vnd.github+json",
-          "User-Agent": `codex-plusplus/${currentVersion}`,
+          "User-Agent": `chatgpt-plusplus/${currentVersion}`,
         },
         signal: controller.signal,
       });
@@ -1179,7 +1196,7 @@ interface StoreEntryRuntimeCompatibility {
 class StoreTweakModifiedError extends Error {
   constructor(tweakName: string) {
     super(
-      `${tweakName} has local source changes, so Codex++ can't auto-update it. Revert your local changes or reinstall the tweak manually.`,
+      `${tweakName} has local source changes, so ChatGPT++ can't auto-update it. Revert your local changes or reinstall the tweak manually.`,
     );
     this.name = "StoreTweakModifiedError";
   }
@@ -1205,21 +1222,21 @@ function assertStoreEntryPlatformCompatible(entry: TweakStoreEntry): void {
 
 function storeEntryRuntimeCompatibility(entry: TweakStoreEntry): StoreEntryRuntimeCompatibility {
   const required = cleanMinRuntime(entry.manifest.minRuntime);
-  const compatible = !required || compareVersions(CODEX_PLUSPLUS_VERSION, required) >= 0;
+  const compatible = !required || compareVersions(CHATGPT_PLUSPLUS_VERSION, required) >= 0;
   return {
-    current: CODEX_PLUSPLUS_VERSION,
+    current: CHATGPT_PLUSPLUS_VERSION,
     required,
     compatible,
     reason: compatible || !required
       ? null
-      : `${entry.manifest.name} requires Codex++ ${required} or newer.`,
+      : `${entry.manifest.name} requires ChatGPT++ ${required} or newer.`,
   };
 }
 
 function assertStoreEntryRuntimeCompatible(entry: TweakStoreEntry): void {
   const runtime = storeEntryRuntimeCompatibility(entry);
   if (!runtime.compatible) {
-    throw new Error(runtime.reason ?? `${entry.manifest.name} requires a newer Codex++ runtime.`);
+    throw new Error(runtime.reason ?? `${entry.manifest.name} requires a newer ChatGPT++ runtime.`);
   }
 }
 
@@ -1247,7 +1264,7 @@ async function fetchTweakStoreRegistry(): Promise<TweakStoreFetchResult> {
       const res = await fetch(TWEAK_STORE_INDEX_URL, {
         headers: {
           "Accept": "application/json",
-          "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}`,
+          "User-Agent": `chatgpt-plusplus/${CHATGPT_PLUSPLUS_VERSION}`,
         },
         signal: controller.signal,
       });
@@ -1277,7 +1294,7 @@ async function installStoreTweak(entry: TweakStoreEntry): Promise<void> {
   try {
     log("info", `installing store tweak ${entry.id} from ${entry.repo}@${entry.approvedCommitSha}`);
     const res = await fetch(url, {
-      headers: { "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}` },
+      headers: { "User-Agent": `chatgpt-plusplus/${CHATGPT_PLUSPLUS_VERSION}` },
       redirect: "follow",
     });
     if (!res.ok) throw new Error(`download failed: ${res.status}`);
@@ -1354,7 +1371,7 @@ async function fetchGithubJson<T>(url: string): Promise<T> {
     const res = await fetch(url, {
       headers: {
         "Accept": "application/vnd.github+json",
-        "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}`,
+        "User-Agent": `chatgpt-plusplus/${CHATGPT_PLUSPLUS_VERSION}`,
       },
       signal: controller.signal,
     });
@@ -1369,7 +1386,7 @@ async function fetchManifestAtCommit(repo: string, commitSha: string): Promise<P
   const res = await fetch(`https://raw.githubusercontent.com/${repo}/${commitSha}/manifest.json`, {
     headers: {
       "Accept": "application/json",
-      "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}`,
+      "User-Agent": `chatgpt-plusplus/${CHATGPT_PLUSPLUS_VERSION}`,
     },
   });
   if (!res.ok) throw new Error(`manifest fetch returned ${res.status}`);
@@ -1466,7 +1483,7 @@ async function fetchBaselineStoreTweakHashes(
   const baselineDir = join(work, "baseline");
   const archive = join(work, "baseline.tar.gz");
   const res = await fetch(`https://codeload.github.com/${metadata.repo}/tar.gz/${metadata.approvedCommitSha}`, {
-    headers: { "User-Agent": `codex-plusplus/${CODEX_PLUSPLUS_VERSION}` },
+    headers: { "User-Agent": `chatgpt-plusplus/${CHATGPT_PLUSPLUS_VERSION}` },
     redirect: "follow",
   });
   if (!res.ok) throw new Error(`Could not verify local tweak changes before update: ${res.status}`);
@@ -1532,6 +1549,7 @@ function compareVersions(a: string, b: string): number {
 
 function fallbackSourceRoot(): string | null {
   const candidates = [
+    join(homedir(), ".chatgpt-plusplus", "source"),
     join(homedir(), ".codex-plusplus", "source"),
     join(userRoot!, "source"),
   ];
@@ -1546,20 +1564,21 @@ function describeInstallationSource(sourceRoot: string | null): InstallationSour
     return {
       kind: "unknown",
       label: "Unknown",
-      detail: "Codex++ source location is not recorded yet.",
+      detail: "ChatGPT++ source location is not recorded yet.",
     };
   }
   const normalized = sourceRoot.replace(/\\/g, "/");
   if (existsSync(join(sourceRoot, "standalone.json"))) {
     return { kind: "standalone-package", label: "Standalone 安装包", detail: sourceRoot };
   }
-  if (/\/(?:Homebrew|homebrew)\/Cellar\/codexplusplus\//.test(normalized)) {
+  if (/\/(?:Homebrew|homebrew)\/Cellar\/(?:chatgptplusplus|codexplusplus)\//.test(normalized)) {
     return { kind: "homebrew", label: "Homebrew", detail: sourceRoot };
   }
   if (existsSync(join(sourceRoot, ".git"))) {
     return { kind: "local-dev", label: "Local development checkout", detail: sourceRoot };
   }
-  if (normalized.endsWith("/.codex-plusplus/source") || normalized.includes("/.codex-plusplus/source/")) {
+  if (normalized.endsWith("/.chatgpt-plusplus/source") || normalized.includes("/.chatgpt-plusplus/source/") ||
+    normalized.endsWith("/.codex-plusplus/source") || normalized.includes("/.codex-plusplus/source/")) {
     return { kind: "github-source", label: "GitHub source installer", detail: sourceRoot };
   }
   if (existsSync(join(sourceRoot, "package.json"))) {
@@ -1574,7 +1593,7 @@ function startInstalledCli(cli: string, args: string[]): void {
   }
   const child = spawn(process.execPath, [cli, ...args], {
     cwd: resolve(dirname(cli), "..", "..", ".."),
-    env: { ...process.env, CODEX_PLUSPLUS_MANUAL_UPDATE: "1" },
+    env: { ...process.env, CHATGPT_PLUSPLUS_MANUAL_UPDATE: "1" },
     detached: true,
     stdio: "ignore",
   });
@@ -1582,12 +1601,12 @@ function startInstalledCli(cli: string, args: string[]): void {
 }
 
 function startInstalledCliWithLaunchd(cli: string, args: string[]): boolean {
-  const label = `com.codexplusplus.patch-helper.${process.pid}.${Date.now()}`;
+  const label = `com.chatgptplusplus.patch-helper.${process.pid}.${Date.now()}`;
   const cleanup = `launchctl remove ${label} >/dev/null 2>&1 || launchctl bootout gui/$(id -u)/${label} >/dev/null 2>&1 || true`;
   const command = [
     `trap ${shellQuote(cleanup)} EXIT`,
     `cd ${shellQuote(resolve(dirname(cli), "..", "..", ".."))}`,
-    `CODEX_PLUSPLUS_MANUAL_UPDATE=1 ${[process.execPath, cli, ...args].map(shellQuote).join(" ")}`,
+    `CHATGPT_PLUSPLUS_MANUAL_UPDATE=1 ${[process.execPath, cli, ...args].map(shellQuote).join(" ")}`,
   ].join(" && ");
   const result = spawnSync(
     "launchctl",
@@ -1606,7 +1625,7 @@ function startInstalledCliWithLaunchd(cli: string, args: string[]): boolean {
     },
   );
   if (result.status === 0) return true;
-  log("warn", `launchctl submit failed for Codex++ patch helper: ${result.error?.message ?? result.status}`);
+  log("warn", `launchctl submit failed for ChatGPT++ patch helper: ${result.error?.message ?? result.status}`);
   return false;
 }
 
@@ -1615,16 +1634,16 @@ function shellQuote(value: string): string {
 }
 
 function markSelfUpdateStarted(sourceRoot: string): SelfUpdateState {
-  const config = readState().codexPlusPlus;
+  const config = readState().chatgptPlusPlus;
   const channel = config?.updateChannel ?? "stable";
   const state: SelfUpdateState = {
     checkedAt: new Date().toISOString(),
     status: "checking",
-    currentVersion: CODEX_PLUSPLUS_VERSION,
+    currentVersion: CHATGPT_PLUSPLUS_VERSION,
     latestVersion: null,
     targetRef: config?.updateChannel === "custom" ? config.updateRef ?? null : null,
     releaseUrl: null,
-    repo: config?.updateRepo ?? CODEX_PLUSPLUS_REPO,
+    repo: config?.updateRepo ?? CHATGPT_PLUSPLUS_REPO,
     channel,
     sourceRoot,
     installationSource: describeInstallationSource(sourceRoot),
@@ -2103,7 +2122,7 @@ async function createCodexBrowserView(opts: CodexCreateViewOptions): Promise<unk
   const windowManager = services?.windowManager;
   if (!services || !windowManager?.registerWindow) {
     throw new Error(
-      "Codex embedded view services are not available. Reinstall Codex++ 1.0.0 or later.",
+      "Codex embedded view services are not available. Reinstall ChatGPT++ 1.0.0 or later.",
     );
   }
 
@@ -2130,7 +2149,7 @@ async function createCodexWindow(opts: CodexCreateWindowOptions): Promise<CodexW
   const services = getCodexWindowServices();
   if (!services) {
     throw new Error(
-      "Codex window services are not available. Reinstall Codex++ 1.0.0 or later.",
+      "Codex window services are not available. Reinstall ChatGPT++ 1.0.0 or later.",
     );
   }
 

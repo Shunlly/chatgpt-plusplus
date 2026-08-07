@@ -16,7 +16,7 @@ import { pipeline } from "node:stream/promises";
 import { spawnSync } from "node:child_process";
 import { extract as extractTar } from "tar";
 import { ensureUserPaths } from "../paths.js";
-import { CODEX_PLUSPLUS_VERSION, compareSemver } from "../version.js";
+import { CHATGPT_PLUSPLUS_VERSION, compareSemver } from "../version.js";
 import { describeInstallationSource, findSourceRoot } from "../source-root.js";
 import { isStandalone, standaloneCliPath, standaloneSourceRoot } from "../standalone.js";
 import {
@@ -44,6 +44,13 @@ interface GitHubRelease {
 }
 
 interface RuntimeConfig {
+  chatgptPlusPlus?: {
+    autoUpdate?: boolean;
+    updateChannel?: SelfUpdateChannel;
+    updateRepo?: string;
+    updateRef?: string;
+  };
+  /** 旧版本配置键名（v1.0.5 之前的存储名），读取时兼容。 */
   codexPlusPlus?: {
     autoUpdate?: boolean;
     updateChannel?: SelfUpdateChannel;
@@ -79,7 +86,7 @@ export interface CommandResult {
 export async function selfUpdate(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
   const config = readRuntimeConfig(paths.configFile);
-  const repo = opts.repo ?? process.env.CODEX_PLUSPLUS_REPO ?? config.updateRepo ?? "Shunlly/chatgpt-plusplus";
+  const repo = opts.repo ?? process.env.CHATGPT_PLUSPLUS_REPO ?? process.env.CODEX_PLUSPLUS_REPO ?? config.updateRepo ?? "Shunlly/chatgpt-plusplus";
   const sourceRoot = standaloneSourceRoot() ?? findSourceRoot(here);
   const parent = dirname(sourceRoot);
 
@@ -98,7 +105,7 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
     return;
   }
 
-  const work = mkdtempSync(join(tmpdir(), "codexpp-update-"));
+  const work = mkdtempSync(join(tmpdir(), "chatgptpp-update-"));
   const archive = join(work, "source.tar.gz");
   const next = join(work, "source");
   const previous = `${sourceRoot}.previous`;
@@ -113,13 +120,13 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
           channel: config.updateChannel ?? "stable",
           sourceRoot,
         }));
-        log(opts, "Codex++ auto-update is disabled; running repair only.");
+        log(opts, "ChatGPT++ auto-update is disabled; running repair only.");
         runRepairIfRequested(opts, sourceRoot, parent);
         return;
       }
 
       if (opts.watcher && !opts.force && !shouldRunWatcherSelfUpdate(paths.selfUpdateStateFile)) {
-        log(opts, "Codex++ release check skipped; running repair only.");
+        log(opts, "ChatGPT++ release check skipped; running repair only.");
         runRepairIfRequested(opts, sourceRoot, parent);
         return;
       }
@@ -132,7 +139,7 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
       }));
 
       target = await resolveUpdateTarget(repo, opts, config);
-      if (!shouldDownloadSelfUpdate(CODEX_PLUSPLUS_VERSION, target.ref, opts.force === true)) {
+      if (!shouldDownloadSelfUpdate(CHATGPT_PLUSPLUS_VERSION, target.ref, opts.force === true)) {
         writeSelfUpdateState(paths.selfUpdateStateFile, selfUpdateState({
           status: "up-to-date",
           repo,
@@ -140,12 +147,12 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
           sourceRoot,
           target,
         }));
-        log(opts, `Codex++ is already up to date (${CODEX_PLUSPLUS_VERSION}).`);
+        log(opts, `ChatGPT++ is already up to date (${CHATGPT_PLUSPLUS_VERSION}).`);
         runRepairIfRequested(opts, sourceRoot, parent);
         return;
       }
 
-      log(opts, `Downloading codex-plusplus from https://github.com/${repo} (${target.ref})...`);
+      log(opts, `Downloading chatgpt-plusplus from https://github.com/${repo} (${target.ref})...`);
       await download(`https://codeload.github.com/${repo}/tar.gz/${target.ref}`, archive);
       mkdirSync(next, { recursive: true });
       await extractTar({ file: archive, cwd: next, strip: 1 });
@@ -166,7 +173,7 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
         sourceRoot,
         target,
       }));
-      log(opts, kleur.green(`Updated codex-plusplus source at ${sourceRoot}`));
+      log(opts, kleur.green(`Updated chatgpt-plusplus source at ${sourceRoot}`));
 
       try {
         runRepairIfRequested(opts, sourceRoot, parent);
@@ -193,10 +200,10 @@ export async function selfUpdate(opts: Opts = {}): Promise<void> {
 async function resolveUpdateTarget(
   repo: string,
   opts: Opts,
-  config: NonNullable<RuntimeConfig["codexPlusPlus"]>,
+  config: NonNullable<RuntimeConfig["chatgptPlusPlus"]>,
 ): Promise<UpdateTarget> {
   const explicitRef =
-    opts.ref ?? process.env.CODEX_PLUSPLUS_REF ?? (config.updateChannel === "custom" ? config.updateRef : undefined);
+    opts.ref ?? process.env.CHATGPT_PLUSPLUS_REF ?? process.env.CODEX_PLUSPLUS_REF ?? (config.updateChannel === "custom" ? config.updateRef : undefined);
   if (explicitRef) {
     return {
       ref: explicitRef,
@@ -223,7 +230,7 @@ async function resolveUpdateTarget(
 
 async function fetchLatestRelease(repo: string): Promise<GitHubRelease> {
   const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-    headers: { "User-Agent": "codex-plusplus-self-update" },
+    headers: { "User-Agent": "chatgpt-plusplus-self-update" },
   });
   if (!res.ok) throw new Error(`Release check failed: ${res.status} ${res.statusText}`);
   return (await res.json()) as GitHubRelease;
@@ -231,7 +238,7 @@ async function fetchLatestRelease(repo: string): Promise<GitHubRelease> {
 
 async function fetchLatestAnyRelease(repo: string): Promise<GitHubRelease> {
   const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=20`, {
-    headers: { "User-Agent": "codex-plusplus-self-update" },
+    headers: { "User-Agent": "chatgpt-plusplus-self-update" },
   });
   if (!res.ok) throw new Error(`Release check failed: ${res.status} ${res.statusText}`);
   const releases = (await res.json()) as GitHubRelease[];
@@ -242,7 +249,7 @@ async function fetchLatestAnyRelease(repo: string): Promise<GitHubRelease> {
 
 async function download(url: string, target: string): Promise<void> {
   const res = await fetch(url, {
-    headers: { "User-Agent": "codex-plusplus-self-update" },
+    headers: { "User-Agent": "chatgpt-plusplus-self-update" },
   });
   if (!res.ok || !res.body) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   await pipeline(res.body, createWriteStream(target));
@@ -297,11 +304,11 @@ function readPackageVersion(sourceDir: string): string | null {
   }
 }
 
-function readRuntimeConfig(configFile: string): NonNullable<RuntimeConfig["codexPlusPlus"]> {
+function readRuntimeConfig(configFile: string): NonNullable<RuntimeConfig["chatgptPlusPlus"]> {
   if (!existsSync(configFile)) return {};
   try {
     const config = JSON.parse(readFileSync(configFile, "utf8")) as RuntimeConfig;
-    return config.codexPlusPlus ?? {};
+    return config.chatgptPlusPlus ?? config.codexPlusPlus ?? {};
   } catch {
     return {};
   }
@@ -320,7 +327,7 @@ function selfUpdateState(opts: {
     checkedAt: now,
     completedAt: opts.status === "checking" ? undefined : now,
     status: opts.status,
-    currentVersion: CODEX_PLUSPLUS_VERSION,
+    currentVersion: CHATGPT_PLUSPLUS_VERSION,
     latestVersion: opts.target?.version ?? null,
     targetRef: opts.target?.ref ?? null,
     releaseUrl: opts.target?.releaseUrl ?? null,
@@ -435,7 +442,7 @@ function isAutoUpdateEnabled(configFile: string): boolean {
   if (!existsSync(configFile)) return true;
   try {
     const config = JSON.parse(readFileSync(configFile, "utf8")) as RuntimeConfig;
-    return config.codexPlusPlus?.autoUpdate !== false;
+    return config.chatgptPlusPlus?.autoUpdate !== false;
   } catch {
     return true;
   }

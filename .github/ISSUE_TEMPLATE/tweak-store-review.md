@@ -1,6 +1,6 @@
 ---
 name: Tweak store review
-about: Submit a Codex++ tweak for store review
+about: Submit a ChatGPT++ tweak for store review
 title: "Tweak store review: owner/repo"
 labels: tweak-store, review
 ---

@@ -27,12 +27,12 @@ export async function updateCodex(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
   const state = readState(paths.stateFile);
   if (!state) {
-    throw new Error("No prior install state found. Run `codex-plusplus install` first.");
+    throw new Error("No prior install state found. Run `chatgpt-plusplus install` first.");
   }
 
   const codex = locateCodex(opts.app ?? state.appRoot);
   if (codex.platform !== "darwin") {
-    throw new Error("codex-plusplus update-codex is only needed on macOS/Sparkle installs.");
+    throw new Error("chatgpt-plusplus update-codex is only needed on macOS/Sparkle installs.");
   }
 
   const candidate = selectSignedAppCandidate(paths.backup, state.codexVersion, codex.bundleId);
@@ -40,7 +40,7 @@ export async function updateCodex(opts: Opts = {}): Promise<void> {
     throw new Error(
       `No signed Codex.app backup or Sparkle-cached update was found.\n\n` +
         `Run the official Codex updater once, then rerun this command. If it downloads ` +
-        `the update before failing, codex-plusplus can recover from Sparkle's cache.`,
+        `the update before failing, chatgpt-plusplus can recover from Sparkle's cache.`,
     );
   }
 
@@ -78,9 +78,9 @@ export async function updateCodex(opts: Opts = {}): Promise<void> {
 
   console.log(kleur.green("Signed Codex.app restored."));
   if (candidate.version && state.codexVersion && compareSemver(candidate.version, state.codexVersion) > 0) {
-    console.log(kleur.dim("Codex++ will reapply after the updated app launches/restarts."));
+    console.log(kleur.dim("ChatGPT++ will reapply after the updated app launches/restarts."));
   } else {
-    console.log(kleur.dim("Run the official Codex updater now. Codex++ will reapply after the updated app restarts."));
+    console.log(kleur.dim("Run the official Codex updater now. ChatGPT++ will reapply after the updated app restarts."));
   }
   if (wasRunning) {
     console.log(kleur.yellow("Quit and reopen Codex to continue with the signed app."));

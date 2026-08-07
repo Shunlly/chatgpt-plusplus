@@ -89,7 +89,7 @@ export async function startTweakHost(): Promise<void> {
     try {
       await loadTweak(t, paths);
     } catch (e) {
-      console.error("[codex-plusplus] tweak load failed:", t.manifest.id, e);
+      console.error("[chatgpt-plusplus] tweak load failed:", t.manifest.id, e);
       try {
         ipcRenderer.send(
           "codexpp:preload-log",
@@ -101,7 +101,7 @@ export async function startTweakHost(): Promise<void> {
   }
 
   console.info(
-    `[codex-plusplus] renderer host loaded ${loaded.size} tweak(s):`,
+    `[chatgpt-plusplus] renderer host loaded ${loaded.size} tweak(s):`,
     [...loaded.keys()].join(", ") || "(none)",
   );
   ipcRenderer.send(
@@ -121,7 +121,7 @@ export function teardownTweakHost(): void {
     try {
       t.stop?.();
     } catch (e) {
-      console.warn("[codex-plusplus] tweak stop failed:", id, e);
+      console.warn("[chatgpt-plusplus] tweak stop failed:", id, e);
     } finally {
       void ipcRenderer.invoke("codexpp:codex-view-dispose-tweak", id).catch(() => {});
       void ipcRenderer.invoke("codexpp:native-dispose-tweak", id).catch(() => {});
@@ -168,7 +168,7 @@ function makeRendererApi(manifest: TweakManifest, paths: UserPaths, tweakDir: st
       : level === "warn" ? console.warn
       : level === "error" ? console.error
       : console.log;
-    consoleFn(`[codex-plusplus][${id}]`, ...a);
+    consoleFn(`[chatgpt-plusplus][${id}]`, ...a);
     // Also mirror to main's log file so we can diagnose tweak behavior
     // without attaching DevTools. Stringify each arg defensively.
     try {

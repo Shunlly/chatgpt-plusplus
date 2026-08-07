@@ -27,12 +27,12 @@ tweak-declared servers into Codex's `~/.codex/config.toml`.
 ChatGPT++ writes managed entries between markers:
 
 ```toml
-# BEGIN CODEX++ MANAGED MCP SERVERS
+# BEGIN CHATGPT++ MANAGED MCP SERVERS
 [mcp_servers.tools]
 command = "node"
 args = ["/absolute/path/to/tweak/mcp-server.js"]
 env = { TOOLS_MODE = "codex" }
-# END CODEX++ MANAGED MCP SERVERS
+# END CHATGPT++ MANAGED MCP SERVERS
 ```
 
 The managed block is rewritten when tweaks reload.

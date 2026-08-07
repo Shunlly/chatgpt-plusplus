@@ -17,10 +17,10 @@ Include:
 
 ## Tweak Update Policy
 
-Tweaks are local code and should be treated as untrusted until reviewed. Codex++ checks GitHub Releases once per day and displays update availability, but it never downloads, installs, or replaces tweak code automatically.
+Tweaks are local code and should be treated as untrusted until reviewed. ChatGPT++ checks GitHub Releases once per day and displays update availability, but it never downloads, installs, or replaces tweak code automatically.
 
 Before updating a tweak, review the release notes, changed files, repository ownership, and any new permissions or network behavior.
 
 ## Runtime Boundaries
 
-Renderer tweaks run in the preload context and can modify the Codex UI. Main-process tweaks can use the main-process API exposed by Codex++. Install only tweaks from sources you trust.
+Renderer tweaks run in the preload context and can modify the Codex UI. Main-process tweaks can use the main-process API exposed by ChatGPT++. Install only tweaks from sources you trust.

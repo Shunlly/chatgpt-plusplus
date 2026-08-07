@@ -5,8 +5,8 @@
 │                                Codex.app                                │
 │  Contents/Resources/                                                    │
 │  ├─ app.asar                                                            │
-│  │   ├─ package.json   (main: codex-plusplus-loader.cjs)  ◄─ patched   │
-│  │   ├─ codex-plusplus-loader.cjs                          ◄─ injected │
+│  │   ├─ package.json   (main: chatgpt-plusplus-loader.cjs)  ◄─ patched   │
+│  │   ├─ chatgpt-plusplus-loader.cjs                          ◄─ injected │
 │  │   └─ <original Codex code …>                                         │
 │  ├─ Frameworks/Codex Framework.framework/.../Codex Framework (Owl)      │
 │  │      or Electron Framework.framework on older builds                 │
@@ -18,7 +18,7 @@
                   loader.cjs requires runtime/main.js
                                  ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│  <user-data-dir>/codex-plusplus/                                        │
+│  <user-data-dir>/chatgpt-plusplus/                                        │
 │  ├─ runtime/                                                            │
 │  │   ├─ main.js          — main process; hooks BrowserWindow            │
 │  │   ├─ preload.js       — bundled preload (renderer side)              │
@@ -49,10 +49,10 @@ The renderer only receives cached metadata (`latestVersion`, `releaseUrl`, `upda
    - The hash now matches the patched asar, so this passes.
    - On older Electron-style bundles, the `EnableEmbeddedAsarIntegrityValidation`
      fuse may also be off as a belt-and-suspenders measure.
-4. Electron loads the asar's `package.json#main`, which now points to `codex-plusplus-loader.cjs`.
+4. Electron loads the asar's `package.json#main`, which now points to `chatgpt-plusplus-loader.cjs`.
 5. The loader (in the asar):
    - Reads `__codexpp.userRoot` from package.json.
-   - Sets `CODEX_PLUSPLUS_USER_ROOT` and `CODEX_PLUSPLUS_RUNTIME` envs.
+   - Sets `CHATGPT_PLUSPLUS_USER_ROOT` and `CHATGPT_PLUSPLUS_RUNTIME` envs.
    - `require()`s `<userRoot>/runtime/main.js`.
    - `require()`s the original `__codexpp.originalMain` (Codex's real entry).
 6. Runtime's `main.js`:
@@ -114,14 +114,14 @@ When Codex auto-updates via Sparkle:
 1. Sparkle downloads a new Codex.app and replaces ours on disk.
 2. Our patch is gone; the new app launches normally.
 3. Our launchd / systemd / scheduled-task watcher fires (macOS and Linux watch `app.asar`; Windows runs at logon).
-4. The watcher runs `codex-plusplus repair --quiet`.
+4. The watcher runs `chatgptplusplus repair --quiet`.
 5. `repair` is idempotent: if the current asar hash still matches `patchedAsarHash`, it exits without touching the app; if the hash drifted after an update, it re-runs the install patch against the new app bundle.
 
 ## ChatGPT++ self-updates
 
-The watcher also runs hourly using the GitHub-installed local CLI at `~/.codex-plusplus/source/packages/installer/dist/cli.js`. It checks the latest ChatGPT++ GitHub Release, downloads and rebuilds a newer release when available, then runs `repair`. When the app patch is intact but the installed ChatGPT++ version in `state.json` is older than the running CLI, `repair` refreshes `<user-data-dir>/runtime/` and updates state. It does not modify user tweak folders.
+The watcher also runs hourly using the GitHub-installed local CLI at `~/.chatgpt-plusplus/source/packages/installer/dist/cli.js`. It checks the latest ChatGPT++ GitHub Release, downloads and rebuilds a newer release when available, then runs `repair`. When the app patch is intact but the installed ChatGPT++ version in `state.json` is older than the running CLI, `repair` refreshes `<user-data-dir>/runtime/` and updates state. It does not modify user tweak folders.
 
-Users can disable ChatGPT++ runtime auto-updates from Settings → Codex Plus Plus → Config. The setting is stored in `<user-data-dir>/config.json`; app-update repair still works, but intact-app runtime refreshes are skipped while auto-update is disabled.
+Users can disable ChatGPT++ runtime auto-updates from Settings → ChatGPT++ → Config. The setting is stored in `<user-data-dir>/config.json`; app-update repair still works, but intact-app runtime refreshes are skipped while auto-update is disabled.
 
 The Config page can also check for ChatGPT++ updates manually. It reads GitHub release metadata and opens GitHub release pages for review.
 

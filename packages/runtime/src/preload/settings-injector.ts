@@ -12,7 +12,7 @@
  *
  *   GENERAL                       (uppercase group label)
  *   [Codex's existing items group]
- *   CODEX++                       (uppercase group label)
+ *   CHATGPT++                     (uppercase group label)
  *   ⓘ Config
  *   ☰ Tweaks
  *   ◇ Tweak Store
@@ -35,7 +35,7 @@ import {
   type TweakStorePublishSubmission,
 } from "../tweak-store";
 
-const CODEX_PLUSPLUS_RELEASES_URL = "https://github.com/Shunlly/chatgpt-plusplus/releases";
+const CHATGPT_PLUSPLUS_RELEASES_URL = "https://github.com/Shunlly/chatgpt-plusplus/releases";
 
 // Mirrors the runtime's main-side ListedTweak shape (kept in sync manually).
 interface ListedTweak {
@@ -58,18 +58,18 @@ interface TweakUpdateCheck {
   error?: string;
 }
 
-interface CodexPlusPlusConfig {
+interface ChatgptPlusPlusConfig {
   version: string;
   autoUpdate: boolean;
   updateChannel: SelfUpdateChannel;
   updateRepo: string;
   updateRef: string;
-  updateCheck: CodexPlusPlusUpdateCheck | null;
+  updateCheck: ChatgptPlusPlusUpdateCheck | null;
   selfUpdate: SelfUpdateState | null;
   installationSource: InstallationSource;
 }
 
-interface CodexPlusPlusUpdateCheck {
+interface ChatgptPlusPlusUpdateCheck {
   checkedAt: string;
   currentVersion: string;
   latestVersion: string | null;
@@ -180,7 +180,7 @@ interface InjectorState {
   navGroup: HTMLElement | null;
   navButtons: { config: HTMLButtonElement; tweaks: HTMLButtonElement; store: HTMLButtonElement } | null;
   /** Sidebar update pill shown only when GitHub has a newer ChatGPT++ release. */
-  codexPlusPlusUpdateButton: HTMLButtonElement | null;
+  chatgptPlusPlusUpdateButton: HTMLButtonElement | null;
   /** Our "Tweaks" nav group (per-tweak pages). Created lazily. */
   pagesGroup: HTMLElement | null;
   pagesGroupKey: string | null;
@@ -208,7 +208,7 @@ const state: InjectorState = {
   nativeNavHeader: null,
   navGroup: null,
   navButtons: null,
-  codexPlusPlusUpdateButton: null,
+  chatgptPlusPlusUpdateButton: null,
   pagesGroup: null,
   pagesGroupKey: null,
   panelHost: null,
@@ -433,18 +433,18 @@ function tryInject(): void {
     state.panelHost = null;
   }
 
-  const existingCodexPpNavGroup =
+  const existingChatgptPpNavGroup =
     outer.querySelector<HTMLElement>(':scope > [data-codexpp="nav-group"]') ??
     outer.querySelector<HTMLElement>('[data-codexpp="nav-group"]');
 
-  if (existingCodexPpNavGroup) {
-    state.navGroup = existingCodexPpNavGroup;
-    state.codexPlusPlusUpdateButton = existingCodexPpNavGroup.querySelector<HTMLButtonElement>(
+  if (existingChatgptPpNavGroup) {
+    state.navGroup = existingChatgptPpNavGroup;
+    state.chatgptPlusPlusUpdateButton = existingChatgptPpNavGroup.querySelector<HTMLButtonElement>(
       "[data-codexpp-sidebar-update]",
     );
     state.sidebarRoot = outer;
     syncPagesGroup();
-    refreshSidebarCodexPlusPlusUpdateButton();
+    refreshSidebarChatgptPlusPlusUpdateButton();
     if (state.activePage !== null) syncCodexNativeNavActive(true);
     return;
   }
@@ -455,9 +455,9 @@ function tryInject(): void {
   group.className = "flex flex-col gap-px";
 
   const updateButton = sidebarUpdatePillButton();
-  state.codexPlusPlusUpdateButton = updateButton;
+  state.chatgptPlusPlusUpdateButton = updateButton;
   group.appendChild(sidebarGroupHeader("ChatGPT++", "pt-3", updateButton));
-  refreshSidebarCodexPlusPlusUpdateButton();
+  refreshSidebarChatgptPlusPlusUpdateButton();
 
   // ── Sidebar items ────────────────────────────────────────────────────
   const configBtn = makeSidebarItem("Config", configIconSvg());
@@ -1061,10 +1061,10 @@ function renderConfigPage(
     .invoke("codexpp:get-config")
     .then((config) => {
       if (subtitle) {
-        subtitle.textContent = `You have ChatGPT++ ${(config as CodexPlusPlusConfig).version} installed.`;
+        subtitle.textContent = `You have ChatGPT++ ${(config as ChatgptPlusPlusConfig).version} installed.`;
       }
       card.textContent = "";
-      renderCodexPlusPlusConfig(card, config as CodexPlusPlusConfig);
+      renderChatgptPlusPlusConfig(card, config as ChatgptPlusPlusConfig);
     })
     .catch((e) => {
       if (subtitle) subtitle.textContent = "Could not load installed ChatGPT++ version.";
@@ -1091,8 +1091,8 @@ function renderConfigPage(
   sectionsWrap.appendChild(maintenance);
 }
 
-function renderCodexPlusPlusConfig(card: HTMLElement, config: CodexPlusPlusConfig): void {
-  setSidebarCodexPlusPlusUpdateButton(config.updateCheck);
+function renderChatgptPlusPlusConfig(card: HTMLElement, config: ChatgptPlusPlusConfig): void {
+  setSidebarChatgptPlusPlusUpdateButton(config.updateCheck);
   card.appendChild(autoUpdateRow(config));
   card.appendChild(updateChannelRow(config));
   card.appendChild(installationSourceRow(config.installationSource));
@@ -1101,7 +1101,7 @@ function renderCodexPlusPlusConfig(card: HTMLElement, config: CodexPlusPlusConfi
   if (config.updateCheck) card.appendChild(releaseNotesRow(config.updateCheck));
 }
 
-function autoUpdateRow(config: CodexPlusPlusConfig): HTMLElement {
+function autoUpdateRow(config: ChatgptPlusPlusConfig): HTMLElement {
   const row = document.createElement("div");
   row.className = "flex items-center justify-between gap-4 p-3";
   const left = document.createElement("div");
@@ -1123,7 +1123,7 @@ function autoUpdateRow(config: CodexPlusPlusConfig): HTMLElement {
   return row;
 }
 
-function updateChannelRow(config: CodexPlusPlusConfig): HTMLElement {
+function updateChannelRow(config: ChatgptPlusPlusConfig): HTMLElement {
   const row = actionRow("Release channel", updateChannelSummary(config));
   const action = row.querySelector<HTMLElement>("[data-codexpp-row-actions]");
   const select = document.createElement("select");
@@ -1179,7 +1179,7 @@ function selfUpdateStatusRow(state: SelfUpdateState | null): HTMLElement {
   return row;
 }
 
-function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
+function checkForUpdatesRow(config: ChatgptPlusPlusConfig): HTMLElement {
   const check = config.updateCheck;
   const row = document.createElement("div");
   row.className = "flex items-center justify-between gap-4 p-3";
@@ -1210,7 +1210,7 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
       void ipcRenderer
         .invoke("codexpp:check-codexpp-update", true)
         .then((check) => {
-          setSidebarCodexPlusPlusUpdateButton(check as CodexPlusPlusUpdateCheck);
+          setSidebarChatgptPlusPlusUpdateButton(check as ChatgptPlusPlusUpdateCheck);
           refreshConfigCard(row);
         })
         .catch((e) => plog("ChatGPT++ release check failed", String(e)))
@@ -1228,7 +1228,7 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
       void ipcRenderer
         .invoke("codexpp:run-codexpp-update")
         .then(() => {
-          refreshSidebarCodexPlusPlusUpdateButton(true);
+          refreshSidebarChatgptPlusPlusUpdateButton(true);
           refreshConfigCard(row);
         })
         .catch((e) => {
@@ -1245,7 +1245,7 @@ function checkForUpdatesRow(config: CodexPlusPlusConfig): HTMLElement {
   return row;
 }
 
-function releaseNotesRow(check: CodexPlusPlusUpdateCheck): HTMLElement {
+function releaseNotesRow(check: ChatgptPlusPlusUpdateCheck): HTMLElement {
   const row = document.createElement("div");
   row.className = "flex flex-col gap-2 p-3";
   const title = document.createElement("div");
@@ -1478,7 +1478,7 @@ function statusBadge(status: "ok" | "warn" | "error", label?: string): HTMLEleme
   return badge;
 }
 
-function updateSummary(check: CodexPlusPlusUpdateCheck | null): string {
+function updateSummary(check: ChatgptPlusPlusUpdateCheck | null): string {
   if (!check) return "No update check has run yet.";
   const latest = check.latestVersion ? `Latest v${check.latestVersion}. ` : "";
   const checked = `Checked ${new Date(check.checkedAt).toLocaleString()}.`;
@@ -1486,7 +1486,7 @@ function updateSummary(check: CodexPlusPlusUpdateCheck | null): string {
   return `${latest}${checked}`;
 }
 
-function updateChannelSummary(config: CodexPlusPlusConfig): string {
+function updateChannelSummary(config: ChatgptPlusPlusConfig): string {
   if (config.updateChannel === "custom") {
     return `${config.updateRepo || "Shunlly/chatgpt-plusplus"} ${config.updateRef || "(no ref set)"}`;
   }
@@ -1531,7 +1531,7 @@ function refreshConfigCard(row: HTMLElement): void {
     .invoke("codexpp:get-config")
     .then((config) => {
       card.textContent = "";
-      renderCodexPlusPlusConfig(card, config as CodexPlusPlusConfig);
+      renderChatgptPlusPlusConfig(card, config as ChatgptPlusPlusConfig);
     })
     .catch((e) => {
       card.textContent = "";
@@ -1548,7 +1548,7 @@ function uninstallRow(): HTMLElement {
   action?.appendChild(
     compactButton("Copy Command", () => {
       void ipcRenderer
-        .invoke("codexpp:copy-text", "node ~/.codex-plusplus/source/packages/installer/dist/cli.js uninstall")
+        .invoke("codexpp:copy-text", "node ~/.chatgpt-plusplus/source/packages/installer/dist/cli.js uninstall")
         .catch((e) => plog("copy uninstall command failed", String(e)));
     }),
   );
@@ -2024,30 +2024,30 @@ function sidebarUpdatePillButton(): HTMLButtonElement {
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    void ipcRenderer.invoke("codexpp:open-external", btn.dataset.codexppReleaseUrl || CODEX_PLUSPLUS_RELEASES_URL);
+    void ipcRenderer.invoke("codexpp:open-external", btn.dataset.codexppReleaseUrl || CHATGPT_PLUSPLUS_RELEASES_URL);
   });
   return btn;
 }
 
-function refreshSidebarCodexPlusPlusUpdateButton(force = false): void {
-  const btn = state.codexPlusPlusUpdateButton;
+function refreshSidebarChatgptPlusPlusUpdateButton(force = false): void {
+  const btn = state.chatgptPlusPlusUpdateButton;
   if (!btn) return;
   void ipcRenderer
     .invoke("codexpp:check-codexpp-update", force)
-    .then((check) => setSidebarCodexPlusPlusUpdateButton(check as CodexPlusPlusUpdateCheck))
+    .then((check) => setSidebarChatgptPlusPlusUpdateButton(check as ChatgptPlusPlusUpdateCheck))
     .catch((e) => {
       plog("ChatGPT++ sidebar release check failed", String(e));
-      setSidebarCodexPlusPlusUpdateButton(null);
+      setSidebarChatgptPlusPlusUpdateButton(null);
     });
 }
 
-function setSidebarCodexPlusPlusUpdateButton(check: CodexPlusPlusUpdateCheck | null): void {
-  const btn = state.codexPlusPlusUpdateButton;
+function setSidebarChatgptPlusPlusUpdateButton(check: ChatgptPlusPlusUpdateCheck | null): void {
+  const btn = state.chatgptPlusPlusUpdateButton;
   if (!btn) return;
   const updateAvailable = check?.updateAvailable === true;
   btn.style.display = updateAvailable ? "inline-flex" : "none";
   btn.hidden = !updateAvailable;
-  btn.dataset.codexppReleaseUrl = check?.releaseUrl || CODEX_PLUSPLUS_RELEASES_URL;
+  btn.dataset.codexppReleaseUrl = check?.releaseUrl || CHATGPT_PLUSPLUS_RELEASES_URL;
   btn.title =
     updateAvailable && check?.latestVersion
       ? `Open ChatGPT++ ${check.latestVersion} update`
@@ -3039,7 +3039,7 @@ function resetCodexPpInjectedSettingsGroupState(group: HTMLElement): void {
   if (state.navGroup === group || (state.navGroup && group.contains(state.navGroup))) {
     state.navGroup = null;
     state.navButtons = null;
-    state.codexPlusPlusUpdateButton = null;
+    state.chatgptPlusPlusUpdateButton = null;
   }
   if (state.pagesGroup === group || (state.pagesGroup && group.contains(state.pagesGroup))) {
     state.pagesGroup = null;

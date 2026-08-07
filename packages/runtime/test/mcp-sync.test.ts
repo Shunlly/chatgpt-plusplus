@@ -87,7 +87,7 @@ test("syncManagedMcpServers updates only the managed config block", () => {
 
     assert.equal(first.changed, true);
     assert.match(afterFirst, /\[mcp_servers\.project-home\]/);
-    assert.match(afterFirst, /# BEGIN CODEX\+\+ MANAGED MCP SERVERS/);
+    assert.match(afterFirst, /# BEGIN CHATGPT\+\+ MANAGED MCP SERVERS/);
     assert.match(afterFirst, /\[mcp_servers\.native-widgets\]/);
 
     const second = syncManagedMcpServers({ configPath, tweaks: [] });
@@ -96,7 +96,7 @@ test("syncManagedMcpServers updates only the managed config block", () => {
     assert.equal(second.changed, true);
     assert.match(afterSecond, /\[mcp_servers\.project-home\]/);
     assert.doesNotMatch(afterSecond, /native-widgets/);
-    assert.doesNotMatch(afterSecond, /CODEX\+\+ MANAGED/);
+    assert.doesNotMatch(afterSecond, /CHATGPT\+\+ MANAGED/);
   });
 });
 
@@ -111,6 +111,44 @@ test("syncManagedMcpServers leaves user config untouched when there are no MCP t
 
     assert.equal(result.changed, false);
     assert.equal(readFileSync(configPath, "utf8"), original);
+  });
+});
+
+test("syncManagedMcpServers cleans up legacy CODEX++ managed blocks", () => {
+  withTempDir((root) => {
+    const configPath = join(root, ".codex", "config.toml");
+    mkdirSync(join(root, ".codex"), { recursive: true });
+    writeFileSync(
+      configPath,
+      [
+        "[mcp_servers.user-server]",
+        'command = "node"',
+        "",
+        "# BEGIN CODEX++ MANAGED MCP SERVERS",
+        "[mcp_servers.old-managed]",
+        'command = "old"',
+        "# END CODEX++ MANAGED MCP SERVERS",
+        "",
+      ].join("\n"),
+    );
+
+    const result = syncManagedMcpServers({
+      configPath,
+      tweaks: [
+        {
+          dir: root,
+          manifest: { id: "co.bennett.native-widgets", mcp: { command: "node" } },
+        },
+      ],
+    });
+    const next = readFileSync(configPath, "utf8");
+
+    assert.equal(result.changed, true);
+    assert.match(next, /\[mcp_servers\.user-server\]/);
+    assert.doesNotMatch(next, /old-managed/);
+    assert.doesNotMatch(next, /CODEX\+\+ MANAGED/);
+    assert.match(next, /# BEGIN CHATGPT\+\+ MANAGED MCP SERVERS/);
+    assert.match(next, /\[mcp_servers\.native-widgets\]/);
   });
 });
 

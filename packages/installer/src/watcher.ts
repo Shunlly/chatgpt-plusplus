@@ -4,15 +4,14 @@
  * install. If they don't match, Sparkle has updated Codex over our patch —
  * we either auto-`repair` or surface a notification, depending on user prefs.
  *
- * Implementation per OS:
- *   macOS:   ~/Library/LaunchAgents/com.codexplusplus.watcher.plist (launchd)
- *   Linux:   ~/.config/systemd/user/codex-plusplus-watcher.service (systemd --user)
+ * 各平台实现：
+ *   macOS:   ~/Library/LaunchAgents/com.chatgptplusplus.watcher.plist (launchd)
+ *   Linux:   ~/.config/systemd/user/chatgpt-plusplus-watcher.service (systemd --user)
  *   Windows: Task Scheduler entry via schtasks.exe
  *
- * The watcher itself is just `codex-plusplus repair --quiet` triggered on the
- * relevant event (app launch / login). The simplest cross-platform approach
- * is "run at login" + "run when Codex.app is modified" (FSEvents/inotify on
- * unix, but launchd's WatchPaths handles it on mac).
+ * watcher 本体就是 `chatgptplusplus repair --quiet`，在应用启动/登录时触发。
+ * 最简的跨平台方案是"登录时运行"+ "Codex.app 被修改时运行"（unix 用
+ * FSEvents/inotify，macOS 上 launchd 的 WatchPaths 即可）。
  */
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { homedir, platform, userInfo } from "node:os";
@@ -21,6 +20,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chownForTargetUser, targetUserHome, targetUserOwnership } from "./ownership.js";
 import { standaloneCliPath } from "./standalone.js";
+import { userPaths } from "./paths.js";
 
 export type WatcherKind = "launchd" | "login-item" | "scheduled-task" | "systemd" | "none";
 
@@ -48,7 +48,9 @@ export function uninstallWatcher(): void {
   }
 }
 
-const LABEL = "com.codexplusplus.watcher";
+const LABEL = "com.chatgptplusplus.watcher";
+// 旧项目名的 watcher label，卸载/升级时清理。
+const LEGACY_LABEL = "com.codexplusplus.watcher";
 const WATCHER_INTERVAL_SECONDS = 5 * 60;
 
 function launchdPath(): string {
@@ -56,11 +58,18 @@ function launchdPath(): string {
 }
 
 function launchdLogPath(): string {
-  return join(targetUserHome(), "Library", "Logs", "codex-plusplus-watcher.log");
+  return join(targetUserHome(), "Library", "Logs", "chatgpt-plusplus-watcher.log");
+}
+
+function legacyLaunchdPath(): string {
+  return join(targetUserHome(), "Library", "LaunchAgents", `${LEGACY_LABEL}.plist`);
 }
 
 function installLaunchd(appRoot: string): WatcherKind {
   if (isRunningFromWatcher()) return "launchd";
+
+  // 清理旧项目名的 LaunchAgent（老用户升级后不再残留）。
+  uninstallLegacyLaunchd();
 
   const plPath = launchdPath();
   mkdirSync(dirname(plPath), { recursive: true });
@@ -112,11 +121,28 @@ function installLaunchd(appRoot: string): WatcherKind {
 }
 
 function isRunningFromWatcher(): boolean {
-  return process.env.CODEX_PLUSPLUS_WATCHER === "1" || process.env.XPC_SERVICE_NAME === LABEL;
+  return (
+    process.env.CHATGPT_PLUSPLUS_WATCHER === "1" ||
+    process.env.CODEX_PLUSPLUS_WATCHER === "1" ||
+    process.env.XPC_SERVICE_NAME === LABEL ||
+    process.env.XPC_SERVICE_NAME === LEGACY_LABEL
+  );
 }
 
 function uninstallLaunchd(): void {
   const plPath = launchdPath();
+  if (existsSync(plPath)) {
+    bootoutLaunchd(plPath);
+    try {
+      execLaunchctlForTargetUser(["unload", plPath]);
+    } catch {}
+    rmSync(plPath, { force: true });
+  }
+  uninstallLegacyLaunchd();
+}
+
+function uninstallLegacyLaunchd(): void {
+  const plPath = legacyLaunchdPath();
   if (!existsSync(plPath)) return;
   bootoutLaunchd(plPath);
   try {
@@ -168,7 +194,7 @@ function installSystemd(appRoot: string): WatcherKind {
   mkdirSync(dir, { recursive: true });
   const repair = shellSingleQuote(watcherShellScript());
   const unit = `[Unit]
-Description=codex-plusplus repair watcher
+Description=chatgpt-plusplus repair watcher
 
 [Service]
 Type=oneshot
@@ -177,9 +203,11 @@ ExecStart=/bin/sh -c ${repair}
 [Install]
 WantedBy=default.target
 `;
-  writeFileSync(join(dir, "codex-plusplus-watcher.service"), unit);
-  writeFileSync(join(dir, "codex-plusplus-watcher.timer"), `[Unit]
-Description=codex-plusplus repair watcher interval
+  // 清理旧项目名的 systemd unit（老用户升级后不再残留）。
+  uninstallLegacySystemd();
+  writeFileSync(join(dir, "chatgpt-plusplus-watcher.service"), unit);
+  writeFileSync(join(dir, "chatgpt-plusplus-watcher.timer"), `[Unit]
+Description=chatgpt-plusplus repair watcher interval
 
 [Timer]
 OnBootSec=5m
@@ -189,8 +217,8 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 `);
-  writeFileSync(join(dir, "codex-plusplus-watcher.path"), `[Unit]
-Description=codex-plusplus app.asar watcher
+  writeFileSync(join(dir, "chatgpt-plusplus-watcher.path"), `[Unit]
+Description=chatgpt-plusplus app.asar watcher
 
 [Path]
 PathChanged=${appRoot}/resources/app.asar
@@ -200,13 +228,13 @@ WantedBy=default.target
 `);
   try {
     execFileSync("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
-    execFileSync("systemctl", ["--user", "enable", "codex-plusplus-watcher.service"], {
+    execFileSync("systemctl", ["--user", "enable", "chatgpt-plusplus-watcher.service"], {
       stdio: "ignore",
     });
-    execFileSync("systemctl", ["--user", "enable", "--now", "codex-plusplus-watcher.timer"], {
+    execFileSync("systemctl", ["--user", "enable", "--now", "chatgpt-plusplus-watcher.timer"], {
       stdio: "ignore",
     });
-    execFileSync("systemctl", ["--user", "enable", "--now", "codex-plusplus-watcher.path"], {
+    execFileSync("systemctl", ["--user", "enable", "--now", "chatgpt-plusplus-watcher.path"], {
       stdio: "ignore",
     });
   } catch {
@@ -216,8 +244,31 @@ WantedBy=default.target
 }
 
 function uninstallSystemd(): void {
-  const path = join(homedir(), ".config", "systemd", "user", "codex-plusplus-watcher.service");
+  uninstallLegacySystemd();
+  const dir = join(homedir(), ".config", "systemd", "user");
+  const path = join(dir, "chatgpt-plusplus-watcher.service");
   if (!existsSync(path)) return;
+  try {
+    execFileSync("systemctl", ["--user", "disable", "chatgpt-plusplus-watcher.service"], {
+      stdio: "ignore",
+    });
+    execFileSync("systemctl", ["--user", "disable", "--now", "chatgpt-plusplus-watcher.path"], {
+      stdio: "ignore",
+    });
+    execFileSync("systemctl", ["--user", "disable", "--now", "chatgpt-plusplus-watcher.timer"], {
+      stdio: "ignore",
+    });
+  } catch {}
+  rmSync(path, { force: true });
+  rmSync(join(dir, "chatgpt-plusplus-watcher.path"), { force: true });
+  rmSync(join(dir, "chatgpt-plusplus-watcher.timer"), { force: true });
+}
+
+function uninstallLegacySystemd(): void {
+  const dir = join(homedir(), ".config", "systemd", "user");
+  const legacyNames = ["codex-plusplus-watcher.service", "codex-plusplus-watcher.path", "codex-plusplus-watcher.timer"];
+  const existing = legacyNames.filter((name) => existsSync(join(dir, name)));
+  if (existing.length === 0) return;
   try {
     execFileSync("systemctl", ["--user", "disable", "codex-plusplus-watcher.service"], {
       stdio: "ignore",
@@ -229,32 +280,30 @@ function uninstallSystemd(): void {
       stdio: "ignore",
     });
   } catch {}
-  rmSync(path, { force: true });
-  rmSync(join(homedir(), ".config", "systemd", "user", "codex-plusplus-watcher.path"), {
-    force: true,
-  });
-  rmSync(join(homedir(), ".config", "systemd", "user", "codex-plusplus-watcher.timer"), {
-    force: true,
-  });
+  for (const name of legacyNames) {
+    rmSync(join(dir, name), { force: true });
+  }
 }
 
 function installScheduledTask(_appRoot: string): WatcherKind {
   // schtasks.exe creates a logon-trigger task. We pass the watcher command via /TR.
+  // 先清理旧项目名的任务（老用户升级后不再残留）。
+  for (const name of LEGACY_SCHEDULED_TASK_NAMES) deleteScheduledTask(name);
   const repair = windowsWatcherTaskCommand();
   try {
-    deleteScheduledTask("codex-plusplus-watcher-daily");
+    deleteScheduledTask("chatgpt-plusplus-watcher-daily");
     execFileSync("schtasks.exe", [
       "/Create",
       "/F",
       "/SC",
       "ONLOGON",
       "/TN",
-      "codex-plusplus-watcher",
+      "chatgpt-plusplus-watcher",
       "/TR",
       repair,
     ]);
-    deleteScheduledTask("codex-plusplus-watcher-hourly");
-    deleteScheduledTask("codex-plusplus-watcher-interval");
+    deleteScheduledTask("chatgpt-plusplus-watcher-hourly");
+    deleteScheduledTask("chatgpt-plusplus-watcher-interval");
     execFileSync("schtasks.exe", [
       "/Create",
       "/F",
@@ -263,7 +312,7 @@ function installScheduledTask(_appRoot: string): WatcherKind {
       "/MO",
       String(Math.round(WATCHER_INTERVAL_SECONDS / 60)),
       "/TN",
-      "codex-plusplus-watcher-interval",
+      "chatgpt-plusplus-watcher-interval",
       "/TR",
       repair,
     ]);
@@ -273,16 +322,23 @@ function installScheduledTask(_appRoot: string): WatcherKind {
   }
 }
 
+const LEGACY_SCHEDULED_TASK_NAMES = [
+  "codex-plusplus-watcher",
+  "codex-plusplus-watcher-interval",
+  "codex-plusplus-watcher-hourly",
+  "codex-plusplus-watcher-daily",
+];
+
 function cliShellCommand(command: string, args: string[] = []): string {
   // 独立包优先用持久 CLI（macOS 克隆流程会覆盖安装器 app，旁置文件随克隆消失，
   // 不能依赖 isStandalone() 在安装后期仍为 true）。
   const cli = standaloneCliPath();
   if (cli) {
-    return ["CODEX_PLUSPLUS_WATCHER=1", shellQuote(cli), command, ...args].join(" ");
+    return ["CHATGPT_PLUSPLUS_WATCHER=1", shellQuote(cli), command, ...args].join(" ");
   }
   const moduleCli = currentCliPath();
   return [
-    "CODEX_PLUSPLUS_WATCHER=1",
+    "CHATGPT_PLUSPLUS_WATCHER=1",
     shellQuote(process.execPath),
     ...nodeExecArgsForCli(moduleCli).map(shellQuote),
     shellQuote(moduleCli),
@@ -344,13 +400,14 @@ function nodeExecArgsForCli(cliPath: string): string[] {
 }
 
 function windowsWatcherTaskCommand(): string {
-  const scriptPath = join(windowsCodexPlusPlusDir(), "bin", "watcher.cmd");
+  // watcher.cmd 放在用户数据目录（已迁移为 chatgpt-plusplus）的 bin 下。
+  const scriptPath = join(userPaths().binDir, "watcher.cmd");
   mkdirSync(dirname(scriptPath), { recursive: true });
   writeFileSync(
     scriptPath,
     [
       "@echo off",
-      "set CODEX_PLUSPLUS_WATCHER=1",
+      "set CHATGPT_PLUSPLUS_WATCHER=1",
       `${windowsCommand("update", ["--watcher", "--quiet", "--no-repair"])}`,
       `${windowsCommand("repair", ["--watcher", "--quiet"])}`,
       "exit /b 0",
@@ -364,15 +421,12 @@ function windowsQuote(value: string): string {
   return `"${value.replace(/"/g, `\\"`)}"`;
 }
 
-function windowsCodexPlusPlusDir(): string {
-  return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "codex-plusplus");
-}
-
 function uninstallScheduledTask(): void {
-  deleteScheduledTask("codex-plusplus-watcher");
-  deleteScheduledTask("codex-plusplus-watcher-interval");
-  deleteScheduledTask("codex-plusplus-watcher-hourly");
-  deleteScheduledTask("codex-plusplus-watcher-daily");
+  for (const name of LEGACY_SCHEDULED_TASK_NAMES) deleteScheduledTask(name);
+  deleteScheduledTask("chatgpt-plusplus-watcher");
+  deleteScheduledTask("chatgpt-plusplus-watcher-interval");
+  deleteScheduledTask("chatgpt-plusplus-watcher-hourly");
+  deleteScheduledTask("chatgpt-plusplus-watcher-daily");
 }
 
 function deleteScheduledTask(name: string): void {

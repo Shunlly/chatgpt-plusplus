@@ -1,5 +1,5 @@
 /**
- * Public SDK for codex-plusplus tweak authors.
+ * Public SDK for chatgpt-plusplus tweak authors.
  *
  * A tweak is an ES module that default-exports an object satisfying `Tweak`.
  * The runtime calls `start(api)` after the app's settings UI is ready, and
@@ -14,7 +14,7 @@ export interface TweakManifest {
   /** Semver version of this tweak. */
   version: string;
   /**
-   * Required source repository in `owner/repo` form. Codex++ checks this
+   * Required source repository in `owner/repo` form. ChatGPT++ checks this
    * repository's latest GitHub release once per day and only reports update
    * availability; it never downloads or installs tweak updates automatically.
    */
@@ -42,7 +42,7 @@ export interface TweakManifest {
   /** Optional path to entry; defaults to `index.js`/`index.mjs`/`index.cjs`. */
   main?: string;
   /**
-   * Optional MCP server exposed by this tweak. Codex++ syncs this into Codex's
+   * Optional MCP server exposed by this tweak. ChatGPT++ syncs this into Codex's
    * MCP config so tweak-provided tools can be used from chat.
    */
   mcp?: TweakMcpServer;
@@ -187,7 +187,7 @@ export function validateTweakManifest(manifest: unknown): TweakManifestValidatio
     ) {
       errors.push({
         path: "permissions",
-        message: "permissions must be known Codex++ permission strings",
+        message: "permissions must be known ChatGPT++ permission strings",
       });
     }
   }
@@ -276,7 +276,7 @@ export interface TweakApi {
   manifest: Readonly<TweakManifest>;
   /** Per-tweak persistent KV store, scoped to this tweak's id. */
   storage: TweakStorage;
-  /** Per-tweak logger; output goes to the codex-plusplus log file + devtools. */
+  /** Per-tweak logger; output goes to the chatgpt-plusplus log file + devtools. */
   log: TweakLogger;
   /** Process this tweak is running in. */
   process: "renderer" | "main";
@@ -289,7 +289,7 @@ export interface TweakApi {
   ipc: TweakIpc;
   /** Filesystem helpers, sandboxed to the tweak's data dir. */
   fs: TweakFs;
-  /** Main-only: native Codex integration points exposed by Codex++. */
+  /** Main-only: native Codex integration points exposed by ChatGPT++. */
   codex?: CodexApi;
 }
 
@@ -309,7 +309,7 @@ export interface TweakLogger {
 
 export interface SettingsApi {
   /**
-   * Register a section in the Codex++ "Tweaks" page. The section appears as
+   * Register a section in the ChatGPT++ "Tweaks" page. The section appears as
    * a row beneath the tweak's own card. Use this for small per-tweak knobs.
    */
   register(section: SettingsSection): SettingsHandle;

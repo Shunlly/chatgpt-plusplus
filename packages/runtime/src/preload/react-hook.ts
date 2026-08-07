@@ -52,7 +52,7 @@ export function installReactHook(): void {
       renderers.set(id, renderer);
       // eslint-disable-next-line no-console
       console.debug(
-        "[codex-plusplus] React renderer attached:",
+        "[chatgpt-plusplus] React renderer attached:",
         renderer.rendererPackageName,
         renderer.version,
       );

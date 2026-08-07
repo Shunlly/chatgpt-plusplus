@@ -13,7 +13,7 @@ export async function status(): Promise<void> {
   const paths = ensureUserPaths();
   const state = readState(paths.stateFile);
 
-  console.log(kleur.bold("codex-plusplus status"));
+  console.log(kleur.bold("chatgpt-plusplus status"));
   console.log(`  user dir:     ${paths.root}`);
   console.log(`  tweaks dir:   ${paths.tweaks}`);
   console.log(`  log dir:      ${paths.logDir}`);
@@ -21,7 +21,7 @@ export async function status(): Promise<void> {
   console.log();
 
   if (!state) {
-    console.log(kleur.yellow("Not installed. Run `codex-plusplus install`."));
+    console.log(kleur.yellow("Not installed. Run `chatgpt-plusplus install`."));
     return;
   }
 
@@ -91,9 +91,11 @@ function readSafeMode(configFile: string): boolean {
   if (!existsSync(configFile)) return false;
   try {
     const config = JSON.parse(readFileSync(configFile, "utf8")) as {
+      chatgptPlusPlus?: { safeMode?: boolean };
+      /** 旧版本配置键名（v1.0.5 之前），读取时兼容。 */
       codexPlusPlus?: { safeMode?: boolean };
     };
-    return config.codexPlusPlus?.safeMode === true;
+    return config.chatgptPlusPlus?.safeMode === true || config.codexPlusPlus?.safeMode === true;
   } catch {
     return false;
   }

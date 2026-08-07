@@ -11,7 +11,7 @@ import { debug } from "./commands/debug.js";
 import { browserUi } from "./commands/browser-ui.js";
 import { doctor } from "./commands/doctor.js";
 import { safeMode } from "./commands/safe-mode.js";
-import { CODEX_PLUSPLUS_VERSION } from "./version.js";
+import { CHATGPT_PLUSPLUS_VERSION } from "./version.js";
 import { buildCliFailureIssueUrl, showPatchFailedAlert } from "./alerts.js";
 import { appendInstallerError, capKnownLogFiles } from "./logging.js";
 
@@ -109,7 +109,7 @@ function maybeShowPatchFailedAlert(message: string): void {
 }
 
 const prog = sade("chatgpt-plusplus")
-  .version(CODEX_PLUSPLUS_VERSION)
+  .version(CHATGPT_PLUSPLUS_VERSION)
   .describe("Tweak system for the ChatGPT desktop app");
 
 capKnownLogFiles();
