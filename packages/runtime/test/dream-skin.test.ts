@@ -55,6 +55,14 @@ test("dream-skin 随包资源完整且图片不超 1 MiB 资源上限", () => {
   }
 });
 
+test("dream-skin 新版首页识别会清除欢迎区白色面板", () => {
+  const css = readFileSync(join(tweakRoot, "assets/dream-skin.css"), "utf8");
+  const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
+  assert.match(template, /getElementsByClassName\("group\/home-suggestions"\)\[0\] \|\| null/);
+  assert.match(template, /shellMain\.classList\.toggle\("dream-skin-home-shell", Boolean\(home\)\)/);
+  assert.match(css, /main\[data-app-shell-main-surface\]\.dream-skin-home-shell\s*\{\s*background: transparent !important;/);
+});
+
 test("dream-skin payload 组装后可被 JS 解析（无占位符残留）", () => {
   const css = readFileSync(join(tweakRoot, "assets/dream-skin.css"), "utf8");
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");

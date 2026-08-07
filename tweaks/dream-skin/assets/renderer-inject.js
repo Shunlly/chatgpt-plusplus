@@ -579,11 +579,14 @@
     shell ||= root.getAttribute(SHELL_ATTR) || resolvedShell();
     const shellMain = document.querySelector('main[data-app-shell-main-surface]') || document.querySelector("main");
     const homeIndicator = document.querySelector('[data-testid="home-icon"]');
-    const home = homeIndicator?.closest('[role="main"]') ||
+    const legacyHome = homeIndicator?.closest('[role="main"]') ||
       [...document.querySelectorAll('[role="main"]')].find((candidate) =>
         candidate.querySelector('[data-feature="game-source"]') &&
         candidate.querySelector('.group\\\\/home-suggestions')) || null;
-    for (const candidate of document.querySelectorAll('[role="main"].dream-skin-home')) {
+    // 新版首页不再保留旧的 role/main 与 home-icon，使用其专有快捷建议容器识别。
+    const modernHome = shellMain?.getElementsByClassName("group/home-suggestions")[0] || null;
+    const home = legacyHome || modernHome;
+    for (const candidate of document.querySelectorAll(".dream-skin-home")) {
       if (candidate !== home) candidate.classList.remove("dream-skin-home");
     }
     if (home) home.classList.add("dream-skin-home");

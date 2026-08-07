@@ -791,11 +791,10 @@ html.codex-dream-skin[data-dream-art-wide="true"]:has(main[data-app-shell-main-s
   background: transparent !important;
 }
 
+/* 宽图主题已由 body 绘制连续壁纸；新会话主区域不能再叠加浅色渐变，
+   否则欢迎区会变成横跨内容区的白色空面板。 */
 html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell {
-  background: linear-gradient(90deg,
-    var(--ds-immersive-edge),
-    var(--ds-immersive-mid) 64%,
-    var(--ds-immersive-far)) !important;
+  background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
