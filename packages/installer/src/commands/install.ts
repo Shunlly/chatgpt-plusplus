@@ -821,7 +821,41 @@ export function prepareCodexForPatching(
     return true;
   }
 
+  if (codex.platform === "win32") {
+    // Windows 版与 mac 版行为对齐：安装时自动终止正在运行的 ChatGPT，
+    // 避免用户手动关不干净导致安装失败。
+    controller.step?.("ChatGPT is running; terminating it before patching");
+    quitWindowsCodex(codex, readOpenReport);
+    assertCodexNotRunning(codex, readOpenReport(codex));
+    return true;
+  }
+
   throw new Error(formatCodexRunningError(codex, open));
+}
+
+/** Windows：taskkill 终止整个进程树，然后轮询等待退出（最长 8 秒）。 */
+function quitWindowsCodex(
+  codex: CodexInstall,
+  readOpenReport: (codex: CodexInstall) => OpenReport,
+): void {
+  try {
+    execFileSync("taskkill.exe", ["/IM", basename(codex.executable), "/T", "/F"], {
+      stdio: "ignore",
+    });
+  } catch {
+    // 进程可能刚好已退出，继续轮询确认。
+  }
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 8_000) {
+    const open = readOpenReport(codex);
+    if (open.status === "closed" || open.hasMainProcess === false) return;
+    sleepSync(500);
+  }
+}
+
+function sleepSync(ms: number): void {
+  // Node 主线程同步等待：SharedArrayBuffer + Atomics.wait，无需额外依赖。
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function formatCodexRunningError(codex: CodexInstall, open: OpenReport): string {
