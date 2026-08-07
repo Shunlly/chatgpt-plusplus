@@ -52,6 +52,15 @@ brew install Shunlly/chatgpt-plusplus/chatgptplusplus
 chatgptplusplus install
 ```
 
+安装包（DMG / EXE）：
+
+GitHub Releases 提供免安装 Node 环境的安装包：macOS 下载 `.dmg`，Windows 下载 `*-setup.exe`。
+
+- macOS：打开 dmg，双击 `ChatGPT++.app`（或拖入「应用程序」），会自动打开终端并执行 `install`。
+- Windows：运行安装器，安装完成后会自动给 ChatGPT/Codex 打补丁；开始菜单里有「安装与修复」入口。
+
+安装包与源码安装相互独立；安装包版本的更新需重新下载新版安装包（`update` 命令会给出提示）。
+
 GitHub 源码安装脚本：
 
 ```sh
@@ -282,6 +291,8 @@ http://127.0.0.1:8765/
 ```sh
 chatgptplusplus update
 ```
+
+> 通过 dmg/exe 安装包安装时，`update` 不会替换二进制，会提示前往 GitHub Releases 下载新版安装包；`repair` 仍可直接使用。
 
 在 macOS 上运行官方 ChatGPT 更新器：
 

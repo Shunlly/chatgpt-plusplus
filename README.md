@@ -60,6 +60,15 @@ brew install Shunlly/chatgpt-plusplus/chatgptplusplus
 chatgptplusplus install
 ```
 
+Installer packages (DMG / EXE):
+
+GitHub Releases ships self-contained installers (no Node.js needed): `.dmg` for macOS and `*-setup.exe` for Windows.
+
+- macOS: open the dmg, double-click `ChatGPT++.app` (or drag it into Applications); a Terminal window opens and runs `install`.
+- Windows: run the setup; it patches ChatGPT/Codex on finish, with an "Install & Repair" entry in the Start menu.
+
+Installer installs are separate from source installs. To update an installer install, download the new installer from GitHub Releases (`update` prints this hint instead of overwriting the binary).
+
 GitHub source installer:
 
 ```sh
@@ -299,6 +308,8 @@ Update ChatGPT++:
 ```sh
 chatgptplusplus update
 ```
+
+> When installed from a dmg/exe package, `update` does not replace the binary — it points you to the latest GitHub release. `repair` still works as usual.
 
 Run the official ChatGPT updater on macOS:
 
