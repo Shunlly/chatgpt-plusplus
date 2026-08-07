@@ -51,8 +51,18 @@ async function main() {
   run("npm", ["run", "build"], ROOT);
   const cli = await bundleCli();
   const binary = await buildSea(cli, platform);
-  if (platform === "darwin") buildDmg(binary);
-  else if (platform === "win32") buildExe(binary);
+  // 释放下载的 Node 运行时（约 110MB），SEA 二进制已生成，不再需要
+  rmSync(join(BUILD, "node"), { recursive: true, force: true });
+  if (platform === "darwin") {
+    buildDmg(binary);
+    // dmg 已包含 app；删除暂存目录，裸二进制仅 CI 上删除（本地保留便于直接使用）
+    rmSync(join(OUT, "dmg"), { recursive: true, force: true });
+    if (process.env.CI) rmSync(binary, { force: true });
+  } else if (platform === "win32") {
+    buildExe(binary);
+    rmSync(join(OUT, "nsis"), { recursive: true, force: true });
+    if (process.env.CI) rmSync(binary, { force: true });
+  }
   console.log(`\n✅ 安装包已生成：${OUT}`);
 }
 
