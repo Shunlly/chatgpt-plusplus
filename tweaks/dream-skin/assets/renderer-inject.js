@@ -28,20 +28,47 @@
     "--dream-skin-project-label",
   ];
 
-  // 宠物/迷你窗口（compact-window）不换肤：Dream Skin 的 body 背景会把官方
-  // 透明背景盖成浅色，在宠物背后形成空白框。这里直接跳过并清理残留。
+  // 宠物/迷你窗口（compact-window）不换肤：ChatGPT 应用内建的宠物窗口是
+  // about:blank 克隆窗口，会把主窗口的皮肤 class、内联变量与样式表一起克隆，
+  // 皮肤背景会盖掉官方透明背景，在宠物身后形成大背景框。
+  // 这里除启动时检测外，还持续监听：一旦出现 compact-window 立即清理并保持不装，
+  // 覆盖“皮肤先装好、克隆后补上 compact-window”的时序。
   const rootEl = typeof document !== "undefined" ? document.documentElement : null;
-  if (rootEl && rootEl.classList.contains("compact-window")) {
+  const isCompactWindow = () =>
+    !!rootEl?.classList.contains("compact-window") ||
+    !!document.body?.classList.contains("compact-window");
+  const purgeSkinDom = () => {
     try {
       const prev = window[STATE_KEY];
       if (prev && typeof prev.cleanup === "function") prev.cleanup();
     } catch {}
-    rootEl.classList.remove("codex-dream-skin");
+    rootEl?.classList.remove("codex-dream-skin");
+    rootEl?.removeAttribute(SHELL_ATTR);
+    for (const name of ART_ATTRS) rootEl?.removeAttribute(name);
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(CHROME_ID)?.remove();
-    for (const name of THEME_VARIABLES) rootEl.style.removeProperty(name);
+    for (const name of THEME_VARIABLES) rootEl?.style.removeProperty(name);
+    window[DISABLED_KEY] = true;
     delete window[STATE_KEY];
+  };
+  if (isCompactWindow()) {
+    purgeSkinDom();
     return;
+  }
+  const compactObserver = new MutationObserver(() => {
+    if (!isCompactWindow()) return;
+    compactObserver.disconnect();
+    purgeSkinDom();
+  });
+  compactObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  if (document.body) {
+    compactObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
   }
 
   const installToken = {};
