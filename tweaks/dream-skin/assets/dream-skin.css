@@ -1,4 +1,10 @@
-:root.codex-dream-skin {
+/*
+ * 宠物/迷你窗口（ChatGPT 应用内建 compact-window，about:blank 克隆窗口）
+ * 不换肤：应用会把主窗口的皮肤 class、内联变量与样式表克隆进宠物窗口，
+ * 皮肤背景会盖掉官方的透明背景，在宠物身后形成大背景框。
+ * 因此所有皮肤规则的作用域都排除 .compact-window。
+ */
+:root.codex-dream-skin:not(.compact-window) {
   color-scheme: dark !important;
   --ds-bg: #111318;
   --ds-panel: #191c22;
@@ -57,7 +63,7 @@
   --ds-task-immersive-far: rgb(var(--ds-bg-rgb) / .60);
 }
 
-html.codex-dream-skin[data-dream-shell="light"] {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"] {
   color-scheme: light !important;
   --ds-bg: #f3f5f6;
   --ds-panel: #fafbfb;
@@ -102,12 +108,12 @@ html.codex-dream-skin[data-dream-shell="light"] {
   --ds-task-immersive-far: rgb(var(--ds-panel-rgb) / .66);
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="left"], [data-dream-art-safe-area="left"]) {
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="left"], [data-dream-art-safe-area="left"]) {
   --ds-safe-side: left;
   --ds-art-position: 100% var(--ds-focus-y);
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"]) {
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"]) {
   --ds-safe-side: right;
   --ds-art-position: 0% var(--ds-focus-y);
   --ds-hero-scrim: linear-gradient(270deg,
@@ -121,7 +127,7 @@ html.codex-dream-skin:is([data-dream-art-safe="right"], [data-dream-art-safe-are
     rgb(var(--ds-bg-rgb) / .12) 100%);
 }
 
-html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"]) {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"]:is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"]) {
   --ds-hero-scrim: linear-gradient(270deg,
     rgb(var(--ds-panel-rgb) / .96) 0%,
     rgb(var(--ds-panel-rgb) / .82) 50%,
@@ -133,7 +139,7 @@ html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="right"]
     rgb(var(--ds-bg-rgb) / .12) 100%);
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"]) {
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"]) {
   --ds-safe-side: center;
   --ds-hero-scrim: linear-gradient(90deg,
     transparent 0%,
@@ -147,7 +153,7 @@ html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-ar
     rgb(var(--ds-bg-rgb) / .10) 100%);
 }
 
-html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"]) {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"]:is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"]) {
   --ds-hero-scrim: linear-gradient(90deg,
     transparent 0%,
     rgb(var(--ds-panel-rgb) / .72) 25%,
@@ -160,7 +166,7 @@ html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="center"
     rgb(var(--ds-bg-rgb) / .10) 100%);
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="none"], [data-dream-art-safe-area="none"]) {
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="none"], [data-dream-art-safe-area="none"]) {
   --ds-safe-side: none;
   --ds-hero-scrim: linear-gradient(180deg,
     rgb(var(--ds-bg-rgb) / .34),
@@ -170,7 +176,7 @@ html.codex-dream-skin:is([data-dream-art-safe="none"], [data-dream-art-safe-area
     rgb(var(--ds-bg-rgb) / .14));
 }
 
-html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="none"], [data-dream-art-safe-area="none"]) {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"]:is([data-dream-art-safe="none"], [data-dream-art-safe-area="none"]) {
   --ds-hero-scrim: linear-gradient(180deg,
     rgb(var(--ds-panel-rgb) / .46),
     rgb(var(--ds-panel-rgb) / .28));
@@ -179,17 +185,17 @@ html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="none"],
     rgb(var(--ds-bg-rgb) / .16));
 }
 
-html.codex-dream-skin body {
+html.codex-dream-skin:not(.compact-window) body {
   background: var(--ds-bg) !important;
   color: var(--ds-text) !important;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif !important;
 }
 
-html.codex-dream-skin body::before {
+html.codex-dream-skin:not(.compact-window) body::before {
   content: none;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel {
   background:
     linear-gradient(180deg,
       rgb(var(--ds-panel-rgb) / .98),
@@ -202,41 +208,41 @@ html.codex-dream-skin aside.app-shell-left-panel {
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel nav { background: transparent !important; }
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel nav { background: transparent !important; }
 
-html.codex-dream-skin aside.app-shell-left-panel button,
-html.codex-dream-skin aside.app-shell-left-panel a {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel button,
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel a {
   color: var(--ds-text) !important;
   transition: background-color .18s cubic-bezier(.22, 1, .36, 1),
     border-color .18s cubic-bezier(.22, 1, .36, 1),
     color .18s cubic-bezier(.22, 1, .36, 1) !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel [class*="text-token-foreground"] {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel [class*="text-token-foreground"] {
   color: var(--ds-text) !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel [class*="text-token-input-placeholder-foreground"] {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel [class*="text-token-input-placeholder-foreground"] {
   color: rgb(var(--ds-muted-rgb) / .92) !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel svg {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel svg {
   color: rgb(var(--ds-muted-rgb) / .96) !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel button:hover,
-html.codex-dream-skin aside.app-shell-left-panel a:hover {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel button:hover,
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel a:hover {
   background: rgb(var(--ds-accent-rgb) / .09) !important;
   color: var(--ds-text) !important;
   transform: none !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel button:hover svg,
-html.codex-dream-skin aside.app-shell-left-panel a:hover svg {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel button:hover svg,
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel a:hover svg {
   color: var(--ds-accent) !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel button[aria-label^="切换模式"] {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel button[aria-label^="切换模式"] {
   background: transparent !important;
   border: 0 !important;
   color: var(--ds-accent) !important;
@@ -246,24 +252,24 @@ html.codex-dream-skin aside.app-shell-left-panel button[aria-label^="切换模�
   text-shadow: none !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel button[aria-label^="切换模式"]::after {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel button[aria-label^="切换模式"]::after {
   content: " ·";
   color: var(--ds-secondary);
 }
 
-html.codex-dream-skin aside.app-shell-left-panel [class~="bg-token-list-hover-background"],
-html.codex-dream-skin aside.app-shell-left-panel [aria-current="page"] {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel [class~="bg-token-list-hover-background"],
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel [aria-current="page"] {
   background: rgb(var(--ds-accent-rgb) / .12) !important;
   border: 1px solid rgb(var(--ds-accent-rgb) / .22) !important;
   box-shadow: 0 4px 16px rgb(var(--ds-bg-rgb) / .12) !important;
   color: var(--ds-text) !important;
 }
 
-html.codex-dream-skin aside.app-shell-left-panel [aria-current="page"] svg {
+html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel [aria-current="page"] svg {
   color: var(--ds-accent) !important;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface] {
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface] {
   position: relative !important;
   isolation: isolate;
   overflow: hidden !important;
@@ -275,7 +281,7 @@ html.codex-dream-skin main[data-app-shell-main-surface] {
   box-shadow: -8px 0 28px rgb(var(--ds-bg-rgb) / .18) !important;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -288,23 +294,23 @@ html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-she
   opacity: .78;
 }
 
-html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   opacity: .72;
 }
 
-html.codex-dream-skin:is([data-dream-art-wide="true"], [data-dream-art-aspect="wide"], [data-dream-art-aspect="ultrawide"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-wide="true"], [data-dream-art-aspect="wide"], [data-dream-art-aspect="ultrawide"])
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   background-position: center, center, var(--ds-art-position);
   background-size: 100% 100%, 100% 100%, cover;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   inset: 0;
   height: auto;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell)) body {
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell)) body {
   background-image: var(--dream-skin-art) !important;
   background-position: var(--ds-art-position) !important;
   background-size: cover !important;
@@ -312,7 +318,7 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
   background-attachment: fixed !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
   aside.app-shell-left-panel {
   background: linear-gradient(90deg,
     var(--ds-task-immersive-sidebar),
@@ -325,12 +331,12 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
 
 /* Native sidebar resize chrome inherits the sidebar background and extends
    20px into the main surface. Keeping it clear preserves one continuous image. */
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
   aside.app-shell-left-panel::after {
   background: transparent !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell) {
   background: linear-gradient(90deg,
     var(--ds-task-immersive-edge),
@@ -341,12 +347,12 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
   box-shadow: none !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   content: none;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
   .composer-surface-chrome {
   background: var(--ds-immersive-composer-solid) !important;
   border: 0 !important;
@@ -357,7 +363,7 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
   main[data-app-shell-main-surface] > header.app-header-tint {
   background: transparent !important;
   border-bottom: 0 !important;
@@ -365,7 +371,7 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell) [class*="_markdown"] {
   color: var(--ds-text) !important;
   text-shadow:
@@ -373,14 +379,14 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
     0 0 10px rgb(var(--ds-bg-rgb) / .58);
 }
 
-html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"]:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell) [class*="_markdown"] {
   text-shadow:
     0 1px 2px rgb(var(--ds-panel-rgb) / .92),
     0 0 10px rgb(var(--ds-panel-rgb) / .72);
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   inset: 0 0 auto;
   height: clamp(280px, 46vh, 520px);
@@ -388,7 +394,7 @@ html.codex-dream-skin:is([data-dream-task-mode="banner"], [data-dream-art-task-m
   background-size: 100% 100%, 100% 100%, cover;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"]):is([data-dream-art-wide="true"], [data-dream-art-aspect="wide"], [data-dream-art-aspect="ultrawide"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"]):is([data-dream-art-wide="true"], [data-dream-art-aspect="wide"], [data-dream-art-aspect="ultrawide"])
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   inset: 0;
   height: auto;
@@ -396,17 +402,17 @@ html.codex-dream-skin:is([data-dream-task-mode="banner"], [data-dream-art-task-m
   background-size: 100% 100%, 100% 100%, cover;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="off"], [data-dream-art-task-mode="off"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="off"], [data-dream-art-task-mode="off"])
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
   content: none;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) > * {
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface]:not(.dream-skin-home-shell) > * {
   position: relative;
   z-index: 1;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) [role="main"] {
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface]:not(.dream-skin-home-shell) [role="main"] {
   background: transparent !important;
   color: var(--ds-text) !important;
   text-shadow:
@@ -414,22 +420,22 @@ html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-she
     0 0 10px rgb(var(--ds-bg-rgb) / .46);
 }
 
-html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) [role="main"] {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) [role="main"] {
   text-shadow: none;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
   border: 1px solid rgb(var(--ds-muted-rgb) / .12);
   background: rgb(var(--ds-panel-rgb) / .44);
   box-shadow: 0 8px 24px rgb(var(--ds-bg-rgb) / .10);
   backdrop-filter: blur(7px) saturate(105%);
 }
 
-html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
   background: rgb(var(--ds-panel-rgb) / .72);
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface] > header.app-header-tint {
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface] > header.app-header-tint {
   position: relative;
   z-index: 2;
   background: rgb(var(--ds-panel-rgb) / .90) !important;
@@ -535,12 +541,12 @@ html.codex-dream-skin main[data-app-shell-main-surface] > header.app-header-tint
 .dream-skin-particles i:nth-child(7) { left: 22%; top: 72%; }
 .dream-skin-particles i:nth-child(8) { left: 86%; top: 78%; }
 
-html.codex-dream-skin [role="main"] {
+html.codex-dream-skin:not(.compact-window) [role="main"] {
   background: transparent !important;
   scrollbar-color: rgb(var(--ds-accent-rgb) / .38) transparent;
 }
 
-html.codex-dream-skin .dream-skin-home {
+html.codex-dream-skin:not(.compact-window) .dream-skin-home {
   --thread-content-max-width: min(1180px, calc(100cqw - 44px)) !important;
   overflow-x: hidden !important;
 }
@@ -590,19 +596,19 @@ html.codex-dream-skin .dream-skin-home {
   background: var(--ds-hero-scrim);
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child::before {
   inset: 0 0 0 auto;
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child::before {
   inset: 0 14%;
   width: auto;
   border-radius: 0;
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="none"], [data-dream-art-safe-area="none"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="none"], [data-dream-art-safe-area="none"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child::before {
   inset: 0;
   width: auto;
@@ -618,12 +624,12 @@ html.codex-dream-skin:is([data-dream-art-safe="none"], [data-dream-art-safe-area
   padding: 0 38px;
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child > div:first-child {
   justify-content: flex-end !important;
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child > div:first-child {
   justify-content: center !important;
 }
@@ -634,13 +640,13 @@ html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-ar
   gap: 0 !important;
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="right"], [data-dream-art-safe-area="right"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child > div:first-child > div:first-child {
   align-items: flex-end !important;
   text-align: right !important;
 }
 
-html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"])
+html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="center"], [data-dream-art-safe-area="center"])
   .dream-skin-home > div:first-child > div:first-child > div:first-child > div:first-child > div:first-child {
   width: min(58%, 640px) !important;
   align-items: center !important;
@@ -754,7 +760,7 @@ html.codex-dream-skin:is([data-dream-art-safe="center"], [data-dream-art-safe-ar
 .dream-skin-home .group\/home-suggestions button > span:first-child { justify-content: center !important; }
 .dream-skin-home .group\/home-suggestions button > span:last-child { align-items: center !important; text-align: center !important; }
 
-html.codex-dream-skin .composer-surface-chrome {
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome {
   overflow: visible !important;
   border: 1px solid rgb(var(--ds-muted-rgb) / .18) !important;
   border-radius: 22px !important;
@@ -763,11 +769,11 @@ html.codex-dream-skin .composer-surface-chrome {
   backdrop-filter: blur(16px) saturate(108%) !important;
 }
 
-html.codex-dream-skin .composer-surface-chrome::before { content: none !important; }
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome::before { content: none !important; }
 
 /* A wide image can carry the home screen too. The native hero remains live,
    but the artwork is painted once on the window instead of repeated in a card. */
-html.codex-dream-skin[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface].dream-skin-home-shell) body {
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface].dream-skin-home-shell) body {
   background-image: var(--dream-skin-art) !important;
   background-position: var(--ds-art-position) !important;
   background-size: cover !important;
@@ -775,7 +781,7 @@ html.codex-dream-skin[data-dream-art-wide="true"]:has(main[data-app-shell-main-s
   background-attachment: fixed !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface].dream-skin-home-shell)
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface].dream-skin-home-shell)
   aside.app-shell-left-panel {
   background: linear-gradient(90deg,
     var(--ds-immersive-sidebar),
@@ -786,14 +792,14 @@ html.codex-dream-skin[data-dream-art-wide="true"]:has(main[data-app-shell-main-s
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface].dream-skin-home-shell)
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface].dream-skin-home-shell)
   aside.app-shell-left-panel::after {
   background: transparent !important;
 }
 
 /* 宽图主题已由 body 绘制连续壁纸；新会话主区域不能再叠加浅色渐变，
    否则欢迎区会变成横跨内容区的白色空面板。 */
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell {
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell {
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -802,9 +808,9 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
 
 /* 新版 Codex 的首页工具栏使用 data 属性承载标题栏浅色底；在壁纸上必须清除，
    同时保留旧版 class 选择器的兼容。 */
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
   > header.app-header-tint,
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
   > header[data-app-shell-application-menu-bar] {
   background: transparent !important;
   border-bottom: 0 !important;
@@ -812,13 +818,13 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
   [data-app-shell-main-content-top-fade] {
   background-image: none !important;
   opacity: 0 !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface]
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface]
   > header.app-header-tint {
   color: var(--ds-text) !important;
   text-shadow:
@@ -826,13 +832,13 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
     0 0 8px rgb(var(--ds-bg-rgb) / .52) !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface]
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface]
   > header.app-header-tint svg {
   color: rgb(var(--ds-muted-rgb) / .96) !important;
   filter: drop-shadow(0 1px 2px rgb(var(--ds-bg-rgb) / .72));
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
   .dream-skin-home > div:first-child > div:first-child > div:first-child {
   border: 0 !important;
   border-radius: 0 !important;
@@ -840,12 +846,12 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
   box-shadow: none !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
   .dream-skin-home > div:first-child > div:first-child > div:first-child::before {
   content: none !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface].dream-skin-home-shell
   .dream-skin-home .group\/home-suggestions button {
   background: rgb(var(--ds-panel-rgb) / .56) !important;
   box-shadow:
@@ -854,7 +860,7 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
   backdrop-filter: blur(8px) saturate(104%) !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] .composer-surface-chrome {
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] .composer-surface-chrome {
   background: var(--ds-immersive-composer-solid) !important;
   border: 0 !important;
   box-shadow:
@@ -864,7 +870,7 @@ html.codex-dream-skin[data-dream-art-wide="true"] .composer-surface-chrome {
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin[data-dream-shell="light"][data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"][data-dream-art-wide="true"]
   .composer-surface-chrome {
   box-shadow:
     0 10px 28px rgb(var(--ds-bg-rgb) / .14),
@@ -873,7 +879,7 @@ html.codex-dream-skin[data-dream-shell="light"][data-dream-art-wide="true"]
   backdrop-filter: blur(8px) saturate(102%) !important;
 }
 
-html.codex-dream-skin[data-dream-shell="light"]
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"]
   .composer-surface-chrome p.placeholder::after {
   color: rgb(var(--ds-muted-rgb) / .78) !important;
   opacity: 1 !important;
@@ -882,7 +888,7 @@ html.codex-dream-skin[data-dream-shell="light"]
 /* Current Codex builds render the home project picker as a separate opaque
    cap above the composer. Join both native controls into one continuous
    surface while leaving task and utility-route inputs untouched. */
-html.codex-dream-skin .dream-skin-home-utility {
+html.codex-dream-skin:not(.compact-window) .dream-skin-home-utility {
   top: 0 !important;
   width: 100% !important;
   margin-inline: 0 !important;
@@ -896,7 +902,7 @@ html.codex-dream-skin .dream-skin-home-utility {
   backdrop-filter: blur(16px) saturate(108%) !important;
 }
 
-html.codex-dream-skin .dream-skin-home:has(.dream-skin-home-utility)
+html.codex-dream-skin:not(.compact-window) .dream-skin-home:has(.dream-skin-home-utility)
   .composer-surface-chrome {
   border: 0 !important;
   border-radius: 0 0 22px 22px !important;
@@ -907,7 +913,7 @@ html.codex-dream-skin .dream-skin-home:has(.dream-skin-home-utility)
     inset 0 -1px rgb(var(--ds-muted-rgb) / .18) !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] .dream-skin-home-utility {
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] .dream-skin-home-utility {
   background: var(--ds-immersive-composer-solid) !important;
   box-shadow:
     inset 1px 0 var(--ds-immersive-line),
@@ -916,7 +922,7 @@ html.codex-dream-skin[data-dream-art-wide="true"] .dream-skin-home-utility {
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"]
   .dream-skin-home:has(.dream-skin-home-utility) .composer-surface-chrome {
   box-shadow:
     0 10px 30px rgb(var(--ds-bg-rgb) / .20),
@@ -925,7 +931,7 @@ html.codex-dream-skin[data-dream-art-wide="true"]
     inset 0 -1px var(--ds-immersive-line) !important;
 }
 
-html.codex-dream-skin[data-dream-shell="light"][data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window)[data-dream-shell="light"][data-dream-art-wide="true"]
   .dream-skin-home-utility {
   box-shadow:
     inset 1px 0 var(--ds-immersive-line),
@@ -934,45 +940,45 @@ html.codex-dream-skin[data-dream-shell="light"][data-dream-art-wide="true"]
   backdrop-filter: blur(8px) saturate(102%) !important;
 }
 
-html.codex-dream-skin .dream-skin-home-utility button,
-html.codex-dream-skin .composer-surface-chrome button:not([class~="bg-token-foreground"]) {
+html.codex-dream-skin:not(.compact-window) .dream-skin-home-utility button,
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome button:not([class~="bg-token-foreground"]) {
   color: var(--ds-muted) !important;
 }
 
-html.codex-dream-skin .dream-skin-home-utility button svg,
-html.codex-dream-skin .composer-surface-chrome button svg {
+html.codex-dream-skin:not(.compact-window) .dream-skin-home-utility button svg,
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome button svg {
   color: currentColor !important;
 }
 
-html.codex-dream-skin .dream-skin-home-utility button *,
-html.codex-dream-skin .composer-surface-chrome button:not([class~="bg-token-foreground"]) * {
+html.codex-dream-skin:not(.compact-window) .dream-skin-home-utility button *,
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome button:not([class~="bg-token-foreground"]) * {
   color: currentColor !important;
 }
 
-html.codex-dream-skin .dream-skin-home-utility button:hover,
-html.codex-dream-skin .composer-surface-chrome button:not([class~="bg-token-foreground"]):hover {
+html.codex-dream-skin:not(.compact-window) .dream-skin-home-utility button:hover,
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome button:not([class~="bg-token-foreground"]):hover {
   color: var(--ds-text) !important;
   background: rgb(var(--ds-accent-rgb) / .10) !important;
 }
 
-html.codex-dream-skin .composer-surface-chrome p.placeholder::after {
+html.codex-dream-skin:not(.compact-window) .composer-surface-chrome p.placeholder::after {
   color: rgb(var(--ds-muted-rgb) / .82) !important;
   opacity: 1 !important;
 }
 
 /* Search routes ship an opaque sticky band and input surface. Keep the
    control legible while allowing the selected image to remain continuous. */
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell) div.sticky:has(input[type="text"]) {
   background: transparent !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell) div.sticky:has(input[type="text"])::after {
   background: transparent !important;
 }
 
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell) div.no-drag:has(> input[type="text"]) {
   background: var(--ds-immersive-composer) !important;
   border: 0 !important;
@@ -984,18 +990,18 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
 
 /* Pull Requests and similar utility routes wrap their content in a native
    full-size opaque surface. Only clear full-window wrappers, not cards. */
-html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
+html.codex-dream-skin:not(.compact-window):is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"])[data-dream-art-wide="true"]
   main[data-app-shell-main-surface]:not(.dream-skin-home-shell)
   [class~="bg-token-main-surface-primary"][class~="h-full"][class~="w-full"] {
   background: transparent !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface]
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface]
   .app-shell-main-content-frame {
   border-top: 0 !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface]
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface]
   .app-shell-main-content-top-fade {
   display: none !important;
   background: transparent !important;
@@ -1004,7 +1010,7 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
 /* Codex paints a second opaque fade behind the sticky composer. The composer
    already owns its readable surface, so retaining this layer creates a false
    bottom panel and makes the control look duplicated. */
-html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surface]
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] main[data-app-shell-main-surface]
   .thread-scroll-container .bg-gradient-to-t.from-token-main-surface-primary {
   background: transparent !important;
 }
@@ -1037,19 +1043,19 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
   box-shadow: 0 3px 12px rgb(var(--ds-bg-rgb) / .12) !important;
 }
 
-html.codex-dream-skin .ProseMirror {
+html.codex-dream-skin:not(.compact-window) .ProseMirror {
   color: var(--ds-text) !important;
   caret-color: var(--ds-accent) !important;
 }
 
-html.codex-dream-skin button[class~="bg-token-foreground"] {
+html.codex-dream-skin:not(.compact-window) button[class~="bg-token-foreground"] {
   background: var(--ds-accent) !important;
   color: var(--ds-on-accent) !important;
   box-shadow: 0 5px 14px rgb(var(--ds-accent-rgb) / .20) !important;
 }
 
-html.codex-dream-skin article,
-html.codex-dream-skin [data-message-author-role] { border-radius: 16px; }
+html.codex-dream-skin:not(.compact-window) article,
+html.codex-dream-skin:not(.compact-window) [data-message-author-role] { border-radius: 16px; }
 
 @media (max-width: 1120px) {
   .dream-skin-status { display: none !important; }
@@ -1079,20 +1085,20 @@ html.codex-dream-skin [data-message-author-role] { border-radius: 16px; }
 }
 
 /* 底部工具栏顶部的官方 0.5px 半透明分割线在换肤背景下会显示成亮白细线（渲染接缝感），隐藏 */
-html.codex-dream-skin [class*="h-[0.5px]"][class*="bg-token-foreground/10"]:has(+ [class*="h-toolbar"]) {
+html.codex-dream-skin:not(.compact-window) [class*="h-[0.5px]"][class*="bg-token-foreground/10"]:has(+ [class*="h-toolbar"]) {
   display: none !important;
 }
 
 /* Codex 新版 composer 改用 ComposerLayoutRoot 结构，官方近白不透明背景在换肤壁纸上
    会形成一块白色粗框；这里与旧版 composer-surface-chrome 保持同一套换肤表面 */
-html.codex-dream-skin [class*="ComposerLayoutRoot"] {
+html.codex-dream-skin:not(.compact-window) [class*="ComposerLayoutRoot"] {
   background: rgb(var(--ds-panel-rgb) / .94) !important;
   border: 1px solid rgb(var(--ds-muted-rgb) / .18) !important;
   box-shadow: 0 10px 28px rgb(var(--ds-bg-rgb) / .24) !important;
   backdrop-filter: blur(16px) saturate(108%) !important;
 }
 
-html.codex-dream-skin[data-dream-art-wide="true"] [class*="ComposerLayoutRoot"] {
+html.codex-dream-skin:not(.compact-window)[data-dream-art-wide="true"] [class*="ComposerLayoutRoot"] {
   background: var(--ds-immersive-composer-solid) !important;
   border: 0 !important;
   box-shadow:
@@ -1103,9 +1109,9 @@ html.codex-dream-skin[data-dream-art-wide="true"] [class*="ComposerLayoutRoot"] 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.codex-dream-skin *,
-  html.codex-dream-skin *::before,
-  html.codex-dream-skin *::after {
+  html.codex-dream-skin:not(.compact-window) *,
+  html.codex-dream-skin:not(.compact-window) *::before,
+  html.codex-dream-skin:not(.compact-window) *::after {
     scroll-behavior: auto !important;
     transition-duration: .01ms !important;
     animation-duration: .01ms !important;
