@@ -640,7 +640,9 @@ function formatWindowServicesHookFailure(
 
 /**
  * 把安装包内置的 tweaks（如 Dream Skin 皮肤）复制到用户 tweaks 目录；
- * 不覆盖用户已有的同名 tweak。非独立安装且有仓库 tweaks 时同样生效。
+ * 已存在同名目录时保留不动，仅当内置 tweak 的 manifest 版本号高于已装
+ * 版本时覆盖升级（用户自定义 tweak 或同版本本地修改不被覆盖）。
+ * 非独立安装且有仓库 tweaks 时同样生效。
  */
 export function stageTweaks(tweaksDir: string): void {
   const candidates = [
@@ -662,13 +664,27 @@ export function stageTweaks(tweaksDir: string): void {
       const st = statSync(to);
       if (!st.isDirectory()) {
         unlinkSync(to);
-      } else {
+      } else if (compareSemver(tweakManifestVersion(from), tweakManifestVersion(to)) <= 0) {
         continue;
+      } else {
+        rmSync(to, { recursive: true, force: true });
       }
     }
     cpSync(from, to, { recursive: true });
   }
   chownForTargetUser(tweaksDir, { recursive: true });
+}
+
+/** 读取 tweak 的 manifest 版本号，读取失败视为 0.0.0。 */
+function tweakManifestVersion(dir: string): string {
+  try {
+    const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")) as {
+      version?: unknown;
+    };
+    return typeof manifest.version === "string" ? manifest.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 export function stageAssets(runtimeDir: string): void {

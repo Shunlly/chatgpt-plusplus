@@ -17,7 +17,7 @@ import {
   codexReopenScript,
   isMacAppManagementError,
 } from "../src/alerts";
-import { findCodexMainCandidates } from "../src/commands/install";
+import { findCodexMainCandidates, stageTweaks } from "../src/commands/install";
 import { createTweak } from "../src/commands/create-tweak";
 import { devTweak } from "../src/commands/dev-tweak";
 import { safeMode } from "../src/commands/safe-mode";
@@ -593,3 +593,35 @@ async function withSilencedConsoleAsync(fn: () => Promise<void>): Promise<void> 
     console.error = originalError;
   }
 }
+
+test("stageTweaks 内置 tweak 版本更高时覆盖，用户版本更高时不覆盖", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "stage-tweaks-"));
+  try {
+    // 预置旧版（版本低于内置）→ 安装时应被内置版本覆盖
+    const oldDir = join(tmp, "dream-skin");
+    mkdirSync(oldDir, { recursive: true });
+    writeFileSync(
+      join(oldDir, "manifest.json"),
+      JSON.stringify({ id: "com.codexplusplus.dream-skin", version: "0.0.1" }),
+    );
+    writeFileSync(join(oldDir, "old-marker.txt"), "old");
+    stageTweaks(tmp);
+    const upgraded = JSON.parse(readFileSync(join(oldDir, "manifest.json"), "utf8"));
+    // 覆盖后版本应变成内置源版本（高于 0.0.1）
+    assert.notEqual(upgraded.version, "0.0.1");
+    // 覆盖后旧标记应消失（目录被整体替换）
+    assert.equal(existsSync(join(oldDir, "old-marker.txt")), false);
+
+    // 预置更高版本（用户自装/自定义）→ 安装时不得覆盖
+    writeFileSync(
+      join(oldDir, "manifest.json"),
+      JSON.stringify({ id: "com.codexplusplus.dream-skin", version: "99.0.0", marker: "keep-me" }),
+    );
+    stageTweaks(tmp);
+    const kept = JSON.parse(readFileSync(join(oldDir, "manifest.json"), "utf8"));
+    assert.equal(kept.version, "99.0.0");
+    assert.equal(kept.marker, "keep-me");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
