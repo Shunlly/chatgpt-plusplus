@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ChatGPT++</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #10131a; color: #e8ecf3; font-size: 14px;
+    -webkit-user-select: none; user-select: none;
+  }
+  header { padding: 18px 20px 12px; border-bottom: 1px solid #232a36; display: flex; align-items: center; gap: 10px; }
+  header .logo { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, #2de1c2, #7b6cff); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #0b0e14; }
+  header h1 { font-size: 16px; font-weight: 700; }
+  header .ver { color: #8b95a7; font-size: 12px; margin-top: 2px; }
+  .badge { margin-left: auto; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: #123f2c; color: #3ee08a; }
+  .badge.warn { background: #4a3410; color: #f0b34a; }
+  main { padding: 16px 20px 24px; overflow-y: auto; height: calc(100vh - 66px); }
+  section { margin-bottom: 22px; }
+  h2 { font-size: 13px; color: #8b95a7; font-weight: 600; margin-bottom: 10px; letter-spacing: .05em; }
+  .status-card { background: #171c26; border: 1px solid #232a36; border-radius: 12px; padding: 14px; }
+  .status-row { display: flex; justify-content: space-between; padding: 5px 0; color: #aeb6c4; }
+  .status-row b { color: #e8ecf3; font-weight: 600; text-align: right; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  button {
+    border: 0; border-radius: 9px; padding: 9px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+    background: #242c3b; color: #e8ecf3; transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.15); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: linear-gradient(135deg, #2de1c2, #4aa8ff); color: #0b0e14; }
+  button.danger { background: #3b1f26; color: #ff8fa3; }
+  .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .theme-card { border-radius: 11px; overflow: hidden; background: #171c26; border: 2px solid #232a36; cursor: pointer; transition: border-color .15s, transform .1s; }
+  .theme-card:hover { transform: translateY(-1px); }
+  .theme-card.active { border-color: #2de1c2; }
+  .theme-card .thumb { height: 58px; background-size: cover; background-position: center; background-color: #202838; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: #0b0e14; }
+  .theme-card .name { padding: 7px 8px; font-size: 12px; text-align: center; color: #cfd6e2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-box { background: #0b0e14; border: 1px solid #232a36; border-radius: 10px; padding: 10px 12px; font: 11px/1.6 ui-monospace, Menlo, monospace; color: #9fe8c4; max-height: 200px; overflow-y: auto; white-space: pre-wrap; display: none; }
+  .hint { color: #6b7484; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">++</div>
+  <div>
+    <h1>ChatGPT++</h1>
+    <div class="ver" id="ver">加载中…</div>
+  </div>
+  <span class="badge warn" id="badge">检查中</span>
+</header>
+<main>
+  <section>
+    <h2>补丁状态</h2>
+    <div class="status-card">
+      <div class="status-row"><span>安装状态</span><b id="inst">—</b></div>
+      <div class="status-row"><span>已补丁应用</span><b id="apps">—</b></div>
+      <div class="status-row"><span>安装目录</span><b id="appRoot">—</b></div>
+      <div class="actions">
+        <button id="openBtn" class="primary">打开 ChatGPT</button>
+        <button id="installBtn">安装 / 修复</button>
+        <button id="repairBtn" disabled>仅修复</button>
+        <button id="uninstallBtn" class="danger" disabled>卸载</button>
+      </div>
+      <div class="hint">ChatGPT++ 是对官方 ChatGPT/Codex 的增强层，使用入口是官方应用。</div>
+    </div>
+  </section>
+  <section>
+    <h2>主题（切换后 2 秒内生效）</h2>
+    <div class="theme-grid" id="themes">加载中…</div>
+  </section>
+  <section>
+    <h2>日志</h2>
+    <div class="log-box" id="log"></div>
+  </section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const logBox = $("log");
+  function log(line) {
+    logBox.style.display = "block";
+    logBox.textContent += (line || "") + "\n";
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+  function setBusy(busy) {
+    for (const b of document.querySelectorAll("button")) b.disabled = busy;
+  }
+  async function refresh() {
+    const s = await window.cppp.status();
+    $("ver").textContent = "v" + (s.version ?? "—");
+    const ok = s.installed;
+    $("inst").textContent = ok ? "已安装" : "未安装";
+    $("badge").className = "badge " + (ok ? "ok" : "warn");
+    $("badge").textContent = ok ? "已就绪" : "未安装";
+    $("apps").textContent = s.apps.map((a) => a.replace("/Applications/", "").replace(".app", "")).join("、") || "未找到";
+    $("appRoot").textContent = s.appRoot ?? "—";
+    $("installBtn").textContent = ok ? "重新安装" : "安装";
+    $("repairBtn").disabled = !ok;
+    $("uninstallBtn").disabled = !ok;
+    await refreshThemes();
+  }
+  async function refreshThemes() {
+    const t = await window.cppp.themes();
+    const sel = t.selection;
+    const grid = $("themes");
+    grid.textContent = "";
+    const card = (item, active) => {
+      const el = document.createElement("div");
+      el.className = "theme-card" + (active ? " active" : "");
+      const thumb = document.createElement("div");
+      thumb.className = "thumb";
+      if (item.art) thumb.style.backgroundImage = `url("${item.art}")`;
+      else thumb.textContent = (item.name || "?").slice(0, 1);
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = item.name;
+      el.append(thumb, name);
+      el.onclick = async () => {
+        setBusy(true);
+        const r = await window.cppp.applyTheme(item.sel);
+        if (r.ok) {
+          await refreshThemes();
+          log("已应用主题：" + item.name);
+        } else log("应用失败：" + r.error);
+        setBusy(false);
+      };
+      return el;
+    };
+    const isActive = (sel, type, id) => sel && sel.type === type && (id == null || sel.id === id);
+    grid.append(card({ name: "默认（无主题）", sel: { type: "none" } }, !sel || sel.type === "none"));
+    for (const p of t.presets) grid.append(card({ name: p.name, art: p.art, sel: { type: "preset", id: p.id } }, isActive(sel, "preset", p.id)));
+    for (const c of t.custom) grid.append(card({ name: c.name, art: c.art, sel: { type: "custom", id: c.id } }, isActive(sel, "custom", c.id)));
+  }
+  $("openBtn").onclick = async () => {
+    const r = await window.cppp.openApp();
+    if (!r.ok) log(r.error);
+  };
+  async function runCli(cmd, label) {
+    logBox.style.display = "block";
+    logBox.textContent = "";
+    log("=== " + label + " ===");
+    setBusy(true);
+    window.cppp.onCliLog((line) => log(line));
+    const r = await window.cppp.runCli(cmd);
+    log("=== 退出码 " + r.code + " ===");
+    setBusy(false);
+    await refresh();
+  }
+  $("installBtn").onclick = () => runCli("install", "安装补丁");
+  $("repairBtn").onclick = () => runCli("repair", "修复");
+  $("uninstallBtn").onclick = () => {
+    if (confirm("确认卸载 ChatGPT++ 补丁？")) runCli("uninstall", "卸载");
+  };
+  refresh();
+</script>
+</body>
+</html>
