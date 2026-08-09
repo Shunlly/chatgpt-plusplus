@@ -512,6 +512,7 @@ let mainNavObserver = null;
 let mainThemeBtn = null;
 let mainThemeHost = null;
 let mainSidebarGroup = null;
+let loggedSidebarOnce = false;
 
 function findMainPluginBtn() {
   // 新版 ChatGPT 把侧边栏项从 button 改成了 div[role="link"]，两种都匹配
@@ -534,11 +535,13 @@ function makeMainThemeBtn(plug) {
   }
   btn.className = plug.className;
   btn.setAttribute("data-codexpp-main-theme", "true");
-  btn.setAttribute("aria-label", "主题");
   btn.classList.remove("bg-token-list-hover-background");
+  const isZh = /[\u4e00-\u9fff]/.test(plug.textContent || "");
+  const label = isZh ? "主题" : "Theme";
   const inner = document.createElement("div");
   inner.className = "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
-  inner.innerHTML = MAIN_THEME_ICON_SVG + '<span class="truncate">主题</span>';
+  inner.innerHTML = MAIN_THEME_ICON_SVG + `<span class="truncate">${label}</span>`;
+  btn.setAttribute("aria-label", label);
   btn.appendChild(inner);
   return btn;
 }
@@ -652,6 +655,20 @@ function syncMainNav(api) {
     true,
   );
   plug.insertAdjacentElement("afterend", mainThemeBtn);
+  if (!loggedSidebarOnce) {
+    loggedSidebarOnce = true;
+    api.log.info(
+      "main nav: sidebar items",
+      JSON.stringify(
+        [...document.querySelectorAll(".sidebar-item")].map((el) => ({
+          tag: el.tagName,
+          role: el.getAttribute("role"),
+          text: (el.textContent || "").trim().slice(0, 40),
+          ours: !!el.getAttribute("data-codexpp-main-theme"),
+        })),
+      ),
+    );
+  }
   if (mainSidebarGroup !== group) {
     if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
     mainSidebarGroup = group;
@@ -705,14 +722,6 @@ module.exports = {
       teardownSkin();
       return;
     }
-    api.settings.registerPage({
-      id: "main",
-      title: "Dream Skin 换肤",
-      description: "预设/上传图片新建主题一键切换",
-      render(root) {
-        renderPage(api, root);
-      },
-    });
     const list = await readCustomIndex(api);
     await migrateLegacySelection(api, list);
     const sel = api.storage.get("selection") || { type: "preset", id: DEFAULT_PRESET };
