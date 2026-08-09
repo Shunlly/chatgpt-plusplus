@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * 打包脚本：把 installer CLI 编译成单文件二进制（Node SEA），并产出安装包。
+ * 打包脚本：把 installer CLI 编译成单文件二进制（Node SEA），并产出独立 GUI 安装包。
  *
  *   macOS:  dist/installers/ChatGPT++-<version>-macos-<arch>.dmg
- *           （内含 ChatGPT++.app：双击后自动复制到 /Applications 并打开 Terminal 安装）
+ *           （内含 ChatGPT++.app：独立 Electron 图形界面，安装/修复/主题管理）
  *   Windows: dist/installers/ChatGPT++-<version>-win-x64-setup.exe
- *           （NSIS 安装器，安装到 %LOCALAPPDATA%\Programs\ChatGPT++）
+ *           （NSIS 安装器，安装到 %LOCALAPPDATA%\Programs\ChatGPT++，独立 GUI）
  *
  * 用法：
  *   npm run package            # 当前平台
@@ -19,6 +19,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -53,6 +54,7 @@ async function main() {
   const binary = await buildSea(cli, platform);
   // 释放下载的 Node 运行时（约 110MB），SEA 二进制已生成，不再需要
   rmSync(join(BUILD, "node"), { recursive: true, force: true });
+  await buildGuiAssets();
   if (platform === "darwin") {
     buildDmg(binary);
     // dmg 已包含 app；删除暂存目录，裸二进制仅 CI 上删除（本地保留便于直接使用）
@@ -157,14 +159,16 @@ async function ensureNodeBinary(platform) {
   if (existsSync(bin)) return bin;
   mkdirSync(dir, { recursive: true });
 
+  // 镜像可用环境变量覆盖：国内网络建议 NODE_MIRROR=https://registry.npmmirror.com/-/binary/node
+  const base = process.env.NODE_MIRROR ?? "https://nodejs.org/dist";
   if (isWin) {
-    const url = `https://nodejs.org/dist/${NODE_LTS}/node-${NODE_LTS}-win-x64.zip`;
+    const url = `${base}/${NODE_LTS}/node-${NODE_LTS}-win-x64.zip`;
     console.log(`下载 Windows Node.js 运行时：${url}`);
     writeFileSync(join(dir, "node.zip"), Buffer.from(await fetchBytes(url)));
     // Windows 与 macOS 都自带 libarchive tar，可解压 zip；避免依赖 unzip
     run("tar", ["-xf", join(dir, "node.zip"), "-C", dir, "--strip-components=1"], dir);
   } else {
-    const url = `https://nodejs.org/dist/${NODE_LTS}/node-${NODE_LTS}-${key}.tar.gz`;
+    const url = `${base}/${NODE_LTS}/node-${NODE_LTS}-${key}.tar.gz`;
     console.log(`下载 Node.js 运行时：${url}`);
     writeFileSync(join(dir, "node.tar.gz"), Buffer.from(await fetchBytes(url)));
     run("tar", ["-xzf", join(dir, "node.tar.gz"), "-C", dir, "--strip-components=1"], dir);
@@ -174,36 +178,47 @@ async function ensureNodeBinary(platform) {
 }
 
 async function fetchBytes(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`下载失败 ${url}: HTTP ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
+  // 用 curl 下载：Node 原生 fetch 不识别小写 http_proxy（本地代理场景会直连失败）；
+  // 失败自动重试 3 次。
+  mkdirSync(BUILD, { recursive: true });
+  const tmp = join(BUILD, "download.tmp");
+  for (let attempt = 1; ; attempt++) {
+    const r = spawnSync("curl", ["-fsSL", "--retry", "3", "-o", tmp, url], { encoding: "utf8" });
+    if (r.status === 0) return new Uint8Array(readFileSync(tmp));
+    if (attempt >= 3) {
+      throw new Error(`下载失败 ${url}: ${r.stderr || r.error?.message || `curl 退出码 ${r.status}`}`);
+    }
+    console.log(`下载中断，第 ${attempt} 次重试…`);
+    await new Promise((res) => setTimeout(res, 1500 * attempt));
+  }
 }
 
 function buildDmg(binary) {
   const ver = version();
   const arch = process.arch === "arm64" ? "arm64" : "x64";
-  const app = join(OUT, "dmg", `${APP_NAME}.app`);
-  const macosDir = join(app, "Contents", "MacOS");
-  const resourcesDir = join(app, "Contents", "Resources");
-  mkdirSync(macosDir, { recursive: true });
-  mkdirSync(resourcesDir, { recursive: true });
 
-  copyFileSync(binary, join(macosDir, PACKAGE_NAME));
-  chmodSync(join(macosDir, PACKAGE_NAME), 0o755);
-  writeFileSync(join(macosDir, "ChatGPT++"), launcherScript(), { mode: 0o755 });
-  writeFileSync(join(resourcesDir, "standalone.json"), JSON.stringify({
-    name: PACKAGE_NAME,
-    version: ver,
-    kind: "standalone",
-  }, null, 2));
-  cpSync(join(ROOT, "packages", "installer", "assets"), join(resourcesDir, "assets"), { recursive: true });
-  cpSync(join(ROOT, "tweaks"), join(resourcesDir, "tweaks"), { recursive: true });
+  // 用已解压的 Electron 模板手工组装独立 GUI 应用（不依赖 electron-packager 的 zip 解压）
+  const dist = electronTemplate();
+  const stage = join(OUT, "dmg");
+  rmSync(stage, { recursive: true, force: true });
+  const app = join(stage, `${APP_NAME}.app`);
+  // verbatimSymlinks：保留框架内的相对符号链接（Node 默认会转成绝对路径，破坏签名）
+  cpSync(join(dist, "Electron.app"), app, { recursive: true, verbatimSymlinks: true });
+
+  // 可执行文件改名 Electron -> ChatGPT++，并写自己的 Info.plist
+  const macosDir = join(app, "Contents", "MacOS");
+  copyFileSync(join(macosDir, "Electron"), join(macosDir, APP_NAME));
+  chmodSync(join(macosDir, APP_NAME), 0o755);
+  rmSync(join(macosDir, "Electron"));
   writeFileSync(join(app, "Contents", "Info.plist"), infoPlist(ver));
 
-  const stage = join(OUT, "dmg");
+  stageGuiResources(app, binary, ver);
+  // 框架与 app 分开签名（--deep 对框架内的符号链接会报 unsealed contents）
+  run("codesign", ["--force", "--sign", "-", join(app, "Contents", "Frameworks", "Electron Framework.framework")], ROOT);
+  run("codesign", ["--force", "--sign", "-", app], ROOT);
+
   writeFileSync(join(stage, "安装说明.txt"), installNotes(ver));
   try {
-    rmSync(join(stage, "Applications"), { force: true });
     const link = spawnSync("ln", ["-s", "/Applications", join(stage, "Applications")], { encoding: "utf8" });
     if (link.status !== 0) throw new Error(link.stderr || "创建 Applications 软链接失败");
   } catch {
@@ -226,47 +241,44 @@ function buildDmg(binary) {
   console.log(`✅ DMG 已生成：${dmg}`);
 }
 
-function launcherScript() {
-  return `#!/bin/sh
-# ChatGPT++ 安装包启动器：从 dmg 卷运行时先复制到 /Applications，再打开 Terminal 执行安装。
-set -e
-APP_PATH="$(cd "$(dirname "$0")/.." && pwd)"
-CLI="$APP_PATH/Contents/MacOS/${PACKAGE_NAME}"
+// 已解压的 Electron 模板目录（node_modules/electron/dist）。
+function electronTemplate() {
+  const dist = join(ROOT, "node_modules", "electron", "dist");
+  const probe = process.platform === "darwin" ? join(dist, "Electron.app") : join(dist, "electron.exe");
+  if (!existsSync(probe)) {
+    throw new Error(`未找到 Electron 模板：${dist}。请先执行：node node_modules/electron/install.js`);
+  }
+  return dist;
+}
 
-case "$APP_PATH" in
-  /Volumes/*)
-    DEST="/Applications/${APP_NAME}.app"
-    if [ "$APP_PATH" != "$DEST" ]; then
-      if [ -e "$DEST" ]; then
-        rm -rf "$DEST"
-      fi
-      if ! cp -R "$APP_PATH" "$DEST" 2>/dev/null; then
-        osascript -e "do shell script \\"rm -rf /Applications/${APP_NAME}.app; cp -R '$APP_PATH' /Applications/\\" with administrator privileges"
-      fi
-      open "$DEST"
-      exit 0
-    fi
-    ;;
-esac
-
-# 已安装过：直接打开补丁后的官方应用（ChatGPT++ 不是独立程序，使用入口是 ChatGPT/Codex）。
-STATE="$HOME/Library/Application Support/chatgpt-plusplus/state.json"
-if [ -f "$STATE" ]; then
-  for APP in "/Applications/ChatGPT.app" "/Applications/Codex.app"; do
-    if [ -d "$APP" ]; then
-      open "$APP"
-      exit 0
-    fi
-  done
-fi
-
-osascript <<APPLESCRIPT
-tell application "Terminal"
-  activate
-  do script "clear; '\${CLI}' install; echo; echo '安装完成，可关闭此窗口。'; exec /bin/zsh"
-end tell
-APPLESCRIPT
-`;
+// 往独立 GUI app 里放：app 代码（main/preload/页面）、CLI 二进制、tweaks、standalone.json。
+function stageGuiResources(appOrDir, binary, ver) {
+  const resourcesDir =
+    process.platform === "darwin" ? join(appOrDir, "Contents", "Resources") : join(appOrDir, "resources");
+  // GUI 代码（main.js/preload.js/renderer.html）
+  const appDir = join(resourcesDir, "app");
+  cpSync(join(ROOT, "packages", "gui", "dist"), appDir, { recursive: true });
+  writeFileSync(join(appDir, "package.json"), JSON.stringify({
+    name: "chatgpt-plusplus-gui",
+    main: "main.js",
+    version: ver,
+  }, null, 2));
+  // CLI 放 resources/cli/：standaloneRoot 探测 dirname(exec)/../Resources 命中
+  const cliDir = join(resourcesDir, "cli");
+  mkdirSync(cliDir, { recursive: true });
+  const cliName = process.platform === "win32" ? `${PACKAGE_NAME}.exe` : PACKAGE_NAME;
+  copyFileSync(binary, join(cliDir, cliName));
+  chmodSync(join(cliDir, cliName), 0o755);
+  // macOS 探测 dirname(exec)/../Resources；Windows 探测可执行文件同目录，两边都要有
+  for (const dir of [resourcesDir, cliDir]) {
+    writeFileSync(join(dir, "standalone.json"), JSON.stringify({
+      name: PACKAGE_NAME,
+      version: ver,
+      kind: "standalone",
+    }, null, 2));
+  }
+  cpSync(join(ROOT, "packages", "installer", "assets"), join(resourcesDir, "assets"), { recursive: true });
+  cpSync(join(ROOT, "tweaks"), join(resourcesDir, "tweaks"), { recursive: true });
 }
 
 function infoPlist(version) {
@@ -274,26 +286,18 @@ function infoPlist(version) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key>
-  <string>${APP_NAME}</string>
-  <key>CFBundleDisplayName</key>
-  <string>${APP_NAME}</string>
-  <key>CFBundleIdentifier</key>
-  <string>com.chatgptplusplus.installer</string>
-  <key>CFBundleExecutable</key>
-  <string>${APP_NAME}</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>${version}</string>
-  <key>CFBundleVersion</key>
-  <string>${version}</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>12.0</string>
-  <key>NSHighResolutionCapable</key>
-  <true/>
-  <key>LSApplicationCategoryType</key>
-  <string>public.app-category.developer-tools</string>
+  <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+  <key>CFBundleExecutable</key><string>${APP_NAME}</string>
+  <key>CFBundleIdentifier</key><string>com.chatgptplusplus.app</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>${APP_NAME}</string>
+  <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>${version}</string>
+  <key>CFBundleVersion</key><string>${version}</string>
+  <key>LSMinimumSystemVersion</key><string>10.15</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+  <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 `;
@@ -304,18 +308,34 @@ function installNotes(version) {
 =================================
 
 1. 把 ChatGPT++.app 拖进 Applications 文件夹（或直接双击，它会自动复制）。
-2. 双击 ChatGPT++.app：首次运行会打开"终端"窗口自动给 ChatGPT/Codex 应用打补丁；
-   安装完成后（/Applications 里）再双击，会直接打开 ChatGPT/Codex 应用。
-3. 在 ChatGPT/Codex 设置里找到 ChatGPT++，即可切换皮肤等。
-
-也可以从终端手动使用完整命令：
-  /Applications/ChatGPT++.app/Contents/MacOS/chatgpt-plusplus install
+2. 双击 ChatGPT++.app 打开独立图形界面，点击"安装"给 ChatGPT/Codex 打补丁。
+3. 安装完成后点"打开 ChatGPT"即可使用；主题可在界面里直接切换。
 
 卸载：
-  /Applications/ChatGPT++.app/Contents/MacOS/chatgpt-plusplus uninstall
+  在 ChatGPT++ 界面点"卸载"，或执行：
+  /Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus uninstall
 
 注意：本安装包未做 Apple 公证，首次打开若被 Gatekeeper 拦截，请右键 -> 打开。
 `;
+}
+
+// 编译独立 GUI（Electron）：main + preload + 页面。
+async function buildGuiAssets() {
+  const gui = join(ROOT, "packages", "gui");
+  const outDir = join(gui, "dist");
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  await build({
+    entryPoints: [join(gui, "src", "main.ts"), join(gui, "src", "preload.ts")],
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node20",
+    external: ["electron"],
+    outdir: outDir,
+  });
+  cpSync(join(gui, "src", "renderer.html"), join(outDir, "renderer.html"));
+  console.log("✅ GUI 已编译：", outDir);
 }
 
 function buildExe(binary) {
@@ -328,22 +348,19 @@ function buildExe(binary) {
 
   const stage = join(OUT, "nsis");
   rmSync(stage, { recursive: true, force: true });
-  mkdirSync(stage, { recursive: true });
-  copyFileSync(binary, join(stage, `${PACKAGE_NAME}.exe`));
-  writeFileSync(join(stage, "standalone.json"), JSON.stringify({
-    name: PACKAGE_NAME,
-    version: ver,
-    kind: "standalone",
-  }, null, 2));
-  cpSync(join(ROOT, "packages", "installer", "assets"), join(stage, "assets"), { recursive: true });
-  cpSync(join(ROOT, "tweaks"), join(stage, "tweaks"), { recursive: true });
+  // Windows 模板：dist/ 平铺（electron.exe + resources/ + dll），复制后改名 ChatGPT++.exe
+  const winDir = join(stage, `${APP_NAME}-win32-x64`);
+  cpSync(electronTemplate(), winDir, { recursive: true });
+  renameSync(join(winDir, "electron.exe"), join(winDir, `${APP_NAME}.exe`));
+
+  stageGuiResources(winDir, binary, ver);
 
   const exe = join(OUT, `${APP_NAME}-${ver}-win-x64-setup.exe`);
   rmSync(exe, { force: true });
   // Windows 下 makensis 的 File 指令只可靠解析原生反斜杠路径，macOS 只认正斜杠，
   // 因此路径与分隔符都按平台传入（nsi 里用 ${SEP} 拼接）。
   const isWin = process.platform === "win32";
-  const stageArg = isWin ? stage.replace(/\//g, "\\") : stage.replace(/\\/g, "/");
+  const stageArg = isWin ? winDir.replace(/\//g, "\\") : winDir.replace(/\\/g, "/");
   const exeArg = exe.replace(/\\/g, "/");
   run("makensis", [
     `-DVERSION=${ver}`,

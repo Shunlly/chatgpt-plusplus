@@ -18,6 +18,9 @@ const PRESET_IDS = [
 
 const DEFAULT_PRESET = "preset-midnight-aurora";
 const MAX_CUSTOM_BG_BYTES = 16 * 1024 * 1024; // 与 Dream-Skin 一致：16 MB 上限
+// 独立 GUI（packages/gui）通过该文件切换主题：tweak 定期轮询并双向同步。
+const SELECTION_FILE = "selection.json";
+let selectionPoll = null;
 let applySeq = 0; // 连点守卫：只让最后一次 applyTheme 生效
 
 // 自定义主题使用的中性主题模板：只替换背景图，不改变文字/配色体系。
@@ -73,6 +76,15 @@ function teardownSkin() {
 
 // 用 Dream-Skin 的模板组装 payload 并在 preload 上下文执行。
 // preload 沙箱与页面共享 DOM，new Function 与 tweak-host 自身加载 tweak 的方式一致。
+// 把当前选择写盘，供独立 GUI（packages/gui）读取；应用内切换与 GUI 切换双向可见。
+async function persistSelection(api) {
+  try {
+    await api.fs.write(SELECTION_FILE, JSON.stringify(api.storage.get("selection") || { type: "none" }));
+  } catch (e) {
+    api.log.warn("selection persist failed", String(e));
+  }
+}
+
 async function applyTheme(api, theme, artUrl) {
   const seq = ++applySeq;
   teardownSkin();
@@ -93,6 +105,7 @@ async function applyTheme(api, theme, artUrl) {
     .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", JSON.stringify(styleRevision));
   // eslint-disable-next-line no-new-func
   new Function(payload)();
+  await persistSelection(api);
 }
 
 async function loadPresetTheme(api, presetId) {
@@ -214,6 +227,27 @@ async function applySaved(api) {
       teardownSkin();
       api.storage.set("selection", { type: "none" });
     }
+  } finally {
+    await persistSelection(api);
+  }
+}
+
+// 磁盘选择同步：独立 GUI 写入 selection.json 后，这里轮询应用（2 秒内生效）。
+async function pollDiskSelection(api) {
+  try {
+    const text = await api.fs.read(SELECTION_FILE);
+    if (!text) return;
+    const disk = JSON.parse(text);
+    if (!disk || typeof disk.type !== "string") return;
+    const cur = api.storage.get("selection") || {};
+    if (disk.type === cur.type && disk.id === cur.id) return;
+    api.storage.set("selection", disk);
+    await applySaved(api);
+    api.log.info("selection from disk", JSON.stringify(disk));
+  } catch (e) {
+    // 文件不存在或写入中（半截 JSON），下轮再试
+    if (String(e && e.message).includes("ENOENT")) return;
+    api.log.warn("selection poll skipped", String(e));
   }
 }
 
@@ -462,6 +496,7 @@ function renderPage(api, root) {
           if (current && current.type === "custom" && current.id === entry.id) {
             api.storage.set("selection", { type: "none" });
             teardownSkin();
+            await persistSelection(api);
           }
           renderPage(api, root);
         } catch (e) {
@@ -493,9 +528,10 @@ function renderPage(api, root) {
   restoreBtn.className =
     "inline-flex items-center gap-1 text-sm text-token-text-link-foreground hover:underline cursor-interaction";
   restoreBtn.textContent = "恢复";
-  restoreBtn.onclick = () => {
+  restoreBtn.onclick = async () => {
     api.storage.set("selection", { type: "none" });
     teardownSkin();
+    await persistSelection(api);
     updateStatus();
   };
   restoreRow.append(restoreLabel, restoreBtn);
@@ -725,11 +761,23 @@ module.exports = {
     }
     const list = await readCustomIndex(api);
     await migrateLegacySelection(api, list);
-    const sel = api.storage.get("selection") || { type: "preset", id: DEFAULT_PRESET };
+    // 磁盘选择优先：独立 GUI 的切换在 ChatGPT 重启后依然生效
+    try {
+      const disk = JSON.parse(await api.fs.read(SELECTION_FILE));
+      if (disk && disk.type) api.storage.set("selection", disk);
+    } catch {
+      // 文件不存在时忽略，沿用 localStorage
+    }
     await applySaved(api);
     startMainNav(api);
+    if (selectionPoll) clearInterval(selectionPoll);
+    selectionPoll = setInterval(() => pollDiskSelection(api), 2000);
   },
   stop() {
+    if (selectionPoll) {
+      clearInterval(selectionPoll);
+      selectionPoll = null;
+    }
     stopMainNav();
     teardownSkin();
   },

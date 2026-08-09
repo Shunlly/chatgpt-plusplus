@@ -1,0 +1,13 @@
+{
+  "name": "@chatgpt-plusplus/gui",
+  "version": "1.0.15",
+  "description": "ChatGPT++ 独立图形界面（安装/修复/打开/主题管理）",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "electron": "^41.3.0"
+  }
+}
