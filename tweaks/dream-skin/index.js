@@ -512,96 +512,7 @@ let mainNavObserver = null;
 let mainThemeBtn = null;
 let mainThemeHost = null;
 let mainSidebarGroup = null;
-let langBtn = null;
-let lang = "zh";
-
-// 界面语言：默认中文，侧边栏固定菜单项的中英对照（只翻译固定菜单，不动会话标题）。
-const SIDEBAR_LABELS = {
-  "New chat": "新对话",
-  "Pull requests": "拉取请求",
-  "Scheduled": "定时任务",
-  "Plugins": "插件",
-};
-const LANG_ICON_SVG =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
-
-// 翻译/恢复侧边栏固定菜单文案；只改首个非空文本节点，保留图标。
-function replaceBtnLabel(el, text) {
-  // 优先替换首个非空文本节点（保留图标），否则回退到 span。
-  for (const node of el.childNodes) {
-    if (node.nodeType === 3 && (node.textContent || "").trim()) {
-      node.textContent = text;
-      return true;
-    }
-  }
-  const span = el.querySelector("span");
-  if (span) {
-    span.textContent = text;
-    return true;
-  }
-  return false;
-}
-
-function translateSidebar() {
-  if (lang === "zh") {
-    for (const el of document.querySelectorAll("button.sidebar-item")) {
-      const text = (el.textContent || "").trim();
-      const zh = SIDEBAR_LABELS[text];
-      if (!zh) continue;
-      if (el.dataset.codexppLangDone === zh && (el.textContent || "").trim() === zh) continue;
-      if (replaceBtnLabel(el, zh)) {
-        el.dataset.codexppLangDone = zh;
-        el.dataset.codexppLangOriginal = text;
-      }
-    }
-  } else {
-    for (const el of [...document.querySelectorAll("button.sidebar-item[data-codexpp-lang-original]")]) {
-      replaceBtnLabel(el, el.dataset.codexppLangOriginal || "");
-      delete el.dataset.codexppLangOriginal;
-      delete el.dataset.codexppLangDone;
-    }
-  }
-}
-
-// 语言切换按钮：显示可切换到的目标语言，点击立即切换并持久化。
-function makeLangBtn(api) {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = mainThemeBtn ? mainThemeBtn.className : "sidebar-item";
-  btn.setAttribute("data-codexpp-lang-toggle", "true");
-  btn.classList.remove("bg-token-list-hover-background");
-  const inner = document.createElement("div");
-  inner.className = "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
-  inner.innerHTML = LANG_ICON_SVG + '<span class="truncate"></span>';
-  btn.appendChild(inner);
-  btn.addEventListener(
-    "click",
-    (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      lang = lang === "zh" ? "en" : "zh";
-      api.storage.set("lang", lang);
-      updateLangUI();
-      api.log.info("lang switched", JSON.stringify({ lang }));
-    },
-    true,
-  );
-  return btn;
-}
-
-function updateLangUI() {
-  if (mainThemeBtn) {
-    const span = mainThemeBtn.querySelector("span.truncate");
-    if (span) span.textContent = lang === "zh" ? "主题" : "Theme";
-    mainThemeBtn.setAttribute("aria-label", lang === "zh" ? "主题" : "Theme");
-  }
-  if (langBtn) {
-    const span = langBtn.querySelector("span.truncate");
-    if (span) span.textContent = lang === "zh" ? "English" : "中文";
-    langBtn.setAttribute("aria-label", "切换语言");
-  }
-  translateSidebar();
-}
+let loggedSidebarOnce = false;
 
 function findMainPluginBtn() {
   // 新版 ChatGPT 把侧边栏项从 button 改成了 div[role="link"]，两种都匹配
@@ -625,7 +536,8 @@ function makeMainThemeBtn(plug) {
   btn.className = plug.className;
   btn.setAttribute("data-codexpp-main-theme", "true");
   btn.classList.remove("bg-token-list-hover-background");
-  const label = lang === "zh" ? "主题" : "Theme";
+  const isZh = /[\u4e00-\u9fff]/.test(plug.textContent || "");
+  const label = isZh ? "主题" : "Theme";
   const inner = document.createElement("div");
   inner.className = "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
   inner.innerHTML = MAIN_THEME_ICON_SVG + `<span class="truncate">${label}</span>`;
@@ -724,12 +636,6 @@ function syncMainNav(api) {
   const group = plug.parentElement;
   // fingerprint：按钮已在正确位置时跳过，避免 MutationObserver 死循环
   if (mainThemeBtn && mainThemeBtn.parentElement === group) {
-    if (!langBtn || langBtn.previousElementSibling !== mainThemeBtn) {
-      if (langBtn) langBtn.remove();
-      langBtn = makeLangBtn(api);
-      mainThemeBtn.insertAdjacentElement("afterend", langBtn);
-    }
-    updateLangUI();
     if (mainSidebarGroup !== group) {
       if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
       mainSidebarGroup = group;
@@ -749,10 +655,20 @@ function syncMainNav(api) {
     true,
   );
   plug.insertAdjacentElement("afterend", mainThemeBtn);
-  if (langBtn) langBtn.remove();
-  langBtn = makeLangBtn(api);
-  mainThemeBtn.insertAdjacentElement("afterend", langBtn);
-  updateLangUI();
+  if (!loggedSidebarOnce) {
+    loggedSidebarOnce = true;
+    api.log.info(
+      "main nav: sidebar items",
+      JSON.stringify(
+        [...document.querySelectorAll(".sidebar-item")].map((el) => ({
+          tag: el.tagName,
+          role: el.getAttribute("role"),
+          text: (el.textContent || "").trim().slice(0, 40),
+          ours: !!el.getAttribute("data-codexpp-main-theme"),
+        })),
+      ),
+    );
+  }
   if (mainSidebarGroup !== group) {
     if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
     mainSidebarGroup = group;
@@ -762,7 +678,7 @@ function syncMainNav(api) {
 }
 
 function cleanupMainNavResidue() {
-  for (const btn of [...document.querySelectorAll("[data-codexpp-main-theme], [data-codexpp-lang-toggle]")]) btn.remove();
+  for (const btn of [...document.querySelectorAll("[data-codexpp-main-theme]")]) btn.remove();
   const mainEl = document.querySelector("main");
   if (mainEl) {
     for (const host of [...mainEl.querySelectorAll("[data-codexpp-main-theme-host]")]) host.remove();
@@ -795,22 +711,18 @@ function stopMainNav() {
     mainThemeBtn.remove();
     mainThemeBtn = null;
   }
-  if (langBtn) {
-    langBtn.remove();
-    langBtn = null;
-  }
   restoreMainTheme();
 }
 
 module.exports = {
   async start(api) {
     if (api.process !== "renderer") return;
-    // 宠物/迷你窗口不换肤：避免 Dream Skin 背景把官方透明背景盖成空白框
-    if (document.documentElement?.classList.contains("compact-window")) {
+    // 浮层/迷你窗口不换肤：只服务首页主窗口。浮层 URL 带 initialRoute 参数，
+    // compact-window 类在 preload 之后才加上，只查类会在浮层页误启动注入脚本空转。
+    if (location.search || document.documentElement?.classList.contains("compact-window")) {
       teardownSkin();
       return;
     }
-    lang = api.storage.get("lang") === "en" ? "en" : "zh";
     const list = await readCustomIndex(api);
     await migrateLegacySelection(api, list);
     const sel = api.storage.get("selection") || { type: "preset", id: DEFAULT_PRESET };
