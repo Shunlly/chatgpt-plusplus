@@ -249,6 +249,17 @@ case "$APP_PATH" in
     ;;
 esac
 
+# 已安装过：直接打开补丁后的官方应用（ChatGPT++ 不是独立程序，使用入口是 ChatGPT/Codex）。
+STATE="$HOME/Library/Application Support/chatgpt-plusplus/state.json"
+if [ -f "$STATE" ]; then
+  for APP in "/Applications/ChatGPT.app" "/Applications/Codex.app"; do
+    if [ -d "$APP" ]; then
+      open "$APP"
+      exit 0
+    fi
+  done
+fi
+
 osascript <<APPLESCRIPT
 tell application "Terminal"
   activate
@@ -293,8 +304,9 @@ function installNotes(version) {
 =================================
 
 1. 把 ChatGPT++.app 拖进 Applications 文件夹（或直接双击，它会自动复制）。
-2. 双击 ChatGPT++.app，会打开"终端"窗口并自动给 ChatGPT/Codex 应用打补丁。
-3. 安装完成后启动 ChatGPT/Codex，在设置里找到 ChatGPT++。
+2. 双击 ChatGPT++.app：首次运行会打开"终端"窗口自动给 ChatGPT/Codex 应用打补丁；
+   安装完成后（/Applications 里）再双击，会直接打开 ChatGPT/Codex 应用。
+3. 在 ChatGPT/Codex 设置里找到 ChatGPT++，即可切换皮肤等。
 
 也可以从终端手动使用完整命令：
   /Applications/ChatGPT++.app/Contents/MacOS/chatgpt-plusplus install
