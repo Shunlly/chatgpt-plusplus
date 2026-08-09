@@ -514,8 +514,9 @@ let mainThemeHost = null;
 let mainSidebarGroup = null;
 
 function findMainPluginBtn() {
-  return [...document.querySelectorAll("button.sidebar-item")]
-    .find((b) => (b.textContent || "").trim() === "插件");
+  // 新版 ChatGPT 把侧边栏项从 button 改成了 div[role="link"]，两种都匹配
+  return [...document.querySelectorAll(".sidebar-item")]
+    .find((b) => ["插件", "Plugins"].includes((b.textContent || "").trim()));
 }
 
 const MAIN_THEME_ICON_SVG =
@@ -524,8 +525,13 @@ const MAIN_THEME_ICON_SVG =
 function makeMainThemeBtn(plug) {
   // 参照官方 sidebar-item 样式重建：只保留图标 + “主题”文本，
   // clone 官方按钮会残留原按钮多余的文本节点导致换行乱码
-  const btn = document.createElement("button");
-  btn.type = "button";
+  const isLink = plug.tagName !== "BUTTON";
+  const btn = document.createElement(isLink ? "div" : "button");
+  if (!isLink) btn.type = "button";
+  else {
+    btn.setAttribute("role", "link");
+    btn.setAttribute("tabindex", "0");
+  }
   btn.className = plug.className;
   btn.setAttribute("data-codexpp-main-theme", "true");
   btn.setAttribute("aria-label", "主题");
@@ -587,14 +593,31 @@ function activateMainTheme(api) {
 }
 
 function onMainSidebarClick(e) {
-  const t = e.target instanceof Element ? e.target.closest("button") : null;
+  const t = e.target instanceof Element ? e.target.closest("button, [role=\"link\"]") : null;
   if (!t) return;
   if (t === mainThemeBtn || (t.dataset && t.dataset.codexppMainTheme)) return;
   restoreMainTheme();
 }
 
 function syncMainNav(api) {
-  const plug = findMainPluginBtn();
+  let plug = findMainPluginBtn();
+  // 兜底：新版界面若已无“插件”项，也把“主题”入口挂到侧边栏首项后面，
+  // 保证入口始终在首页侧边栏可见；同时记录真实 DOM 结构便于排查。
+  if (!plug) {
+    plug = document.querySelector(".sidebar-item");
+    if (plug && !mainThemeBtn) {
+      api.log.info(
+        "main nav: 未找到插件入口，兜底挂到首项",
+        JSON.stringify({
+          items: [...document.querySelectorAll(".sidebar-item")].map((el) => ({
+            tag: el.tagName,
+            role: el.getAttribute("role"),
+            text: (el.textContent || "").trim().slice(0, 30),
+          })),
+        }),
+      );
+    }
+  }
   if (!plug) {
     if (mainThemeBtn) {
       mainThemeBtn.remove();
