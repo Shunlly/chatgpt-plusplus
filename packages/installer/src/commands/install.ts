@@ -452,9 +452,18 @@ async function injectLoader(
     originalMain = String(pkg.main ?? "");
     if (!originalMain) throw new Error("app.asar package.json has no `main` field");
 
-    // Already patched? Bail.
+    // Already patched? 保留原入口，但刷新 userRoot/loader 指向：
+    // 用户数据目录随项目改名迁移过（codex-plusplus -> chatgpt-plusplus），
+    // 旧指针会指向已不存在的目录，导致应用未打补丁直接启动、tweak 全部消失。
     if (pkg["__codexpp"]) {
       originalMain = String(pkg["__codexpp"].originalMain);
+      pkg["__codexpp"] = {
+        ...(pkg["__codexpp"] as object),
+        userRoot,
+        loader: "chatgpt-plusplus-loader.cjs",
+      };
+      pkg.main = "chatgpt-plusplus-loader.cjs";
+      writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
     } else {
       pkg["__codexpp"] = {
         originalMain,
