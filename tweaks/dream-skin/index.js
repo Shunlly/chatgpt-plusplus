@@ -729,6 +729,9 @@ function onMainSidebarClick(e) {
   const t = e.target instanceof Element ? e.target.closest("button, [role=\"link\"], [role=\"button\"]") : null;
   if (!t) return;
   if (t === mainThemeBtn || t === langBtn || (t.dataset && (t.dataset.codexppMainTheme || t.dataset.codexppLangToggle))) return;
+  // 主题页内部的按钮（应用/删除/上传等）不关闭浮层
+  if (mainThemeHost && mainThemeHost.contains(t)) return;
+  // 点击会话列表、官方导航等任意入口时关闭主题浮层，避免“从主题页切不回去”
   restoreMainTheme();
 }
 
@@ -764,6 +767,8 @@ function syncMainNav(api) {
       mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
       mainSidebarGroup = null;
     }
+    document.addEventListener("click", onMainSidebarClick, true);
+    mainSidebarGroup = document;
     restoreMainTheme();
     return;
   }
@@ -779,10 +784,9 @@ function syncMainNav(api) {
       mainThemeBtn.insertAdjacentElement("afterend", langBtn);
     }
     updateLangUI();
-    if (mainSidebarGroup !== group) {
-      if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
-      mainSidebarGroup = group;
-      group.addEventListener("click", onMainSidebarClick, true);
+    if (!mainSidebarGroup) {
+      document.addEventListener("click", onMainSidebarClick, true);
+      mainSidebarGroup = document;
     }
     return;
   }
@@ -816,10 +820,9 @@ function syncMainNav(api) {
       ),
     );
   }
-  if (mainSidebarGroup !== group) {
-    if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
-    mainSidebarGroup = group;
-    group.addEventListener("click", onMainSidebarClick, true);
+  if (!mainSidebarGroup) {
+    document.addEventListener("click", onMainSidebarClick, true);
+    mainSidebarGroup = document;
   }
   setMainThemeActive(!!mainThemeHost);
 }
