@@ -26,6 +26,7 @@ import {
 import { spawnSync } from "node:child_process";
 import { build } from "esbuild";
 import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -197,22 +198,16 @@ function buildDmg(binary) {
   const ver = version();
   const arch = process.arch === "arm64" ? "arm64" : "x64";
 
-  // 用已解压的 Electron 模板手工组装独立 GUI 应用（不依赖 electron-packager 的 zip 解压）
-  const dist = electronTemplate();
   const stage = join(OUT, "dmg");
   rmSync(stage, { recursive: true, force: true });
   const app = join(stage, `${APP_NAME}.app`);
-  // verbatimSymlinks：保留框架内的相对符号链接（Node 默认会转成绝对路径，破坏签名）
-  cpSync(join(dist, "Electron.app"), app, { recursive: true, verbatimSymlinks: true });
 
-  // 可执行文件改名 Electron -> ChatGPT++，并写自己的 Info.plist
-  const macosDir = join(app, "Contents", "MacOS");
-  copyFileSync(join(macosDir, "Electron"), join(macosDir, APP_NAME));
-  chmodSync(join(macosDir, APP_NAME), 0o755);
-  rmSync(join(macosDir, "Electron"));
-  writeFileSync(join(app, "Contents", "Info.plist"), infoPlist(ver));
-
-  stageGuiResources(app, binary, ver);
+  // DMG 直接打包“补丁后的完整应用”：安装完双击就是增强版 ChatGPT 主界面，
+  // 不需要再经过安装引导（用户明确要求开箱即用）。
+  const patched = ensurePatchedApp();
+  cpSync(patched, app, { recursive: true, verbatimSymlinks: true });
+  // 副本内附带修复/卸载入口（CLI + 旁置资源），避免重新打补丁还要找安装包。
+  stageRepairCli(app, binary, ver);
   // --deep 递归签名嵌套的 Helper 等子 app（符号链接已 verbatim 保留，不再报 unsealed）
   run("codesign", ["--force", "--deep", "--sign", "-", app], ROOT);
 
@@ -238,6 +233,57 @@ function buildDmg(binary) {
     dmg,
   ], ROOT);
   console.log(`✅ DMG 已生成：${dmg}`);
+}
+
+// 已补丁副本的判定：独立 bundle id + 独立启动器（ChatGPT.bin）+ 打补丁后的 app.asar。
+function isPatchedCopy(appRoot) {
+  try {
+    const plist = readFileSync(join(appRoot, "Contents", "Info.plist"), "utf8");
+    return (
+      plist.includes("com.openai.chatgptpp") &&
+      existsSync(join(appRoot, "Contents", "MacOS", "ChatGPT.bin")) &&
+      existsSync(join(appRoot, "Contents", "Resources", "app.asar"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+// 定位补丁副本；不存在时用官方 ChatGPT.app 现打一份（install 产物即 DMG 内容）。
+function ensurePatchedApp() {
+  const candidates = [
+    join(homedir(), "Applications", "ChatGPT++.app"),
+    "/Applications/ChatGPT++.app",
+  ];
+  const existing = candidates.find(isPatchedCopy);
+  if (existing) return existing;
+  console.log("未找到已补丁的 ChatGPT++.app，正在用官方 ChatGPT.app 生成补丁副本…");
+  run(process.execPath, [join(ROOT, "bin", "chatgptplusplus.js"), "install"], ROOT);
+  const patched = candidates.find(isPatchedCopy);
+  if (!patched) {
+    throw new Error(
+      `补丁副本生成失败（${candidates.join(" / ")}）。请确认已安装官方 ChatGPT.app 并检查上方错误日志。`,
+    );
+  }
+  return patched;
+}
+
+// 往补丁副本里塞：CLI 二进制、standalone.json、assets、tweaks（修复/卸载入口）。
+function stageRepairCli(appOrDir, binary, ver) {
+  const resourcesDir = join(appOrDir, "Contents", "Resources");
+  const cliDir = join(resourcesDir, "cli");
+  mkdirSync(cliDir, { recursive: true });
+  copyFileSync(binary, join(cliDir, PACKAGE_NAME));
+  chmodSync(join(cliDir, PACKAGE_NAME), 0o755);
+  for (const dir of [resourcesDir, cliDir]) {
+    writeFileSync(join(dir, "standalone.json"), JSON.stringify({
+      name: PACKAGE_NAME,
+      version: ver,
+      kind: "standalone",
+    }, null, 2));
+  }
+  cpSync(join(ROOT, "packages", "installer", "assets"), join(resourcesDir, "assets"), { recursive: true });
+  cpSync(join(ROOT, "tweaks"), join(resourcesDir, "tweaks"), { recursive: true });
 }
 
 // 已解压的 Electron 模板目录（node_modules/electron/dist）。
@@ -280,41 +326,23 @@ function stageGuiResources(appOrDir, binary, ver) {
   cpSync(join(ROOT, "tweaks"), join(resourcesDir, "tweaks"), { recursive: true });
 }
 
-function infoPlist(version) {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
-  <key>CFBundleExecutable</key><string>${APP_NAME}</string>
-  <key>CFBundleIdentifier</key><string>com.chatgptplusplus.app</string>
-  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-  <key>CFBundleName</key><string>${APP_NAME}</string>
-  <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>${version}</string>
-  <key>CFBundleVersion</key><string>${version}</string>
-  <key>LSMinimumSystemVersion</key><string>10.15</string>
-  <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
-  <key>NSHighResolutionCapable</key><true/>
-</dict>
-</plist>
-`;
-}
-
 function installNotes(version) {
   return `ChatGPT++ ${version} 安装说明（macOS）
 =================================
 
 1. 把 ChatGPT++.app 拖进 Applications 文件夹（或直接双击，它会自动复制）。
-2. 双击 ChatGPT++.app 打开独立图形界面，点击"安装"给 ChatGPT/Codex 打补丁。
-3. 安装完成后点"打开 ChatGPT"即可使用；主题可在界面里直接切换。
+2. 打开即用：双击 ChatGPT++.app 直接打开增强版 ChatGPT 主界面，
+   主题等特征已内置，无需任何额外安装步骤。
+3. 官方 ChatGPT 出新版本后，下载新版安装包覆盖即可同步更新。
 
 卸载：
-  在 ChatGPT++ 界面点"卸载"，或执行：
+  在终端执行：
   /Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus uninstall
 
-注意：本安装包未做 Apple 公证。若打开提示"已损坏，无法打开"，
+修复 / 重新打补丁：
+  /Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus install
+
+注意：本安装包未做 Apple 公证。若打开提示“已损坏，无法打开”，
 请在终端执行后重试：
   xattr -dr com.apple.quarantine "/Applications/ChatGPT++.app"
 或者右键 ChatGPT++.app -> 打开。

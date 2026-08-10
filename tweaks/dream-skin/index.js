@@ -435,22 +435,10 @@ function renderPage(api, root) {
     reader.readAsDataURL(file);
   };
 
-  // 我的主题列表
+  // 自定义主题并入上方“已保存主题”网格（预设之后追加），统一管理。
   readCustomIndex(api).then((list) => {
     if (seq !== renderSeq) return; // 页面已重建，丢弃过期渲染
     if (!list.length) return;
-    const title = document.createElement("div");
-    title.className = "flex h-toolbar items-center justify-between gap-2 px-0 py-0";
-    const titleText = document.createElement("div");
-    titleText.className = "text-sm font-medium text-token-text-primary";
-    titleText.textContent = "我的主题";
-    title.append(titleText);
-    root.append(title);
-
-    const myGrid = document.createElement("div");
-    myGrid.className = "grid grid-cols-2 gap-3 md:grid-cols-3";
-    root.append(myGrid);
-
     for (const entry of list) {
       const item = document.createElement("div");
       item.className =
@@ -506,7 +494,7 @@ function renderPage(api, root) {
       };
       actions.append(applyBtn, deleteBtn);
       item.append(thumb, name, actions);
-      myGrid.append(item);
+      grid.append(item);
       readCustomRecord(api, entry.id)
         .then((rec) => {
           img.src = dataUrlToObjectUrl(rec.artUrl);
@@ -550,6 +538,111 @@ let mainThemeHost = null;
 let mainSidebarGroup = null;
 let loggedSidebarOnce = false;
 
+// ── 界面语言：默认随系统（中文系统→中文），侧边栏可手动切换并持久化 ──
+// 只翻译固定菜单（New chat/Pull requests/Scheduled/Plugins/Settings），不动会话标题。
+// 翻译用定时扫描而非在 MutationObserver 里改写 textContent：观察器触发改写会与
+// React 渲染互相触发（v1.1.4 曾因此主线程 100% 卡死），定时扫描有去重守卫，安全。
+let lang = null;
+let langBtn = null;
+let langTimer = null;
+const SIDEBAR_LABELS = {
+  "New chat": "新对话",
+  "Pull requests": "拉取请求",
+  "Scheduled": "定时任务",
+  "Plugins": "插件",
+  "Settings": "设置",
+};
+const LANG_ICON_SVG =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+
+function resolveLang(api) {
+  const saved = api.storage.get("lang");
+  if (saved === "zh" || saved === "en") return saved;
+  return /^zh/i.test(navigator.language || "") ? "zh" : "en";
+}
+
+// 官方按钮含可见文本 + 无障碍文本等多个文本节点/span，全部替换避免拼接残留。
+function replaceBtnLabel(el, text) {
+  let replaced = false;
+  for (const node of el.childNodes) {
+    if (node.nodeType === 3 && (node.textContent || "").trim()) {
+      node.textContent = text;
+      replaced = true;
+    }
+  }
+  for (const span of el.querySelectorAll("span")) {
+    if (span.textContent && span.textContent.trim()) {
+      span.textContent = text;
+      replaced = true;
+    }
+  }
+  return replaced;
+}
+
+// 定时扫描翻译固定菜单；已翻译的跳过（去重守卫，避免与 React 互相触发）。
+function translateSidebar() {
+  if (!lang) return;
+  for (const el of [...document.querySelectorAll("button.sidebar-item")]) {
+    const text = (el.textContent || "").trim();
+    const zh = SIDEBAR_LABELS[text];
+    if (!zh) continue;
+    if (el.dataset.codexppLangOriginal === text && (el.textContent || "").trim() === zh) continue;
+    if (replaceBtnLabel(el, zh)) {
+      el.dataset.codexppLangOriginal = text;
+      el.dataset.codexppLangZh = zh;
+    }
+  }
+}
+
+// 恢复英文：只还原我们翻译过的按钮。
+function untranslateSidebar() {
+  for (const el of [...document.querySelectorAll("button.sidebar-item[data-codexpp-lang-original]")]) {
+    replaceBtnLabel(el, el.dataset.codexppLangOriginal || "");
+    delete el.dataset.codexppLangOriginal;
+    delete el.dataset.codexppLangZh;
+  }
+}
+
+function makeLangBtn(api) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = mainThemeBtn ? mainThemeBtn.className : "sidebar-item";
+  btn.setAttribute("data-codexpp-lang-toggle", "true");
+  btn.classList.remove("bg-token-list-hover-background");
+  const inner = document.createElement("div");
+  inner.className = "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
+  inner.innerHTML = LANG_ICON_SVG + '<span class="truncate"></span>';
+  btn.appendChild(inner);
+  btn.addEventListener(
+    "click",
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      lang = lang === "zh" ? "en" : "zh";
+      api.storage.set("lang", lang);
+      updateLangUI();
+      api.log.info("lang switched", JSON.stringify({ lang }));
+    },
+    true,
+  );
+  return btn;
+}
+
+function updateLangUI() {
+  if (mainThemeBtn) {
+    const span = mainThemeBtn.querySelector("span.truncate");
+    if (span) span.textContent = lang === "zh" ? "主题" : "Theme";
+    mainThemeBtn.setAttribute("aria-label", lang === "zh" ? "主题" : "Theme");
+  }
+  if (langBtn) {
+    const span = langBtn.querySelector("span.truncate");
+    if (span) span.textContent = lang === "zh" ? "English" : "中文";
+    langBtn.setAttribute("aria-label", "切换语言");
+  }
+  if (lang === "zh") translateSidebar();
+  else untranslateSidebar();
+}
+
 function findMainPluginBtn() {
   // 新版 ChatGPT 把侧边栏项从 button 改成了 div[role="link"]，两种都匹配
   return [...document.querySelectorAll(".sidebar-item")]
@@ -572,8 +665,7 @@ function makeMainThemeBtn(plug) {
   btn.className = plug.className;
   btn.setAttribute("data-codexpp-main-theme", "true");
   btn.classList.remove("bg-token-list-hover-background");
-  const isZh = /[\u4e00-\u9fff]/.test(plug.textContent || "");
-  const label = isZh ? "主题" : "Theme";
+  const label = lang === "zh" ? "主题" : "Theme";
   const inner = document.createElement("div");
   inner.className = "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
   inner.innerHTML = MAIN_THEME_ICON_SVG + `<span class="truncate">${label}</span>`;
@@ -588,20 +680,17 @@ function setMainThemeActive(active) {
   else mainThemeBtn.classList.remove("bg-token-list-hover-background");
 }
 
+// 主题页改为浮层覆盖内容区：官方视图从不隐藏，React 导航不受干扰，
+// 点击任意官方入口时移除浮层即可，修复“从主题页切回会话无反应”的问题。
 function restoreMainTheme() {
   if (!mainThemeHost) return;
-  const mainEl = document.querySelector("main");
-  if (mainEl) {
-    for (const child of Array.from(mainEl.children)) {
-      if (child === mainThemeHost) continue;
-      if (child.dataset && child.dataset.codexppMainHidden !== undefined) {
-        child.style.display = child.dataset.codexppMainHidden;
-        delete child.dataset.codexppMainHidden;
-      }
-    }
-  }
   mainThemeHost.remove();
   mainThemeHost = null;
+  const mainEl = document.querySelector("main");
+  if (mainEl && mainEl.dataset.codexppMainPos !== undefined) {
+    mainEl.style.position = mainEl.dataset.codexppMainPos;
+    delete mainEl.dataset.codexppMainPos;
+  }
   setMainThemeActive(false);
 }
 
@@ -614,16 +703,15 @@ function activateMainTheme(api) {
   }
   const host = document.createElement("div");
   host.dataset.codexppMainThemeHost = "true";
-  // 顶部固定标题栏（h-toolbar ≈ 46px）悬于内容区之上，主题页内容从工具栏下方开始
-  host.style.cssText = "width:100%;height:calc(100% - 46px);margin-top:46px;overflow:auto;";
-  for (const child of Array.from(mainEl.children)) {
-    if (child === host) continue;
-    const r = child.getBoundingClientRect();
-    // 固定标题栏与拖拽辅助节点（宽/高极小）不动，只隐藏实际内容容器
-    if (r.width < 50 || r.height < 50) continue;
-    if (child.dataset && child.dataset.codexppMainHidden !== undefined) continue;
-    child.dataset.codexppMainHidden = child.style.display || "";
-    child.style.display = "none";
+  // 顶部固定标题栏（h-toolbar ≈ 46px）保持可点，浮层从工具栏下方开始覆盖内容区
+  // 背景用内容区实际背景色，避免浮层透明露出底层官方视图
+  const mainBg = getComputedStyle(mainEl).backgroundColor;
+  host.style.cssText =
+    "position:absolute;top:46px;left:0;right:0;bottom:0;overflow:auto;z-index:50;" +
+    (mainBg && mainBg !== "transparent" ? `background:${mainBg};` : "");
+  if (mainEl.dataset.codexppMainPos === undefined) {
+    mainEl.dataset.codexppMainPos = mainEl.style.position || "";
+    mainEl.style.position = "relative";
   }
   mainEl.appendChild(host);
   mainThemeHost = host;
@@ -632,9 +720,9 @@ function activateMainTheme(api) {
 }
 
 function onMainSidebarClick(e) {
-  const t = e.target instanceof Element ? e.target.closest("button, [role=\"link\"]") : null;
+  const t = e.target instanceof Element ? e.target.closest("button, [role=\"link\"], [role=\"button\"]") : null;
   if (!t) return;
-  if (t === mainThemeBtn || (t.dataset && t.dataset.codexppMainTheme)) return;
+  if (t === mainThemeBtn || t === langBtn || (t.dataset && (t.dataset.codexppMainTheme || t.dataset.codexppLangToggle))) return;
   restoreMainTheme();
 }
 
@@ -662,6 +750,10 @@ function syncMainNav(api) {
       mainThemeBtn.remove();
       mainThemeBtn = null;
     }
+    if (langBtn) {
+      langBtn.remove();
+      langBtn = null;
+    }
     if (mainSidebarGroup) {
       mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
       mainSidebarGroup = null;
@@ -672,6 +764,15 @@ function syncMainNav(api) {
   const group = plug.parentElement;
   // fingerprint：按钮已在正确位置时跳过，避免 MutationObserver 死循环
   if (mainThemeBtn && mainThemeBtn.parentElement === group) {
+    if (langBtn && langBtn.previousElementSibling !== mainThemeBtn) {
+      langBtn.remove();
+      langBtn = null;
+    }
+    if (!langBtn) {
+      langBtn = makeLangBtn(api);
+      mainThemeBtn.insertAdjacentElement("afterend", langBtn);
+    }
+    updateLangUI();
     if (mainSidebarGroup !== group) {
       if (mainSidebarGroup) mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
       mainSidebarGroup = group;
@@ -691,6 +792,10 @@ function syncMainNav(api) {
     true,
   );
   plug.insertAdjacentElement("afterend", mainThemeBtn);
+  if (langBtn) langBtn.remove();
+  langBtn = makeLangBtn(api);
+  mainThemeBtn.insertAdjacentElement("afterend", langBtn);
+  updateLangUI();
   if (!loggedSidebarOnce) {
     loggedSidebarOnce = true;
     api.log.info(
@@ -715,12 +820,18 @@ function syncMainNav(api) {
 
 function cleanupMainNavResidue() {
   for (const btn of [...document.querySelectorAll("[data-codexpp-main-theme]")]) btn.remove();
+  for (const btn of [...document.querySelectorAll("[data-codexpp-lang-toggle]")]) btn.remove();
+  for (const el of [...document.querySelectorAll("button.sidebar-item[data-codexpp-lang-original]")]) {
+    replaceBtnLabel(el, el.dataset.codexppLangOriginal || "");
+    delete el.dataset.codexppLangOriginal;
+    delete el.dataset.codexppLangZh;
+  }
   const mainEl = document.querySelector("main");
   if (mainEl) {
     for (const host of [...mainEl.querySelectorAll("[data-codexpp-main-theme-host]")]) host.remove();
-    for (const child of [...mainEl.querySelectorAll("[data-codexpp-main-hidden]")]) {
-      child.style.display = child.dataset.codexppMainHidden || "";
-      delete child.dataset.codexppMainHidden;
+    if (mainEl.dataset.codexppMainPos !== undefined) {
+      mainEl.style.position = mainEl.dataset.codexppMainPos;
+      delete mainEl.dataset.codexppMainPos;
     }
   }
 }
@@ -728,9 +839,11 @@ function cleanupMainNavResidue() {
 function startMainNav(api) {
   if (mainNavObserver) return;
   cleanupMainNavResidue();
+  lang = resolveLang(api);
   syncMainNav(api);
   mainNavObserver = new MutationObserver(() => syncMainNav(api));
   mainNavObserver.observe(document.documentElement, { childList: true, subtree: true });
+  if (!langTimer) langTimer = setInterval(() => translateSidebar(), 2000);
   api.log.info("main nav ready", JSON.stringify({ href: location.href, plug: !!findMainPluginBtn() }));
 }
 
@@ -739,6 +852,10 @@ function stopMainNav() {
     mainNavObserver.disconnect();
     mainNavObserver = null;
   }
+  if (langTimer) {
+    clearInterval(langTimer);
+    langTimer = null;
+  }
   if (mainSidebarGroup) {
     mainSidebarGroup.removeEventListener("click", onMainSidebarClick, true);
     mainSidebarGroup = null;
@@ -746,6 +863,10 @@ function stopMainNav() {
   if (mainThemeBtn) {
     mainThemeBtn.remove();
     mainThemeBtn = null;
+  }
+  if (langBtn) {
+    langBtn.remove();
+    langBtn = null;
   }
   restoreMainTheme();
 }
