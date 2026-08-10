@@ -628,16 +628,22 @@ function makeLangBtn(api) {
   return btn;
 }
 
+// 只在实际文本变化时才写 DOM：textContent 赋值即使内容相同也会替换文本节点，
+// 会触发全局 MutationObserver（syncMainNav）→ 再写 → 无限循环（渲染进程 100% CPU）。
+function setTextOnce(el, text) {
+  if (!el) return;
+  if (el.textContent === text) return;
+  el.textContent = text;
+}
 function updateLangUI() {
   if (mainThemeBtn) {
-    const span = mainThemeBtn.querySelector("span.truncate");
-    if (span) span.textContent = lang === "zh" ? "主题" : "Theme";
-    mainThemeBtn.setAttribute("aria-label", lang === "zh" ? "主题" : "Theme");
+    setTextOnce(mainThemeBtn.querySelector("span.truncate"), lang === "zh" ? "主题" : "Theme");
+    const label = lang === "zh" ? "主题" : "Theme";
+    if (mainThemeBtn.getAttribute("aria-label") !== label) mainThemeBtn.setAttribute("aria-label", label);
   }
   if (langBtn) {
-    const span = langBtn.querySelector("span.truncate");
-    if (span) span.textContent = lang === "zh" ? "English" : "中文";
-    langBtn.setAttribute("aria-label", "切换语言");
+    setTextOnce(langBtn.querySelector("span.truncate"), lang === "zh" ? "English" : "中文");
+    if (langBtn.getAttribute("aria-label") !== "切换语言") langBtn.setAttribute("aria-label", "切换语言");
   }
   if (lang === "zh") translateSidebar();
   else untranslateSidebar();
