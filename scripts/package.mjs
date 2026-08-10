@@ -213,9 +213,8 @@ function buildDmg(binary) {
   writeFileSync(join(app, "Contents", "Info.plist"), infoPlist(ver));
 
   stageGuiResources(app, binary, ver);
-  // 框架与 app 分开签名（--deep 对框架内的符号链接会报 unsealed contents）
-  run("codesign", ["--force", "--sign", "-", join(app, "Contents", "Frameworks", "Electron Framework.framework")], ROOT);
-  run("codesign", ["--force", "--sign", "-", app], ROOT);
+  // --deep 递归签名嵌套的 Helper 等子 app（符号链接已 verbatim 保留，不再报 unsealed）
+  run("codesign", ["--force", "--deep", "--sign", "-", app], ROOT);
 
   writeFileSync(join(stage, "安装说明.txt"), installNotes(ver));
   try {
@@ -315,7 +314,10 @@ function installNotes(version) {
   在 ChatGPT++ 界面点"卸载"，或执行：
   /Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus uninstall
 
-注意：本安装包未做 Apple 公证，首次打开若被 Gatekeeper 拦截，请右键 -> 打开。
+注意：本安装包未做 Apple 公证。若打开提示"已损坏，无法打开"，
+请在终端执行后重试：
+  xattr -dr com.apple.quarantine "/Applications/ChatGPT++.app"
+或者右键 ChatGPT++.app -> 打开。
 `;
 }
 
