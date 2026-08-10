@@ -710,11 +710,23 @@ function activateMainTheme(api) {
   const host = document.createElement("div");
   host.dataset.codexppMainThemeHost = "true";
   // 顶部固定标题栏（h-toolbar ≈ 46px）保持可点，浮层从工具栏下方开始覆盖内容区
-  // 背景用内容区实际背景色，避免浮层透明露出底层官方视图
-  const mainBg = getComputedStyle(mainEl).backgroundColor;
+  // 背景沿用皮肤挂在 body 上的背景图/色，保证主题页与聊天区一致（而不是显示
+  // 官方新会话的白色页面）
+  const bodyStyle = getComputedStyle(document.body);
+  const bgImage =
+    bodyStyle.backgroundImage && bodyStyle.backgroundImage !== "none"
+      ? bodyStyle.backgroundImage
+      : "";
+  const bgColor =
+    bodyStyle.backgroundColor && bodyStyle.backgroundColor !== "transparent"
+      ? bodyStyle.backgroundColor
+      : "";
   host.style.cssText =
     "position:absolute;top:46px;left:0;right:0;bottom:0;overflow:auto;z-index:50;" +
-    (mainBg && mainBg !== "transparent" ? `background:${mainBg};` : "");
+    (bgImage
+      ? `background-image:${bgImage};background-size:cover;background-position:center;`
+      : "") +
+    (bgColor ? `background-color:${bgColor};` : "");
   if (mainEl.dataset.codexppMainPos === undefined) {
     mainEl.dataset.codexppMainPos = mainEl.style.position || "";
     mainEl.style.position = "relative";

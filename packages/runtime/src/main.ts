@@ -564,6 +564,7 @@ if (isChatgptPlusPlusSafeModeEnabled()) {
 }
 
 // 2. Initial tweak discovery + main-scope load.
+migrateLegacyDreamSkinCustomThemes();
 loadAllMainTweaks();
 
 app.on("will-quit", () => {
@@ -938,6 +939,65 @@ try {
 }
 
 // --- helpers ---
+
+// 迁移旧版 CodexDreamSkinStudio（独立皮肤工具）里的自定义主题到
+// dream-skin tweak 的数据目录，避免用户换到 chatgpt++ 后丢失自己做的主题。
+// 幂等：已迁移的主题（custom/<id>.json 已存在）跳过；源目录不存在（非 macOS /
+// 未装过旧工具）时直接返回；任何失败只记录日志，不阻塞启动。
+function migrateLegacyDreamSkinCustomThemes(): void {
+  try {
+    const studioThemes = join(
+      homedir(),
+      "Library",
+      "Application Support",
+      "CodexDreamSkinStudio",
+      "themes",
+    );
+    if (!existsSync(studioThemes)) return;
+    const dstDir = join(userRoot, "tweak-data", "com.codexplusplus.dream-skin", "custom");
+    mkdirSync(dstDir, { recursive: true });
+    const indexFile = join(dstDir, "index.json");
+    let index: Array<{ id: string; name: string }> = [];
+    try {
+      index = JSON.parse(readFileSync(indexFile, "utf8"));
+      if (!Array.isArray(index)) index = [];
+    } catch {
+      index = [];
+    }
+    let migrated = 0;
+    for (const dir of readdirSync(studioThemes)) {
+      if (dir.startsWith("preset-")) continue;
+      const themeFile = join(studioThemes, dir, "theme.json");
+      const bgFile = join(studioThemes, dir, "background.jpg");
+      if (!existsSync(themeFile) || !existsSync(bgFile)) continue;
+      let theme: { id?: string; name?: string };
+      try {
+        theme = JSON.parse(readFileSync(themeFile, "utf8"));
+      } catch {
+        continue;
+      }
+      const id = theme?.id || `custom-${dir}`;
+      const outFile = join(dstDir, `${id}.json`);
+      if (existsSync(outFile)) continue; // 已迁移
+      const artUrl =
+        "data:image/jpeg;base64," + readFileSync(bgFile).toString("base64");
+      writeFileSync(
+        outFile,
+        JSON.stringify({ name: theme.name || dir, artUrl, theme }),
+      );
+      if (!index.some((x) => x.id === id)) {
+        index.push({ id, name: theme.name || dir });
+      }
+      migrated++;
+    }
+    if (migrated > 0) {
+      writeFileSync(indexFile, JSON.stringify(index));
+      log("info", `migrated ${migrated} legacy dream-skin custom theme(s)`);
+    }
+  } catch (e) {
+    log("warn", "legacy dream-skin theme migration skipped:", String((e as Error)?.stack ?? e));
+  }
+}
 
 function loadAllMainTweaks(): void {
   try {
