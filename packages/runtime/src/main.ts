@@ -954,7 +954,7 @@ function migrateLegacyDreamSkinCustomThemes(): void {
       "themes",
     );
     if (!existsSync(studioThemes)) return;
-    const dstDir = join(userRoot, "tweak-data", "com.codexplusplus.dream-skin", "custom");
+    const dstDir = join(userRoot!, "tweak-data", "com.codexplusplus.dream-skin", "custom");
     mkdirSync(dstDir, { recursive: true });
     const indexFile = join(dstDir, "index.json");
     let index: Array<{ id: string; name: string }> = [];
