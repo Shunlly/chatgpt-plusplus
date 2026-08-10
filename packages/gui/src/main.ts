@@ -29,6 +29,20 @@ function tryReadJson(file: string): unknown | null {
   }
 }
 
+// 打开补丁后的官方应用主界面（ChatGPT++ 是增强层，入口即 ChatGPT/Codex 本体）。
+async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> {
+  const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
+  const candidates =
+    process.platform === "win32"
+      ? [state?.appRoot].filter((p): p is string => !!p && existsSync(p))
+      : ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
+  for (const appPath of candidates) {
+    const err = await shell.openPath(appPath);
+    if (!err) return { ok: true, error: null };
+  }
+  return { ok: false, error: "未找到已补丁的 ChatGPT/Codex 应用，请先安装" };
+}
+
 function status() {
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string; appRoot?: string } | null;
   const apps = ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
@@ -114,7 +128,17 @@ function createWindow() {
   return win;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // 已安装：ChatGPT++ 的入口就是补丁后的官方应用主界面，直接打开并退出自身；
+  // 未安装（首次使用）：显示引导面板执行安装。
+  const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string } | null;
+  if (state) {
+    const opened = await openPatchedApp();
+    if (opened.ok) {
+      app.quit();
+      return;
+    }
+  }
   const win = createWindow();
   logWindow = win;
   app.on("activate", () => {
@@ -124,18 +148,7 @@ app.whenReady().then(() => {
   ipcMain.handle("status", () => status());
   ipcMain.handle("themes", () => themes());
   ipcMain.handle("apply-theme", (_e, sel: { type: string; id?: string }) => applyTheme(sel));
-  ipcMain.handle("open-app", async () => {
-    const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
-    const candidates =
-      process.platform === "win32"
-        ? [state?.appRoot].filter((p): p is string => !!p && existsSync(p))
-        : ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
-    for (const appPath of candidates) {
-      const err = await shell.openPath(appPath);
-      if (!err) return { ok: true, error: null };
-    }
-    return { ok: false, error: "未找到已补丁的 ChatGPT/Codex 应用，请先安装" };
-  });
+  ipcMain.handle("open-app", () => openPatchedApp());
   ipcMain.handle("run-cli", async (_e, cmd: "install" | "repair" | "uninstall") => {
     const target = logWindow ?? win;
     return runCli([cmd], target);

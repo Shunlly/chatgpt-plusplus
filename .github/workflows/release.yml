@@ -6,22 +6,9 @@ on:
     tags:
       - "v*"
 
+# 说明：macOS DMG 需要在装有官方 ChatGPT.app 的机器上生成补丁副本后才能打包，
+# CI 上无法构建，由发布者本地执行 npm run package:dmg 后上传到 Release。
 jobs:
-  dmg:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run package:dmg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dmg
-          path: dist/installers/*.dmg
-
   exe:
     runs-on: windows-latest
     steps:
