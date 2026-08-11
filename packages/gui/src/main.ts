@@ -2,7 +2,7 @@
 // CLI 二进制随包放在 Resources/cli/（standalone.json 在同级 Resources，CLI 可自发现资源）。
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -119,33 +119,67 @@ function applyTheme(sel: { type: string; id?: string }): { ok: boolean; error?: 
 }
 
 let logWindow: BrowserWindow | null = null;
+function pushLog(win: BrowserWindow, text: string): void {
+  if (!win.isDestroyed() && text) win.webContents.send("cli-log", text.trimEnd());
+}
 function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | null }> {
   return new Promise((resolve) => {
-    const push = (data: Buffer) => {
-      if (!win.isDestroyed()) win.webContents.send("cli-log", data.toString().trimEnd());
-    };
     // Windows 上打补丁需要管理员权限（官方应用在 WindowsApps 受保护），
     // 通过 PowerShell Start-Process -Verb RunAs 触发 UAC 提权执行。
+    // 提权进程是独立会话，stdout/stderr 不会回传，必须重定向到临时文件，
+    // 结束后再读回并显示——否则用户只看到“退出码 1”看不到失败原因。
     if (process.platform === "win32" && args[0] !== "uninstall") {
-      const cli = cliPath().replace(/'/g, "''");
-      const argsPart = args.map((a) => a.replace(/'/g, "''")).join(" ");
+      const cli = cliPath();
+      const stamp = Date.now();
+      const outFile = join(app.getPath("temp"), `cppp-cli-${stamp}.out.log`);
+      const errFile = join(app.getPath("temp"), `cppp-cli-${stamp}.err.log`);
+      const esc = (v: string) => v.replace(/'/g, "''");
       const ps = [
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-Command",
-        `$p = Start-Process -FilePath '${cli}' -ArgumentList '${argsPart}' -Verb RunAs -Wait -PassThru; exit $p.ExitCode`,
+        [
+          `$p = Start-Process -FilePath '${esc(cli)}' -ArgumentList '${esc(args.join(" "))}'`,
+          "-Verb RunAs -Wait -PassThru",
+          `-RedirectStandardOutput '${esc(outFile)}' -RedirectStandardError '${esc(errFile)}'`,
+          "exit $p.ExitCode",
+        ].join(" "),
       ];
       const child = spawn("powershell.exe", ps, { stdio: ["ignore", "pipe", "pipe"] });
-      child.stdout?.on("data", push);
-      child.stderr?.on("data", push);
-      child.on("error", (e) => push(Buffer.from(String(e))));
-      child.on("close", (code) => resolve({ code }));
+      child.stdout?.on("data", (d) => pushLog(win, d.toString()));
+      child.stderr?.on("data", (d) => pushLog(win, d.toString()));
+      child.on("error", (e) => pushLog(win, String(e)));
+      child.on("close", async (code) => {
+        for (const f of [outFile, errFile]) {
+          try {
+            if (existsSync(f)) pushLog(win, readFileSync(f, "utf8"));
+          } catch {
+            // 读不到重定向文件不阻塞结果返回
+          }
+        }
+        if (code !== 0) {
+          // CLI 失败时会写 <userRoot>/log/installer.log，把它尾部带出来定位根因。
+          try {
+            const logFile = join(userRoot(), "log", "installer.log");
+            if (existsSync(logFile)) {
+              const text = readFileSync(logFile, "utf8").trim().split("\n").slice(-60).join("\n");
+              if (text) pushLog(win, "\n--- installer.log 末尾 ---\n" + text);
+            }
+          } catch {
+            // 日志不可读不阻塞
+          }
+        }
+        for (const f of [outFile, errFile]) {
+          try { rmSync(f, { force: true }); } catch { /* 忽略 */ }
+        }
+        resolve({ code });
+      });
       return;
     }
     const child: ChildProcess = spawn(cliPath(), args, { stdio: ["ignore", "pipe", "pipe"] });
-    child.stdout?.on("data", push);
-    child.stderr?.on("data", push);
-    child.on("error", (e) => push(Buffer.from(String(e))));
+    child.stdout?.on("data", (d) => pushLog(win, d.toString()));
+    child.stderr?.on("data", (d) => pushLog(win, d.toString()));
+    child.on("error", (e) => pushLog(win, String(e)));
     child.on("close", (code) => resolve({ code }));
   });
 }
