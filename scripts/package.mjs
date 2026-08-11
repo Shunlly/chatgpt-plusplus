@@ -385,6 +385,13 @@ function buildExe(binary) {
 
   stageGuiResources(winDir, binary, ver);
 
+  // 绿色便携版：完整应用目录打成 zip，解压后双击 ChatGPT++.exe 即用，
+  // 与 macOS DMG 的“打开即用”体验一致（不经过安装向导）。
+  const portableZip = join(OUT, `${APP_NAME}-${ver}-win-x64-portable.zip`);
+  rmSync(portableZip, { force: true });
+  run("tar", ["-a", "-c", "-f", portableZip, `${APP_NAME}-win32-x64`], stage);
+  console.log(`✅ 便携版已生成：${portableZip}`);
+
   const exe = join(OUT, `${APP_NAME}-${ver}-win-x64-setup.exe`);
   rmSync(exe, { force: true });
   // Windows 下 makensis 的 File 指令只可靠解析原生反斜杠路径，macOS 只认正斜杠，
