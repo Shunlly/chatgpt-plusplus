@@ -27,6 +27,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: exe
-          path: |
-            dist/installers/*.exe
-            dist/installers/*.zip
+          path: dist/installers/*.exe
