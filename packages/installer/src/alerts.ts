@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { platform } from "node:os";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { readPlist } from "./plist.js";
 import { CHATGPT_PLUSPLUS_VERSION } from "./version.js";
 import { locateCodex } from "./platform.js";
@@ -132,6 +132,21 @@ interface OpenCodexOptions {
 }
 
 export function openCodex(appRoot: string, opts: OpenCodexOptions = {}): void {
+  if (platform() === "win32") {
+    // Windows 安装/修复完成后直接启动补丁后的主程序（增强版 ChatGPT 主界面），
+    // 而不是安装面板——与 macOS 上打开 ChatGPT++.app 的体验一致。
+    const exe = winAppExecutable(appRoot);
+    if (!exe) return;
+    if (opts.detached) {
+      const child = spawn(exe, [], { detached: true, stdio: "ignore" });
+      child.unref();
+      return;
+    }
+    try {
+      execFileSync(exe, [], { stdio: "ignore" });
+    } catch {}
+    return;
+  }
   if (platform() !== "darwin") return;
   const bundleId = codexBundleId(appRoot);
   if (opts.detached) {
@@ -150,6 +165,19 @@ export function openCodex(appRoot: string, opts: OpenCodexOptions = {}): void {
       stdio: "ignore",
     });
   } catch {}
+}
+
+function winAppExecutable(appRoot: string): string | null {
+  try {
+    const exe = readdirSync(appRoot).find(
+      (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
+    );
+    if (exe) return join(appRoot, exe);
+  } catch {}
+  for (const name of ["Codex.exe", "ChatGPT.exe"]) {
+    if (existsSync(join(appRoot, name))) return join(appRoot, name);
+  }
+  return null;
 }
 
 export function isCodexRunning(appRoot: string): boolean {

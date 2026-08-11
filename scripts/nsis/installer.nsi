@@ -30,8 +30,11 @@ Section "安装 ChatGPT++"
   File /r "${STAGEDIR}${SEP}*.*"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
+  ; 主入口（ChatGPT++.lnk / 桌面快捷方式）由 install 创建，直接指向补丁后的
+  ; ChatGPT 主程序，打开即增强版 ChatGPT 主界面（与 macOS 一致）；
+  ; 这里只放一个显式的“修复工具”入口（--panel 打开安装/修复/卸载面板）。
   CreateDirectory "$SMPROGRAMS\ChatGPT++"
-  CreateShortcut "$SMPROGRAMS\ChatGPT++\ChatGPT++.lnk" "$INSTDIR\ChatGPT++.exe" "" "$INSTDIR\ChatGPT++.exe"
+  CreateShortcut "$SMPROGRAMS\ChatGPT++\ChatGPT++ 修复工具.lnk" "$INSTDIR\ChatGPT++.exe" "--panel" "$INSTDIR\ChatGPT++.exe"
 
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPT++" "DisplayName" "ChatGPT++"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPT++" "DisplayVersion" "${VERSION}"
@@ -41,7 +44,9 @@ Section "安装 ChatGPT++"
   ; 自动打补丁：官方 ChatGPT 已安装时装完即用；失败不阻塞安装（打开应用时面板会引导修复）
   nsExec::ExecToLog '"$INSTDIR\resources\cli\chatgpt-plusplus.exe" install'
 
-  ; 装完直接启动应用：已补丁 → 直接进入增强版 ChatGPT 主界面；未补丁 → 引导面板
+  ; 装完兜底启动：install 已在运行时自动打开过主程序就不重复（官方 ChatGPT
+  ; 单实例会去重）；未打开时面板会检测已安装状态并自动转跳到补丁后的主程序
+  ; （增强版 ChatGPT 主界面），不会停留在“安装器”界面。
   ExecShell "open" "$INSTDIR\ChatGPT++.exe"
 SectionEnd
 
