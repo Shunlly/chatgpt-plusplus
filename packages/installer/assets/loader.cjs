@@ -5,8 +5,9 @@
  *
  * Responsibilities:
  *   1. Resolve the original entry point that we replaced (stored in
- *      package.json#__codexpp.originalMain) and the user runtime location
- *      (also recorded in __codexpp.userRoot).
+ *      package.json#__codexpp.originalMain). The user runtime location is
+ *      derived from the CURRENT user at launch (never the path baked into
+ *      the installer), so the same DMG/EXE works on any machine.
  *   2. Hook `require` so renderer preloads can find our runtime.
  *   3. Load the runtime's main-process entry BEFORE the original main entry.
  *      The runtime patches Electron's BrowserWindow to inject our preload script.
@@ -19,13 +20,30 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
 const Module = require("node:module");
 
 const pkg = require("./package.json");
 const meta = pkg.__codexpp || {};
 const originalMain = meta.originalMain;
-const userRoot = meta.userRoot;
 const MAX_LOG_BYTES = 10 * 1024 * 1024;
+
+// 用户数据目录按“当前运行用户”动态推导，而不是用打包时写入的绝对路径：
+// DMG/EXE 在别的机器（别的用户名）安装后，写死的路径不存在会导致应用裸跑、
+// tweak/主题全部丢失。环境变量优先（兼容自定义位置），其次按平台默认。
+function resolveUserRoot() {
+  if (process.env.CHATGPT_PLUSPLUS_HOME) return process.env.CHATGPT_PLUSPLUS_HOME;
+  if (process.env.CODEX_PLUSPLUS_HOME) return process.env.CODEX_PLUSPLUS_HOME;
+  const home = os.homedir();
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "chatgpt-plusplus");
+  }
+  if (process.platform === "darwin") {
+    return path.join(home, "Library", "Application Support", "chatgpt-plusplus");
+  }
+  return path.join(process.env.XDG_DATA_HOME || path.join(home, ".local", "share"), "chatgpt-plusplus");
+}
+const userRoot = resolveUserRoot();
 
 function appendCappedLog(file, line) {
   const incoming = Buffer.from(line);
@@ -63,9 +81,6 @@ function safe(label, fn) {
 safe("init", () => {
   if (!originalMain) {
     throw new Error("loader: package.json missing __codexpp.originalMain");
-  }
-  if (!userRoot) {
-    throw new Error("loader: package.json missing __codexpp.userRoot");
   }
 
   // Allow user-installed runtime modules to be require()d from anywhere.
