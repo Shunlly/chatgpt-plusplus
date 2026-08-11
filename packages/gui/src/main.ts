@@ -32,11 +32,23 @@ function tryReadJson(file: string): unknown | null {
 // 打开补丁后的官方应用主界面（ChatGPT++ 是增强层，入口即 ChatGPT/Codex 本体）。
 async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> {
   const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
-  const candidates =
-    process.platform === "win32"
-      ? [state?.appRoot].filter((p): p is string => !!p && existsSync(p))
-      : ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
+  const candidates: string[] = [];
+  if (process.platform === "win32") {
+    // Windows 的 state.appRoot 是镜像目录，必须启动目录里的主程序 exe，
+    // 直接 openPath 目录只会打开资源管理器窗口（看起来像“又弹了一个安装器”）。
+    const root = state?.appRoot;
+    if (root && existsSync(root)) {
+      const exe = readdirSync(root).find(
+        (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
+      );
+      if (exe) candidates.push(join(root, exe));
+      candidates.push(root);
+    }
+  } else {
+    candidates.push("/Applications/ChatGPT.app", "/Applications/Codex.app");
+  }
   for (const appPath of candidates) {
+    if (!existsSync(appPath)) continue;
     const err = await shell.openPath(appPath);
     if (!err) return { ok: true, error: null };
   }
@@ -45,7 +57,19 @@ async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> 
 
 function status() {
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string; appRoot?: string } | null;
-  const apps = ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
+  const apps =
+    process.platform === "win32"
+      ? (() => {
+          const root = state?.appRoot;
+          if (root && existsSync(root)) {
+            const exe = readdirSync(root).find(
+              (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
+            );
+            if (exe) return [join(root, exe)];
+          }
+          return [];
+        })()
+      : ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
   return {
     installed: !!state,
     version: state?.version ?? null,
@@ -149,8 +173,10 @@ function createWindow() {
 app.whenReady().then(async () => {
   // 已安装：ChatGPT++ 的入口就是补丁后的官方应用主界面，直接打开并退出自身；
   // 未安装（首次使用）：显示引导面板执行安装。
+  // --panel：显式打开修复/卸载面板（开始菜单“ChatGPT++ 修复工具”）。
+  const panelOnly = process.argv.includes("--panel");
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string } | null;
-  if (state) {
+  if (!panelOnly && state) {
     const opened = await openPatchedApp();
     if (opened.ok) {
       app.quit();
