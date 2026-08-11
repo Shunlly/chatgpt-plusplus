@@ -127,7 +127,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   step.detail(`Tweaks: ${kleur.cyan(paths.tweaks)}`);
 
   // 3. Patch app.asar entry point to require our loader.
-  const originalEntry = await injectLoader(codex.asarPath, paths.root, step.detail);
+  const originalEntry = await injectLoader(codex.asarPath, step.detail);
   const { headerHash: patchedAsarHash } = readHeaderHash(codex.asarPath);
   step.detail(`Patched app.asar (entry was ${kleur.dim(originalEntry)})`);
 
@@ -439,7 +439,6 @@ export function hasChatgptPlusPlusAsarMarker(asarPath: string): boolean {
  */
 async function injectLoader(
   asarPath: string,
-  userRoot: string,
   step: (msg: string) => void = () => {},
 ): Promise<string> {
   let originalMain = "";
@@ -452,27 +451,18 @@ async function injectLoader(
     originalMain = String(pkg.main ?? "");
     if (!originalMain) throw new Error("app.asar package.json has no `main` field");
 
-    // Already patched? 保留原入口，但刷新 userRoot/loader 指向：
-    // 用户数据目录随项目改名迁移过（codex-plusplus -> chatgpt-plusplus），
-    // 旧指针会指向已不存在的目录，导致应用未打补丁直接启动、tweak 全部消失。
+    // 已打过补丁时保留原入口并刷新 loader 指向；不再写入 userRoot——
+    // 用户数据目录由 loader 按“当前运行用户”动态推导，避免 DMG/EXE
+    // 换机器安装后指向打包机的绝对路径导致应用裸跑、tweak 全部丢失。
     if (pkg["__codexpp"]) {
       originalMain = String(pkg["__codexpp"].originalMain);
-      pkg["__codexpp"] = {
-        ...(pkg["__codexpp"] as object),
-        userRoot,
-        loader: "chatgpt-plusplus-loader.cjs",
-      };
-      pkg.main = "chatgpt-plusplus-loader.cjs";
-      writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-    } else {
-      pkg["__codexpp"] = {
-        originalMain,
-        userRoot,
-        loader: "chatgpt-plusplus-loader.cjs",
-      };
-      pkg.main = "chatgpt-plusplus-loader.cjs";
-      writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
     }
+    pkg["__codexpp"] = {
+      originalMain,
+      loader: "chatgpt-plusplus-loader.cjs",
+    };
+    pkg.main = "chatgpt-plusplus-loader.cjs";
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
     // Copy our loader stub into the asar root.
     const loaderSrc = join(resolveAssetsDir(), "loader.cjs");
