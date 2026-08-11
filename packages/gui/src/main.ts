@@ -97,10 +97,28 @@ function applyTheme(sel: { type: string; id?: string }): { ok: boolean; error?: 
 let logWindow: BrowserWindow | null = null;
 function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | null }> {
   return new Promise((resolve) => {
-    const child: ChildProcess = spawn(cliPath(), args, { stdio: ["ignore", "pipe", "pipe"] });
     const push = (data: Buffer) => {
       if (!win.isDestroyed()) win.webContents.send("cli-log", data.toString().trimEnd());
     };
+    // Windows 上打补丁需要管理员权限（官方应用在 WindowsApps 受保护），
+    // 通过 PowerShell Start-Process -Verb RunAs 触发 UAC 提权执行。
+    if (process.platform === "win32" && args[0] !== "uninstall") {
+      const cli = cliPath().replace(/'/g, "''");
+      const argsPart = args.map((a) => a.replace(/'/g, "''")).join(" ");
+      const ps = [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-Command",
+        `$p = Start-Process -FilePath '${cli}' -ArgumentList '${argsPart}' -Verb RunAs -Wait -PassThru; exit $p.ExitCode`,
+      ];
+      const child = spawn("powershell.exe", ps, { stdio: ["ignore", "pipe", "pipe"] });
+      child.stdout?.on("data", push);
+      child.stderr?.on("data", push);
+      child.on("error", (e) => push(Buffer.from(String(e))));
+      child.on("close", (code) => resolve({ code }));
+      return;
+    }
+    const child: ChildProcess = spawn(cliPath(), args, { stdio: ["ignore", "pipe", "pipe"] });
     child.stdout?.on("data", push);
     child.stderr?.on("data", push);
     child.on("error", (e) => push(Buffer.from(String(e))));
