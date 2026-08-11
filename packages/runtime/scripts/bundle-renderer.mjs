@@ -5,11 +5,15 @@
  * stay external because they're provided by the host.
  */
 import { build } from "esbuild";
+import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
+// 版本号取自仓库根 package.json，随发版同步，避免运行时/安装器硬编码旧版本。
+const repoRoot = resolve(here, "..", "..", "..");
+const CHATGPT_PLUSPLUS_VERSION = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")).version;
 
 await build({
   entryPoints: [resolve(root, "src/preload/index.ts")],
@@ -26,6 +30,7 @@ await build({
 
 await build({
   entryPoints: [resolve(root, "src/main.ts")],
+  define: { __CHATGPT_PLUSPLUS_VERSION__: JSON.stringify(CHATGPT_PLUSPLUS_VERSION) },
   bundle: true,
   outfile: resolve(root, "dist/main.js"),
   platform: "node",
