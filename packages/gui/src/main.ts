@@ -41,8 +41,8 @@ async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> 
       const exe = readdirSync(root).find(
         (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
       );
+      // 只启动主程序 exe；找不到就交给面板报错，绝不打开目录（那会像“又弹了个安装器”）。
       if (exe) candidates.push(join(root, exe));
-      candidates.push(root);
     }
   } else {
     candidates.push("/Applications/ChatGPT.app", "/Applications/Codex.app");
