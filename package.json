@@ -24,7 +24,8 @@
     "prepare": "npm run build",
     "package": "node scripts/package.mjs",
     "package:dmg": "node scripts/package.mjs --platform=darwin",
-    "package:exe": "node scripts/package.mjs --platform=win32"
+    "package:exe": "node scripts/package.mjs --platform=win32",
+    "package:all": "node scripts/package-all.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

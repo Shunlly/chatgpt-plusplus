@@ -16,7 +16,8 @@ Name "ChatGPT++"
 
 OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\ChatGPT++"
-RequestExecutionLevel user
+; 管理员权限：安装后自动给官方 ChatGPT 打补丁（WindowsApps 受保护需要提权）
+RequestExecutionLevel admin
 
 Page directory
 Page instfiles
@@ -36,6 +37,12 @@ Section "安装 ChatGPT++"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPT++" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPT++" "Publisher" "chatgpt-plusplus"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPT++" "UninstallString" '"$INSTDIR\uninstall.exe"'
+
+  ; 自动打补丁：官方 ChatGPT 已安装时装完即用；失败不阻塞安装（打开应用时面板会引导修复）
+  nsExec::ExecToLog '"$INSTDIR\resources\cli\chatgpt-plusplus.exe" install'
+
+  ; 装完直接启动应用：已补丁 → 直接进入增强版 ChatGPT 主界面；未补丁 → 引导面板
+  ExecShell "open" "$INSTDIR\ChatGPT++.exe"
 SectionEnd
 
 Section "Uninstall"
