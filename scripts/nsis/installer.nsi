@@ -1,4 +1,4 @@
-; ChatGPT++ Windows 安装器（NSIS 3）
+﻿; ChatGPT++ Windows 安装器（NSIS 3）
 ; 用法: makensis -DVERSION=1.0.0 -DSTAGEDIR=... -DOUTFILE=... installer.nsi
 ; STAGEDIR 为打包脚本产出的完整应用目录（ChatGPT++.exe + resources/）
 Unicode true
