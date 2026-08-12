@@ -5,12 +5,12 @@
  *   macOS:  dist/installers/ChatGPT++-<version>-macos-<arch>.dmg
  *           （内含 ChatGPT++.app：独立 Electron 图形界面，安装/修复/主题管理）
  *   Windows: dist/installers/ChatGPT++-<version>-win-x64-setup.exe
- *           （NSIS 安装器，安装到 %LOCALAPPDATA%\Programs\ChatGPT++，独立 GUI）
+ *           （Inno Setup 安装器，安装到 %LOCALAPPDATA%\Programs\ChatGPT++，独立 GUI）
  *
  * 用法：
  *   npm run package            # 当前平台
  *   npm run package:dmg        # macOS（需在 macOS 上运行）
- *   npm run package:exe        # Windows（需安装 NSIS；CI 里由 Windows runner 完成）
+ *   npm run package:exe        # Windows（需安装 Inno Setup；CI 里由 Windows runner 完成）
  */
 import {
   chmodSync,
@@ -63,7 +63,7 @@ async function main() {
     if (process.env.CI) rmSync(binary, { force: true });
   } else if (platform === "win32") {
     buildExe(binary);
-    rmSync(join(OUT, "nsis"), { recursive: true, force: true });
+    rmSync(join(OUT, "innosetup"), { recursive: true, force: true });
     if (process.env.CI) rmSync(binary, { force: true });
   }
   console.log(`\n✅ 安装包已生成：${OUT}`);
@@ -368,15 +368,31 @@ async function buildGuiAssets() {
   console.log("✅ GUI 已编译：", outDir);
 }
 
+function findIscc() {
+  // choco install innosetup 后 iscc 会进 PATH；未进时兜底常见安装目录
+  const candidates = ["iscc"];
+  const pf = process.env["ProgramFiles(x86)"] || process.env.ProgramFiles || "";
+  for (const sub of ["Inno Setup 6", "Inno Setup 5"]) {
+    candidates.push(join(pf, sub, "ISCC.exe"));
+  }
+  for (const c of candidates) {
+    const r = spawnSync(process.platform === "win32" ? "where" : "which", [c], { encoding: "utf8" });
+    if (r.status === 0) return c;
+  }
+  return null;
+}
+
 function buildExe(binary) {
+  if (process.platform !== "win32") {
+    throw new Error("Windows EXE 安装器（Inno Setup）只能在 Windows 构建；请用 npm run package:all 触发 GitHub Actions");
+  }
   const ver = version();
-  // 只做 PATH 探测，兼容 Windows（choco install nsis）与 macOS（brew install nsis）
-  const which = spawnSync(process.platform === "win32" ? "where" : "which", ["makensis"], { encoding: "utf8" });
-  if (which.status !== 0) {
-    throw new Error("未找到 makensis（NSIS）。macOS: brew install nsis；Windows: choco install nsis -y");
+  const iscc = findIscc();
+  if (!iscc) {
+    throw new Error("未找到 iscc（Inno Setup）。Windows: choco install innosetup -y");
   }
 
-  const stage = join(OUT, "nsis");
+  const stage = join(OUT, "innosetup");
   rmSync(stage, { recursive: true, force: true });
   // Windows 模板：dist/ 平铺（electron.exe + resources/ + dll），复制后改名 ChatGPT++.exe
   const winDir = join(stage, `${APP_NAME}-win32-x64`);
@@ -387,17 +403,15 @@ function buildExe(binary) {
 
   const exe = join(OUT, `${APP_NAME}-${ver}-win-x64-setup.exe`);
   rmSync(exe, { force: true });
-  // Windows 下 makensis 的 File 指令只可靠解析原生反斜杠路径，macOS 只认正斜杠，
-  // 因此路径与分隔符都按平台传入（nsi 里用 ${SEP} 拼接）。
-  const isWin = process.platform === "win32";
-  const stageArg = isWin ? winDir.replace(/\//g, "\\") : winDir.replace(/\\/g, "/");
-  const exeArg = exe.replace(/\\/g, "/");
-  run("makensis", [
-    `-DVERSION=${ver}`,
-    `-DSTAGEDIR=${stageArg}`,
-    `-DSEP=${isWin ? "\\" : "/"}`,
-    `-DOUTFILE=${exeArg}`,
-    join(ROOT, "scripts", "nsis", "installer.nsi"),
+  // Inno Setup 只认 Windows 原生路径，统一转成反斜杠
+  const stageArg = winDir.replace(/\//g, "\\");
+  const outDir = OUT.replace(/\//g, "\\");
+  run(iscc, [
+    `/DVERSION=${ver}`,
+    `/DSTAGEDIR=${stageArg}`,
+    `/O${outDir}`,
+    `/F${APP_NAME}-${ver}-win-x64-setup`,
+    join(ROOT, "scripts", "innosetup", "installer.iss").replace(/\//g, "\\"),
   ], ROOT);
   console.log(`✅ EXE 安装器已生成：${exe}`);
 }
