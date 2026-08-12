@@ -225,7 +225,7 @@ function locateWin(override?: string): CodexInstall {
   }
 
   const tried = unique(candidates);
-  const appRoot = tried.find(isWinCodexRoot);
+  const appRoot = findWindowsAppRoot(tried, storeInstalls);
   if (!appRoot) {
     const triedText = tried.length > 0 ? tried.join("\n  ") : "(no default locations available)";
     if (storeInstalls.length > 0) {
@@ -233,21 +233,17 @@ function locateWin(override?: string): CodexInstall {
         .map((install) => `  ${install.name}\n  ${install.installLocation ?? "(install location is hidden by Windows)"}`)
         .join("\n");
       throw new Error(
-        `[!] Codex App Not Found\n\n` +
-          `Codex appears to be installed from the Microsoft Store, but ChatGPT++ could not find app.asar under the expected package layout.\n\n` +
+        `[!] 找不到可打补丁的 ChatGPT/Codex 应用\n\n` +
+          `检测到 Microsoft Store 安装，但无法把受系统保护的 WindowsApps 目录镜像到本地可写目录，通常是安装命令没有管理员权限。\n\n` +
           `Store package(s):\n${storeText}\n\n` +
-          `Expected one of:\n` +
-          `  <package>\\app\\resources\\app.asar\n` +
-          `  <package>\\resources\\app.asar\n\n` +
-          `Tried:\n  ${triedText}\n\n` +
-          `If you have a standalone copy elsewhere, rerun with --app pointing at its install folder.`,
+          `请以管理员身份运行安装器重试（安装器会自动请求提权）。\n\n` +
+          `Tried:\n  ${triedText}`,
       );
     }
     throw new Error(
-      `[!] Codex App Not Found\n\n` +
-        `Ensure Codex is installed in one of the default Windows locations.\n` +
-        `Tried:\n  ${triedText}\n\n` +
-        `If Codex is somewhere else, rerun with --app pointing at its install folder.`,
+      `[!] 找不到已安装的 ChatGPT/Codex 应用\n\n` +
+        `请确认 ChatGPT/Codex 已安装到默认位置；如果装在别处，用 --app 参数指定安装目录。\n` +
+        `Tried:\n  ${triedText}`,
     );
   }
   const writableAppRoot = isWindowsAppsPath(appRoot) ? ensureWindowsStoreMirror(appRoot) : appRoot;
@@ -289,6 +285,26 @@ function windowsCodexCandidates(root: string): string[] {
   return candidates;
 }
 
+// WindowsApps 目录受系统 ACL 保护，existsSync 一律读不到；普通目录直接探测 app.asar，
+// Store 包则用 robocopy /B（备份模式）镜像到本地可写目录后再验证，逐个候选尝试。
+function findWindowsAppRoot(
+  tried: string[],
+  storeInstalls: { name: string; installLocation: string | null }[],
+): string | null {
+  const plain = tried.find((p) => !isWindowsAppsPath(p) && isWinCodexRoot(p));
+  if (plain) return plain;
+  if (storeInstalls.length === 0) return null;
+  for (const candidate of tried.filter(isWindowsAppsPath)) {
+    try {
+      const mirrored = ensureWindowsStoreMirror(candidate);
+      if (isWinCodexRoot(mirrored)) return mirrored;
+    } catch {
+      // 该候选镜像失败（无权限/布局不符），继续尝试下一个 Store 包。
+    }
+  }
+  return null;
+}
+
 function windowsStoreCodexCandidates(packageRoot: string): string[] {
   return [join(packageRoot, "app"), packageRoot];
 }
@@ -301,8 +317,6 @@ function ensureWindowsStoreMirror(storeAppRoot: string): string {
   const sourceAppRoot = basename(storeAppRoot).toLowerCase() === "app"
     ? storeAppRoot
     : join(storeAppRoot, "app");
-  if (!isWinCodexRoot(sourceAppRoot)) return storeAppRoot;
-
   const packageRoot = dirname(sourceAppRoot);
   const packageName = basename(packageRoot);
   const local = process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local");
@@ -310,6 +324,12 @@ function ensureWindowsStoreMirror(storeAppRoot: string): string {
   // 老版本镜像在 codex-plusplus/store-apps 下：先同步新位置，成功后再删旧目录，避免中途失败丢镜像。
   const legacyMirrorAppRoot = join(local, "codex-plusplus", "store-apps", packageName, "app");
   mirrorDirectory(sourceAppRoot, mirrorAppRoot);
+  if (!isWinCodexRoot(mirrorAppRoot)) {
+    throw new Error(
+      `[!] Store 包镜像不完整\n\n` +
+        `已复制 ${sourceAppRoot}\n到 ${mirrorAppRoot}\n但镜像里没有 resources\\app.asar，无法打补丁。`,
+    );
+  }
   if (legacyMirrorAppRoot !== mirrorAppRoot && existsSync(legacyMirrorAppRoot)) {
     try {
       rmSync(legacyMirrorAppRoot, { recursive: true, force: true });
@@ -323,14 +343,22 @@ function ensureWindowsStoreMirror(storeAppRoot: string): string {
 function mirrorDirectory(source: string, target: string): void {
   mkdirSync(dirname(target), { recursive: true });
   const result = spawnSync(
+    // /B 备份模式：管理员可用 SeBackupPrivilege 绕过 WindowsApps 的 ACL 拒绝。
     "robocopy.exe",
-    [source, target, "/MIR", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"],
+    [source, target, "/MIR", "/B", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"],
     { stdio: "ignore" },
   );
   // Robocopy uses 0-7 for success / non-fatal copy states.
   if (typeof result.status === "number" && result.status <= 7) return;
 
   rmSync(target, { recursive: true, force: true });
+  if (isWindowsAppsPath(source)) {
+    throw new Error(
+      `[!] 无法读取 Microsoft Store 版 ChatGPT/Codex 安装目录\n\n` +
+        `Windows 系统保护了 ${source} 的访问权限，备份模式复制失败（robocopy 退出码 ${result.status ?? "?"}）。\n\n` +
+        `请确认安装命令以管理员身份运行（安装器会自动请求提权），然后重试。`,
+    );
+  }
   cpSync(source, target, { recursive: true });
 }
 
