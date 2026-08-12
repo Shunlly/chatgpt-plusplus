@@ -54,7 +54,9 @@ Section "Uninstall"
   ; 先恢复被打补丁的应用，再删除文件（失败不阻塞卸载）。
   nsExec::ExecToLog 'taskkill /f /im ChatGPT++.exe'
   ExecWait '"$INSTDIR\resources\cli\chatgpt-plusplus.exe" uninstall'
-  Delete "$SMPROGRAMS\ChatGPT++\ChatGPT++.lnk"
+  ; 通配符删除：兼容旧版乱码快捷方式名，也覆盖主入口和修复工具两个入口
+  Delete "$SMPROGRAMS\ChatGPT++\*.lnk"
+  Delete "$SMPROGRAMS\ChatGPT++.lnk"
   RMDir "$SMPROGRAMS\ChatGPT++"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ChatGPT++"
   RMDir /r "$INSTDIR"
