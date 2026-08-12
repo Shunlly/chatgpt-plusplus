@@ -33,7 +33,7 @@ WizardStyle=modern
 UninstallDisplayName={#APP_NAME}
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
 
 [Files]
 Source: "{#STAGEDIR}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
