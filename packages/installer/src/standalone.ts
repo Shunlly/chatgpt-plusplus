@@ -15,7 +15,9 @@ export function standaloneRoot(execPath: string = process.execPath): string | nu
   const candidates = [
     // macOS .app：<App>.app/Contents/Resources
     join(dirname(execPath), "..", "Resources"),
-    // Windows / 裸二进制：与可执行文件同目录
+    // Windows：resources\cli\chatgpt-plusplus.exe -> resources\（assets 在 resources\assets）
+    join(dirname(execPath), ".."),
+    // 裸二进制 / macOS 持久副本 bin\：与可执行文件同目录
     dirname(execPath),
   ];
   for (const dir of candidates) {
