@@ -33,7 +33,10 @@ WizardStyle=modern
 UninstallDisplayName={#APP_NAME}
 
 [Languages]
+; 按系统语言自动匹配；第一个（english）作为未匹配语言时的兜底
+Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
+Name: "chinesetraditional"; MessagesFile: "languages\ChineseTraditional.isl"
 
 [Files]
 Source: "{#STAGEDIR}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
