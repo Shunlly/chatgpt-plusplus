@@ -653,9 +653,17 @@ export function stageTweaks(tweaksDir: string): void {
   const src = candidates.find(existsSync);
   if (!src) return;
   mkdirSync(tweaksDir, { recursive: true });
+  // 初始化自定义主题的目标根目录：<userRoot>/tweak-data
+  const tweakDataRoot = join(tweaksDir, "..", "tweak-data");
   for (const entry of readdirSync(src)) {
     const from = join(src, entry);
     if (!statSync(from).isDirectory()) continue;
+    try {
+      // 内置 custom-seed（初始化自定义主题）灌入 tweak-data，已存在的不覆盖。
+      seedCustomThemes(from, tweakDataRoot);
+    } catch {
+      // 初始化主题失败不阻断安装，缺失的主题可再次安装/修复补齐。
+    }
     const to = join(tweaksDir, entry);
     // 旧版本会把仓库 tweaks 以软链接方式安装；与真实目录并存会导致
     // 同一 manifest.id 被加载两次，统一替换为真实副本。
@@ -686,6 +694,8 @@ export function stageTweaks(tweaksDir: string): void {
  * 逐目录覆盖，新增的预设补齐、同名预设以内置版本为准。
  * 只动 presets，不碰用户自定义数据。
  */
+
+
 export function syncPresets(fromTweak: string, toTweak: string): void {
   const fromPresets = join(fromTweak, "presets");
   const toPresets = join(toTweak, "presets");
@@ -698,6 +708,58 @@ export function syncPresets(fromTweak: string, toTweak: string): void {
     if (existsSync(to)) rmSync(to, { recursive: true, force: true });
     cpSync(from, to, { recursive: true });
   }
+}
+
+/**
+ * 把内置 custom-seed（初始化自定义主题）灌入 tweak-data/<tweak-id>/custom/：
+ * 已存在的主题文件不覆盖（保留用户修改），index.json 合并去重（用户已有条目优先）。
+ * 自定义主题属于用户数据，初始化产物只负责首次补齐。
+ */
+export function seedCustomThemes(fromTweak: string, tweakDataRoot: string): void {
+  const seedDir = join(fromTweak, "custom-seed");
+  if (!existsSync(seedDir)) return;
+  let manifest: { id?: unknown } = {};
+  try {
+    manifest = JSON.parse(readFileSync(join(fromTweak, "manifest.json"), "utf8")) as { id?: unknown };
+  } catch {
+    // manifest 读取失败时退回目录名，不影响初始化主题。
+  }
+  const tweakId = typeof manifest.id === "string" ? manifest.id : basename(fromTweak);
+  const customDir = join(tweakDataRoot, tweakId, "custom");
+  mkdirSync(customDir, { recursive: true });
+
+  for (const entry of readdirSync(seedDir)) {
+    if (!/\.json$/.test(entry)) continue;
+    const to = join(customDir, entry);
+    if (existsSync(to)) continue; // 已存在不覆盖
+    cpSync(join(seedDir, entry), to);
+  }
+
+  const indexFile = join(customDir, "index.json");
+  let index: { id: string; name?: string }[] = [];
+  try {
+    const parsed = JSON.parse(readFileSync(indexFile, "utf8")) as unknown;
+    if (Array.isArray(parsed)) index = parsed as { id: string; name?: string }[];
+  } catch {
+    // index 缺失或损坏时以 seed 重建。
+  }
+  const seedIndexFile = join(seedDir, "index.json");
+  if (existsSync(seedIndexFile)) {
+    try {
+      const seedIndex = JSON.parse(readFileSync(seedIndexFile, "utf8")) as unknown;
+      if (Array.isArray(seedIndex)) {
+        for (const rec of seedIndex as { id?: unknown; name?: unknown }[]) {
+          if (typeof rec?.id !== "string") continue;
+          if (!index.some((x) => x.id === rec.id)) {
+            index.push({ id: rec.id, name: typeof rec.name === "string" ? rec.name : rec.id });
+          }
+        }
+      }
+    } catch {
+      // seed index 损坏时忽略，不影响已灌入的主题文件。
+    }
+  }
+  writeFileSync(indexFile, JSON.stringify(index));
 }
 
 /** 读取 tweak 的 manifest 版本号，读取失败视为 0.0.0。 */
