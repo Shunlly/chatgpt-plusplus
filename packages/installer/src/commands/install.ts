@@ -664,6 +664,13 @@ export function stageTweaks(tweaksDir: string): void {
       if (!st.isDirectory()) {
         unlinkSync(to);
       } else if (compareSemver(tweakManifestVersion(from), tweakManifestVersion(to)) <= 0) {
+        // 已装版本不低于内置版本时保留本地 tweak（不覆盖用户修改），
+        // 但内置预设主题是只读资源，必须始终以内置为准补齐，否则升级后缺主题。
+        try {
+          syncPresets(from, to);
+        } catch {
+          // 预设同步失败不阻断安装，主题缺口可通过再次安装/修复补齐。
+        }
         continue;
       } else {
         rmSync(to, { recursive: true, force: true });
@@ -672,6 +679,25 @@ export function stageTweaks(tweaksDir: string): void {
     cpSync(from, to, { recursive: true });
   }
   chownForTargetUser(tweaksDir, { recursive: true });
+}
+
+/**
+ * 把内置 tweak 的 presets（预设主题）同步到已安装的 tweak 目录：
+ * 逐目录覆盖，新增的预设补齐、同名预设以内置版本为准。
+ * 只动 presets，不碰用户自定义数据。
+ */
+export function syncPresets(fromTweak: string, toTweak: string): void {
+  const fromPresets = join(fromTweak, "presets");
+  const toPresets = join(toTweak, "presets");
+  if (!existsSync(fromPresets)) return;
+  mkdirSync(toPresets, { recursive: true });
+  for (const entry of readdirSync(fromPresets)) {
+    const from = join(fromPresets, entry);
+    if (!statSync(from).isDirectory()) continue;
+    const to = join(toPresets, entry);
+    if (existsSync(to)) rmSync(to, { recursive: true, force: true });
+    cpSync(from, to, { recursive: true });
+  }
 }
 
 /** 读取 tweak 的 manifest 版本号，读取失败视为 0.0.0。 */
