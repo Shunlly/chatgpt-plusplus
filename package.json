@@ -1,7 +1,7 @@
 {
   "name": "chatgpt-plusplus",
   "private": true,
-  "version": "1.0.22",
+  "version": "1.0.23",
   "license": "MIT",
   "description": "Tweak system for the OpenAI ChatGPT desktop app",
   "type": "module",
