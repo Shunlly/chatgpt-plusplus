@@ -73,6 +73,13 @@ test("dream-skin 隐藏窗口不空转，回前台立即恢复", () => {
   assert.match(template, /if \(!document\.hidden\) ensure\(\{ root: true, route: true, layout: true \}\)/);
 });
 
+test("dream-skin 侧边栏观察器隐藏不扫描且 200ms 合并", () => {
+  const src = readFileSync(join(tweakRoot, "index.js"), "utf8");
+  assert.match(src, /function scheduleMainNav\(api\) \{\n  if \(document\.hidden\) return;/);
+  assert.match(src, /mainNavTimer = setTimeout\(\(\) => \{\n    mainNavTimer = null;\n    syncMainNav\(api\);\n  \}, 200\);/);
+  assert.match(src, /new MutationObserver\(\(\) => scheduleMainNav\(api\)\)/);
+});
+
 test("dream-skin payload 组装后可被 JS 解析（无占位符残留）", () => {
   const css = readFileSync(join(tweakRoot, "assets/dream-skin.css"), "utf8");
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
