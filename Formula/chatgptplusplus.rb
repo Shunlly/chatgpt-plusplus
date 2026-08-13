@@ -3,7 +3,7 @@ class Chatgptplusplus < Formula
   homepage "https://github.com/Shunlly/chatgpt-plusplus"
   # 版本 tag 由 scripts/sync-version.mjs 自动同步，勿手工修改。
   url "https://github.com/Shunlly/chatgpt-plusplus.git",
-      tag: "v1.0.23"
+      tag: "v1.0.24"
   license "MIT"
 
   depends_on "node"

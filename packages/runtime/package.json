@@ -1,6 +1,6 @@
 {
   "name": "@chatgpt-plusplus/runtime",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "type": "commonjs",
   "main": "dist/main.js",
   "description": "In-app runtime: discovers tweaks, injects settings UI, hot-reloads.",

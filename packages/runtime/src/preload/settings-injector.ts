@@ -246,24 +246,14 @@ function safeStringify(v: unknown): string {
 
 // ───────────────────────────────────────────────────────────── public API ──
 
-// 只有变化发生在“已判定的侧边栏区域”内、或该区域被替换/移除时才需要重扫；
-// 聊天区/内容区的每帧 DOM 变化与侧边栏注入无关，直接跳过，避免全量扫描所有 div。
-function mutationNeedsRescan(records: MutationRecord[]): boolean {
-  const area = state.sidebarRoot ?? state.rejectedSidebar;
-  if (!area) return true;
-  if (!area.isConnected) return true;
-  return records.some((r) => {
-    const target = r.target;
-    return target === area || (target instanceof Node && area.contains(target));
-  });
-}
+import { mutationsTouchSidebar } from "./sidebar-scan-filter";
 
 export function startSettingsInjector(): void {
   if (state.observer) return;
 
   const obs = new MutationObserver((records) => {
     if (document.hidden) return;
-    if (!mutationNeedsRescan(records)) return;
+    if (!mutationsTouchSidebar(records, state.sidebarRoot ?? state.rejectedSidebar)) return;
     tryInject();
     maybeDumpDom();
   });
