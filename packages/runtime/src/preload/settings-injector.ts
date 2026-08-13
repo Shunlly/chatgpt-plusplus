@@ -190,6 +190,8 @@ interface InjectorState {
   sidebarDumped: boolean;
   activePage: ActivePage | null;
   sidebarRoot: HTMLElement | null;
+  /** 已判定为非设置页的侧边栏（缓存后聊天区内容变化不再全量重扫）。 */
+  rejectedSidebar: HTMLElement | null;
   sidebarRestoreHandler: ((e: Event) => void) | null;
   settingsSurfaceVisible: boolean;
   settingsSurfaceHideTimer: ReturnType<typeof setTimeout> | null;
@@ -217,6 +219,7 @@ const state: InjectorState = {
   sidebarDumped: false,
   activePage: null,
   sidebarRoot: null,
+  rejectedSidebar: null,
   sidebarRestoreHandler: null,
   settingsSurfaceVisible: false,
   settingsSurfaceHideTimer: null,
@@ -243,10 +246,24 @@ function safeStringify(v: unknown): string {
 
 // ───────────────────────────────────────────────────────────── public API ──
 
+// 只有变化发生在“已判定的侧边栏区域”内、或该区域被替换/移除时才需要重扫；
+// 聊天区/内容区的每帧 DOM 变化与侧边栏注入无关，直接跳过，避免全量扫描所有 div。
+function mutationNeedsRescan(records: MutationRecord[]): boolean {
+  const area = state.sidebarRoot ?? state.rejectedSidebar;
+  if (!area) return true;
+  if (!area.isConnected) return true;
+  return records.some((r) => {
+    const target = r.target;
+    return target === area || (target instanceof Node && area.contains(target));
+  });
+}
+
 export function startSettingsInjector(): void {
   if (state.observer) return;
 
-  const obs = new MutationObserver(() => {
+  const obs = new MutationObserver((records) => {
+    if (document.hidden) return;
+    if (!mutationNeedsRescan(records)) return;
     tryInject();
     maybeDumpDom();
   });
@@ -271,14 +288,31 @@ export function startSettingsInjector(): void {
   let ticks = 0;
   const interval = setInterval(() => {
     ticks++;
+    if (ticks > 60) {
+      clearInterval(interval);
+      return;
+    }
+    if (document.hidden) return;
+    if (state.sidebarRoot) return; // 已注入，observer 按需重扫足够
+    if (state.rejectedSidebar) {
+      // 兜底：同一页面内切到设置视图时旧侧边栏可能未断开，observer 过滤不到。
+      // 这里只做廉价的按钮文本扫描检测设置信号（无 getBoundingClientRect），命中才全量重扫。
+      if (isCodexPpSettingsLabelSet(codexPpSettingsLabelsFrom(document))) {
+        state.rejectedSidebar = null;
+        tryInject();
+        maybeDumpDom();
+      }
+      return;
+    }
     tryInject();
     maybeDumpDom();
-    if (ticks > 60) clearInterval(interval);
   }, 500);
 }
 
 function onNav(): void {
   state.fingerprint = null;
+  // 导航可能切换页面（设置页/聊天页），清掉侧边栏归属缓存强制重新判定。
+  state.rejectedSidebar = null;
   tryInject();
   maybeDumpDom();
 }
@@ -399,13 +433,20 @@ function tryInject(): void {
   const outer = itemsGroup.parentElement ?? itemsGroup;
   if (!isSettingsSidebarCandidate(itemsGroup) || !isSettingsSidebarCandidate(outer)) {
     scheduleSettingsSurfaceHidden();
-    plog("rejected non-settings sidebar candidate", {
-      itemsGroup: describe(itemsGroup),
-      outer: describe(outer),
-    });
+    // 记录非设置页的侧边栏：后续聊天区内容变化不再触发全量扫描，
+    // 只有当这个侧边栏自身变化/被替换时才重扫（会话列表更新频率低）。
+    // 日志只在首次拒绝时打一次，避免聊天页每次 DOM 变化都产生 IPC 日志风暴。
+    if (!state.rejectedSidebar) {
+      plog("rejected non-settings sidebar candidate", {
+        itemsGroup: describe(itemsGroup),
+        outer: describe(outer),
+      });
+    }
+    state.rejectedSidebar = itemsGroup;
     return;
   }
   state.sidebarRoot = outer;
+  state.rejectedSidebar = null;
   syncNativeSettingsHeader(itemsGroup, outer);
 
   if (state.navGroup && outer.contains(state.navGroup)) {
@@ -443,6 +484,7 @@ function tryInject(): void {
       "[data-codexpp-sidebar-update]",
     );
     state.sidebarRoot = outer;
+    state.rejectedSidebar = null;
     syncPagesGroup();
     refreshSidebarChatgptPlusPlusUpdateButton();
     if (state.activePage !== null) syncCodexNativeNavActive(true);
