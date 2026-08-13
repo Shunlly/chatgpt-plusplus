@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-plusplus",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Installer CLI for chatgpt-plusplus tweak system",
   "type": "module",
   "repository": {
