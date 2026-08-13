@@ -10,7 +10,7 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 
 - watcher 轮询间隔从 5 分钟调整为 30 分钟（macOS/Windows/Linux）；Windows 任务改为 VBS 隐藏运行，不再弹出 cmd 窗口干扰输入。
 - 卸载流程先清理 watcher（计划任务/LaunchAgent/Systemd），避免 ChatGPT 运行中卸载导致任务残留。
-- 商店 URL 指向本项目（jsDelivr 直出），清空上游 b-nnett 的遗留商店条目。
+- 商店 URL 指向本项目（GitHub raw 直出，约 5 分钟缓存），清空上游 b-nnett 的遗留商店条目。
 - 版本号改为单一事实源：根 package.json，`npm run version:sync` 同步 Formula/安装器/运行时版本。
 
 ### Fixed

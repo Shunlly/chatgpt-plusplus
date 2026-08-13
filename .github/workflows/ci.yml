@@ -18,3 +18,15 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  # Windows watcher 端到端自检：schtasks + wscript/VBS 隐藏执行链路在真实 Windows 上验证
+  watcher-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx packages/installer/scripts/selfcheck-windows-watcher.ts
