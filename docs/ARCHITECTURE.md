@@ -113,7 +113,12 @@ When Codex auto-updates via Sparkle:
 
 1. Sparkle downloads a new Codex.app and replaces ours on disk.
 2. Our patch is gone; the new app launches normally.
-3. Our launchd / systemd / scheduled-task watcher fires (macOS and Linux watch `app.asar`; Windows runs at logon).
+3. Our watcher fires. Trigger model per platform:
+   - macOS: launchd `WatchPaths` on `app.asar` (event-driven) plus a 30-minute `StartInterval` fallback.
+   - Linux: systemd `.path` unit on `app.asar` (event-driven) plus a 30-minute `.timer` fallback.
+   - Windows: logon task plus a 30-minute interval task; both run through `wscript` + VBS so no cmd window steals focus.
+   A 30-minute interval is the floor on every platform, so a missed event still self-heals.
+   (Windows is deliberately polling-only: `schtasks` ONEVENT file watching depends on the system audit policy being enabled, which is unreliable on end-user machines.)
 4. The watcher runs `chatgptplusplus repair --quiet`.
 5. `repair` is idempotent: if the current asar hash still matches `patchedAsarHash`, it exits without touching the app; if the hash drifted after an update, it re-runs the install patch against the new app bundle.
 

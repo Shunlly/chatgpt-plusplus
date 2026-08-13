@@ -2,10 +2,13 @@
 
 The in-app Tweak Store reads the live reviewed registry from this repository:
 
-`https://cdn.jsdelivr.net/gh/Shunlly/chatgpt-plusplus@main/store/index.json`
+`https://raw.githubusercontent.com/Shunlly/chatgpt-plusplus/main/store/index.json`
 
 Released ChatGPT++ builds fetch this URL whenever the store page is opened or
 refreshed. The registry can change without a ChatGPT++ app update.
+
+GitHub raw serves this file with a short cache (about 5 minutes), so a store
+update is visible quickly; there is no need to ship a new app release for it.
 
 Registry entries must pin installs to `approvedCommitSha`. ChatGPT++ downloads
 from GitHub's commit archive URL for that SHA and validates the downloaded
