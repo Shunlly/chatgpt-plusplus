@@ -10,7 +10,10 @@
  */
 
 import { ipcRenderer } from "electron";
-import { applyStatsigModelVisibilityPatch } from "./statsig-patch";
+import {
+  applyStatsigModelVisibilityPatch,
+  startStatsigModelVisibilityMaintenance,
+} from "./statsig-patch";
 import { installReactHook } from "./react-hook";
 import { startSettingsInjector } from "./settings-injector";
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
@@ -76,6 +79,10 @@ let statsigPatchResult: { matched: number; changed: number; skipped: number } | 
 try {
   statsigPatchResult = applyStatsigModelVisibilityPatch();
   fileLog("statsig model visibility patch", statsigPatchResult);
+  // 新版 Codex 运行中会刷新 Statsig 把 use_hidden_models 写回 true，
+  // 启动打一次不够；持续维护保证自定义 model_catalog 模型不被隐藏。
+  startStatsigModelVisibilityMaintenance({ onChange: (changed) =>
+    fileLog("statsig model visibility re-patch", { changed }) });
 } catch (e) {
   fileLog("statsig model visibility patch FAILED", String(e));
 }
