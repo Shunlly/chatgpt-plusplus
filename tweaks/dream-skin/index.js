@@ -534,6 +534,8 @@ function renderPage(api, root) {
 // 主界面 main（_MainContentSurface）即内容区；Codex 导航时 React 复用内容 DIV 而不移除
 // 我们的 host，因此点击其它官方侧边栏按钮时必须主动恢复官方视图。
 let mainNavObserver = null;
+// 观察器高频触发时合并到 200ms 内执行一次，避免聊天/流式输出时每次 DOM 变化都全量扫侧边栏。
+let mainNavTimer = null;
 let mainThemeBtn = null;
 let mainThemeHost = null;
 let mainSidebarGroup = null;
@@ -860,12 +862,22 @@ function cleanupMainNavResidue() {
   }
 }
 
+// 隐藏窗口不扫侧边栏；可见窗口把高频 DOM 变化合并到 200ms 内跑一次。
+function scheduleMainNav(api) {
+  if (document.hidden) return;
+  if (mainNavTimer) return;
+  mainNavTimer = setTimeout(() => {
+    mainNavTimer = null;
+    syncMainNav(api);
+  }, 200);
+}
+
 function startMainNav(api) {
   if (mainNavObserver) return;
   cleanupMainNavResidue();
   lang = resolveLang(api);
   syncMainNav(api);
-  mainNavObserver = new MutationObserver(() => syncMainNav(api));
+  mainNavObserver = new MutationObserver(() => scheduleMainNav(api));
   mainNavObserver.observe(document.documentElement, { childList: true, subtree: true });
   if (!langTimer) langTimer = setInterval(() => translateSidebar(), 2000);
   api.log.info("main nav ready", JSON.stringify({ href: location.href, plug: !!findMainPluginBtn() }));
@@ -875,6 +887,10 @@ function stopMainNav() {
   if (mainNavObserver) {
     mainNavObserver.disconnect();
     mainNavObserver = null;
+  }
+  if (mainNavTimer) {
+    clearTimeout(mainNavTimer);
+    mainNavTimer = null;
   }
   if (langTimer) {
     clearInterval(langTimer);
@@ -922,6 +938,7 @@ module.exports = {
       if (!document.hidden) {
         translateSidebar();
         pollDiskSelection(api);
+        if (mainNavObserver) syncMainNav(api);
       }
     };
     document.addEventListener("visibilitychange", visibilityHandler);

@@ -742,16 +742,15 @@
     ensure(pending);
   };
   const scheduleEnsure = ({ root = false, route = true, layout = false } = {}) => {
+    // 隐藏窗口不调度；回前台由 visibilitychange 全量同步一次。
+    if (document.hidden) return;
     scheduler.root ||= root;
     scheduler.route ||= route;
     scheduler.layout ||= layout;
-    if (scheduler.timeout || scheduler.frame !== null) return;
-    if (typeof requestAnimationFrame === "function") {
-      scheduler.frame = requestAnimationFrame(flushScheduledEnsure);
-      scheduler.timeout = setTimeout(flushScheduledEnsure, 96);
-    } else {
-      scheduler.timeout = setTimeout(flushScheduledEnsure, 64);
-    }
+    if (scheduler.timeout) return;
+    // 合并窗口 200ms：聊天/流式输出期间 DOM 高频变化时只按 200ms 同步一次，
+    // 避免每帧（约 16ms）跑整套 DOM 查询/写入把主线程占满导致打字卡顿。
+    scheduler.timeout = setTimeout(flushScheduledEnsure, 200);
   };
   const observer = new MutationObserver(() => scheduleEnsure({ route: true }));
   rootObserver = new MutationObserver(() => {
