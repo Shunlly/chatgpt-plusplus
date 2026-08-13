@@ -3,7 +3,7 @@
     "build": "node -e \"\""
   },
   "name": "@chatgpt-plusplus/loader",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "private": true,
   "description": "Tiny stub injected into app.asar; bootstraps the runtime from the user dir.",
   "main": "loader.cjs"
