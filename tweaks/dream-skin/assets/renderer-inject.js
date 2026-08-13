@@ -117,6 +117,7 @@
   }
   if (previous?.analysisTimer) clearTimeout(previous.analysisTimer);
   if (previous?.resizeHandler) window.removeEventListener("resize", previous.resizeHandler);
+  if (previous?.visibilityHandler) document.removeEventListener("visibilitychange", previous.visibilityHandler);
   if (previous?.mediaHandler && previous?.mediaQuery) {
     try { previous.mediaQuery.removeEventListener("change", previous.mediaHandler); } catch {}
   }
@@ -683,6 +684,9 @@
 
   const ensure = ({ root: rootPass = true, route = true, layout = true } = {}) => {
     if (window[DISABLED_KEY]) return;
+    // 隐藏窗口不空转：后台窗口的 4 秒轮询、观察器与事件回调全部在此短路，
+    // 避免多会话同时后台时每 4 秒执行整套 DOM 查询/写入导致卡顿。
+    if (document.hidden) return;
     const root = document.documentElement;
     if (!root) return;
     metrics.ensureCalls += 1;
@@ -714,6 +718,7 @@
     }
     if (analysisTimer) clearTimeout(analysisTimer);
     if (state?.resizeHandler) window.removeEventListener("resize", state.resizeHandler);
+    if (state?.visibilityHandler) document.removeEventListener("visibilitychange", state.visibilityHandler);
     if (state?.mediaHandler && state?.mediaQuery) {
       try { state.mediaQuery.removeEventListener("change", state.mediaHandler); } catch {}
     }
@@ -764,6 +769,10 @@
     mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     mediaHandler = () => scheduleEnsure({ root: true, route: true });
   } catch {}
+  const visibilityHandler = () => {
+    // 回到前台立即全量同步一次，覆盖隐藏期间累积的 DOM 状态变化
+    if (!document.hidden) ensure({ root: true, route: true, layout: true });
+  };
 
   window[STATE_KEY] = {
     ensure,
@@ -776,6 +785,7 @@
     resizeHandler,
     mediaQuery,
     mediaHandler,
+    visibilityHandler,
     artUrl,
     installToken,
     analysis: artAnalysis,
@@ -807,6 +817,7 @@
   const timer = setInterval(() => ensure(), 4000);
   window[STATE_KEY].timer = timer;
   window.addEventListener("resize", resizeHandler, { passive: true });
+  document.addEventListener("visibilitychange", visibilityHandler);
   if (mediaHandler && mediaQuery) {
     mediaQuery.addEventListener("change", mediaHandler);
   }
