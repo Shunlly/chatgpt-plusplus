@@ -65,6 +65,14 @@ test("dream-skin 新版首页识别会清除欢迎区白色面板", () => {
   assert.match(css, /\[data-app-shell-main-content-top-fade\]\s*\{\s*background-image: none !important;/);
 });
 
+test("dream-skin 隐藏窗口不空转，回前台立即恢复", () => {
+  const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
+  assert.match(template, /const ensure = .*if \(document\.hidden\) return;/s);
+  assert.match(template, /document\.addEventListener\("visibilitychange", visibilityHandler\)/);
+  assert.match(template, /document\.removeEventListener\("visibilitychange", state\.visibilityHandler\)/);
+  assert.match(template, /if \(!document\.hidden\) ensure\(\{ root: true, route: true, layout: true \}\)/);
+});
+
 test("dream-skin payload 组装后可被 JS 解析（无占位符残留）", () => {
   const css = readFileSync(join(tweakRoot, "assets/dream-skin.css"), "utf8");
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
