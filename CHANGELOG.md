@@ -4,6 +4,21 @@ All notable changes to chatgpt-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 1.0.23
+
+### Changed
+
+- watcher 轮询间隔从 5 分钟调整为 30 分钟（macOS/Windows/Linux）；Windows 任务改为 VBS 隐藏运行，不再弹出 cmd 窗口干扰输入。
+- 卸载流程先清理 watcher（计划任务/LaunchAgent/Systemd），避免 ChatGPT 运行中卸载导致任务残留。
+- 商店 URL 指向本项目（jsDelivr 直出），清空上游 b-nnett 的遗留商店条目。
+- 版本号改为单一事实源：根 package.json，`npm run version:sync` 同步 Formula/安装器/运行时版本。
+
+### Fixed
+
+- 移除仓库中提交的构建产物（installer assets/runtime）与用户自定义主题数据（dream-skin/custom-seed）。
+- watcher 健康检查改为检查实际使用的 interval 任务名。
+- 后台隐藏窗口暂停 Dream Skin 磁盘轮询与侧边栏翻译，多窗口同时打开时不再空转卡顿。
+
 ## 0.1.7
 
 Release notes: [docs/releases/0.1.7.md](docs/releases/0.1.7.md)

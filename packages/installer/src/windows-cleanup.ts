@@ -45,6 +45,7 @@ export function buildWindowsManagedCleanupScript(input: {
     input.localAppData ? join(input.localAppData, "Microsoft", "WindowsApps", "chatgpt-plusplus-codex.cmd") : null,
     input.localAppData ? join(input.localAppData, "chatgpt-plusplus", "store-apps") : null,
     input.appData ? join(input.appData, "chatgpt-plusplus", "bin", "watcher.cmd") : null,
+    input.appData ? join(input.appData, "chatgpt-plusplus", "bin", "watcher.vbs") : null,
     input.appData ? join(input.appData, "Microsoft", "Windows", "Start Menu", "Programs", "ChatGPT++.lnk") : null,
     join(input.home, "Desktop", "ChatGPT++.lnk"),
   ].filter((path): path is string => path !== null);

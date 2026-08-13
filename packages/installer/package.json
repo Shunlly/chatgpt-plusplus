@@ -26,7 +26,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run copy-assets",
     "copy-assets": "node ./scripts/copy-assets.mjs",
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "prebuild": "node ./scripts/sync-version.mjs"
   },
   "dependencies": {
     "@chatgpt-plusplus/sdk": "*",

@@ -44,12 +44,18 @@ const el = () =>
 
 function installDomStubs() {
   (globalThis as any).window = { __CODEX_DREAM_SKIN_STATE__: null };
+  const listeners: Record<string, () => void> = {};
   (globalThis as any).document = {
     createElement: () => el(),
     getElementById: () => null,
     querySelector: () => null,
     querySelectorAll: () => [],
-    addEventListener() {},
+    addEventListener(type: string, fn: () => void) {
+      listeners[type] = fn;
+    },
+    removeEventListener(type: string) {
+      delete listeners[type];
+    },
     documentElement: { classList: { add() {}, remove() {}, contains: () => false } },
   };
   (globalThis as any).location = { search: "", href: "" };
@@ -65,11 +71,11 @@ function installDomStubs() {
     return timers.length;
   };
   (globalThis as any).clearInterval = () => {};
-  return timers;
+  return { timers, listeners };
 }
 
 test("GUI 写 selection.json 后 tweak 轮询应用（幂等不重复）", async () => {
-  const timers = installDomStubs();
+  const { timers } = installDomStubs();
   const files = new Map<string, string>([
     ["selection.json", JSON.stringify({ type: "preset", id: "preset-sakura-dawn" })],
   ]);
@@ -128,6 +134,54 @@ test("GUI 写 selection.json 后 tweak 轮询应用（幂等不重复）", async
   timers[timers.length - 1]();
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(storageSets, before2);
+
+  tweak.stop();
+});
+
+test("隐藏窗口暂停轮询，回前台立即同步", async () => {
+  const { timers, listeners } = installDomStubs();
+  const files = new Map<string, string>([
+    ["selection.json", JSON.stringify({ type: "preset", id: "preset-sakura-dawn" })],
+  ]);
+  let storageSets = 0;
+  const storage = new Map<string, unknown>([["selection", { type: "none" }]]);
+  const api = {
+    process: "renderer",
+    fs: {
+      read: async (p: string) => {
+        if (!files.has(p)) throw Object.assign(new Error(`ENOENT: ${p}`), { code: "ENOENT" });
+        return files.get(p)!;
+      },
+      write: async (p: string, c: string) => files.set(p, c),
+      asset: async (p: string) => `data:text/plain;base64,${Buffer.from(p).toString("base64")}`,
+    },
+    storage: {
+      get: (k: string) => storage.get(k),
+      set: (k: string, v: unknown) => {
+        if (k === "selection") storageSets += 1;
+        storage.set(k, v);
+      },
+    },
+    log: { info() {}, warn() {}, error() {} },
+  };
+
+  const tweak = require(join(ROOT, "tweaks", "dream-skin", "index.js"));
+  await tweak.start(api);
+  assert.equal(storageSets, 1);
+
+  // 窗口隐藏：磁盘变化不应用，轮询空转跳过
+  (globalThis as any).document.hidden = true;
+  files.set("selection.json", JSON.stringify({ type: "preset", id: "preset-cyber-neon" }));
+  timers[timers.length - 1]();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(storageSets, 1);
+
+  // 回前台：visibilitychange 立即同步一次
+  (globalThis as any).document.hidden = false;
+  listeners["visibilitychange"]?.();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(storageSets, 2);
+  assert.deepEqual(storage.get("selection"), { type: "preset", id: "preset-cyber-neon" });
 
   tweak.stop();
 });

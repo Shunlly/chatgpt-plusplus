@@ -1111,7 +1111,7 @@ function autoUpdateRow(config: ChatgptPlusPlusConfig): HTMLElement {
   title.textContent = "Automatically refresh ChatGPT++";
   const desc = document.createElement("div");
   desc.className = "text-token-text-secondary min-w-0 text-sm";
-  desc.textContent = `Installed version v${config.version}. The watcher checks hourly and can refresh the ChatGPT++ runtime automatically.`;
+  desc.textContent = `Installed version v${config.version}. The watcher checks every 30 minutes and can refresh the ChatGPT++ runtime automatically.`;
   left.appendChild(title);
   left.appendChild(desc);
   row.appendChild(left);

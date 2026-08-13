@@ -1,7 +1,7 @@
 import type { TweakManifest } from "@chatgpt-plusplus/sdk";
 
 export const DEFAULT_TWEAK_STORE_INDEX_URL =
-  "https://b-nnett.github.io/codex-plusplus/store/index.json";
+  "https://cdn.jsdelivr.net/gh/Shunlly/chatgpt-plusplus@main/store/index.json";
 export const TWEAK_STORE_REVIEW_ISSUE_URL =
   "https://github.com/Shunlly/chatgpt-plusplus/issues/new";
 

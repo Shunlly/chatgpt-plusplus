@@ -227,9 +227,9 @@ function checkScheduledTaskWatcher(): WatcherHealthCheck[] {
       detail: "chatgpt-plusplus-watcher",
     },
     {
-      name: "hourly task",
-      status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "chatgpt-plusplus-watcher-hourly"]) ? "ok" : "warn",
-      detail: "chatgpt-plusplus-watcher-hourly",
+      name: "interval task",
+      status: commandSucceeds("schtasks.exe", ["/Query", "/TN", "chatgpt-plusplus-watcher-interval"]) ? "ok" : "warn",
+      detail: "chatgpt-plusplus-watcher-interval",
     },
   ];
 }

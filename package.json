@@ -25,7 +25,8 @@
     "package": "node scripts/package.mjs",
     "package:dmg": "node scripts/package.mjs --platform=darwin",
     "package:exe": "node scripts/package.mjs --platform=win32",
-    "package:all": "node scripts/package-all.mjs"
+    "package:all": "node scripts/package-all.mjs",
+    "version:sync": "node packages/installer/scripts/sync-version.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -51,7 +51,8 @@ export function uninstallWatcher(): void {
 const LABEL = "com.chatgptplusplus.watcher";
 // 旧项目名的 watcher label，卸载/升级时清理。
 const LEGACY_LABEL = "com.codexplusplus.watcher";
-const WATCHER_INTERVAL_SECONDS = 5 * 60;
+// ponytail: 30 分钟轮询兼顾"应用更新后尽快补丁"与低打扰；如需秒级修复可再引入系统级 WatchPaths。
+const WATCHER_INTERVAL_SECONDS = 30 * 60;
 
 function launchdPath(): string {
   return join(targetUserHome(), "Library", "LaunchAgents", `${LABEL}.plist`);
@@ -402,6 +403,7 @@ function nodeExecArgsForCli(cliPath: string): string[] {
 function windowsWatcherTaskCommand(): string {
   // watcher.cmd 放在用户数据目录（已迁移为 chatgpt-plusplus）的 bin 下。
   const scriptPath = join(userPaths().binDir, "watcher.cmd");
+  const vbsPath = join(userPaths().binDir, "watcher.vbs");
   mkdirSync(dirname(scriptPath), { recursive: true });
   writeFileSync(
     scriptPath,
@@ -414,11 +416,21 @@ function windowsWatcherTaskCommand(): string {
       "",
     ].join("\r\n"),
   );
-  return windowsQuote(scriptPath);
+  // schtasks 直接运行 .cmd 会弹黑色窗口抢焦点；改由 wscript 经 VBS 隐藏运行。
+  writeFileSync(vbsPath, windowsWatcherVbsContent(scriptPath));
+  return `wscript.exe ${windowsQuote(vbsPath)}`;
 }
 
 function windowsQuote(value: string): string {
   return `"${value.replace(/"/g, `\\"`)}"`;
+}
+
+export function windowsWatcherVbsContent(scriptPath: string): string {
+  return `CreateObject("WScript.Shell").Run ${vbsEscape(windowsQuote(scriptPath))}, 0, False`;
+}
+
+function vbsEscape(value: string): string {
+  return value.replace(/"/g, '""');
 }
 
 function uninstallScheduledTask(): void {

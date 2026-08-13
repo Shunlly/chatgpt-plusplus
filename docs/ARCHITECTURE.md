@@ -119,7 +119,7 @@ When Codex auto-updates via Sparkle:
 
 ## ChatGPT++ self-updates
 
-The watcher also runs hourly using the GitHub-installed local CLI at `~/.chatgpt-plusplus/source/packages/installer/dist/cli.js`. It checks the latest ChatGPT++ GitHub Release, downloads and rebuilds a newer release when available, then runs `repair`. When the app patch is intact but the installed ChatGPT++ version in `state.json` is older than the running CLI, `repair` refreshes `<user-data-dir>/runtime/` and updates state. It does not modify user tweak folders.
+The watcher also runs every 30 minutes using the GitHub-installed local CLI at `~/.chatgpt-plusplus/source/packages/installer/dist/cli.js`. It checks the latest ChatGPT++ GitHub Release, downloads and rebuilds a newer release when available, then runs `repair`. When the app patch is intact but the installed ChatGPT++ version in `state.json` is older than the running CLI, `repair` refreshes `<user-data-dir>/runtime/` and updates state. It does not modify user tweak folders.
 
 Users can disable ChatGPT++ runtime auto-updates from Settings → ChatGPT++ → Config. The setting is stored in `<user-data-dir>/config.json`; app-update repair still works, but intact-app runtime refreshes are skipped while auto-update is disabled.
 
