@@ -20,6 +20,12 @@ interface Opts {
 }
 
 export async function uninstall(opts: Opts = {}): Promise<void> {
+  // 先清理 watcher 计划任务/LaunchAgent：与备份恢复无关，且不依赖应用是否运行。
+  // 若放在后面，ChatGPT 运行中卸载会提前抛错，Windows 计划任务残留导致每 30 分钟弹窗。
+  uninstallWatcher();
+  cleanupWindowsManagedArtifacts();
+  console.log(kleur.green("Removed watcher."));
+
   const paths = ensureUserPaths();
   const state = readState(paths.stateFile);
   const codex = locateCodex(opts.app ?? state?.appRoot);
@@ -63,10 +69,6 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
     });
     console.log(kleur.green("Restored Codex.app files from backup."));
   }
-
-  uninstallWatcher();
-  cleanupWindowsManagedArtifacts();
-  console.log(kleur.green("Removed watcher."));
 
   cleanupRuntimeAndState(paths);
   console.log(kleur.green("Cleaned up runtime + state."));

@@ -234,6 +234,7 @@ async function applySaved(api) {
 
 // 磁盘选择同步：独立 GUI 写入 selection.json 后，这里轮询应用（2 秒内生效）。
 async function pollDiskSelection(api) {
+  if (document.hidden) return;
   try {
     const text = await api.fs.read(SELECTION_FILE);
     if (!text) return;
@@ -536,6 +537,8 @@ let mainNavObserver = null;
 let mainThemeBtn = null;
 let mainThemeHost = null;
 let mainSidebarGroup = null;
+// 后台窗口暂停轮询，回前台立即同步，避免多会话时 N 个窗口同时空转。
+let visibilityHandler = null;
 let loggedSidebarOnce = false;
 
 // ── 界面语言：默认随系统（中文系统→中文），侧边栏可手动切换并持久化 ──
@@ -581,7 +584,7 @@ function replaceBtnLabel(el, text) {
 
 // 定时扫描翻译固定菜单；已翻译的跳过（去重守卫，避免与 React 互相触发）。
 function translateSidebar() {
-  if (!lang) return;
+  if (!lang || document.hidden) return;
   for (const el of [...document.querySelectorAll("button.sidebar-item")]) {
     const text = (el.textContent || "").trim();
     const zh = SIDEBAR_LABELS[text];
@@ -914,8 +917,20 @@ module.exports = {
     startMainNav(api);
     if (selectionPoll) clearInterval(selectionPoll);
     selectionPoll = setInterval(() => pollDiskSelection(api), 2000);
+    if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
+    visibilityHandler = () => {
+      if (!document.hidden) {
+        translateSidebar();
+        pollDiskSelection(api);
+      }
+    };
+    document.addEventListener("visibilitychange", visibilityHandler);
   },
   stop() {
+    if (visibilityHandler) {
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      visibilityHandler = null;
+    }
     if (selectionPoll) {
       clearInterval(selectionPoll);
       selectionPoll = null;

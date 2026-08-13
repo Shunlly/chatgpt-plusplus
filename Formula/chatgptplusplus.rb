@@ -1,8 +1,9 @@
 class Chatgptplusplus < Formula
   desc "Tweak system for the OpenAI ChatGPT desktop app"
   homepage "https://github.com/Shunlly/chatgpt-plusplus"
+  # 版本 tag 由 scripts/sync-version.mjs 自动同步，勿手工修改。
   url "https://github.com/Shunlly/chatgpt-plusplus.git",
-      tag: "v1.0.6"
+      tag: "v1.0.23"
   license "MIT"
 
   depends_on "node"
@@ -25,7 +26,7 @@ class Chatgptplusplus < Formula
 
   def caveats
     <<~EOS
-      Run `chatgptplusplus install` to patch Codex.app.
+      Run `chatgptplusplus install` to patch ChatGPT/Codex.app.
       Run `chatgptplusplus update` to update ChatGPT++ from GitHub source.
     EOS
   end

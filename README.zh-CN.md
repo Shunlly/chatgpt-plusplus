@@ -359,11 +359,8 @@ ChatGPT++ 会在你的 ChatGPT 桌面应用内运行本地代码。请只安装�
 
 ## 致谢与上游项目
 
-ChatGPT++ 是 [Codex++](https://github.com/b-nnett/codex-plusplus) 的延续项目，后者是面向 Codex 桌面应用的原创 tweak 系统。
-
-- 原作者：[Bennett (@b-nnett)](https://github.com/b-nnett)
-- 上游项目：[b-nnett/codex-plusplus](https://github.com/b-nnett/codex-plusplus)
-- MIT 许可证头部保留原作者版权（c）2026 Bennett。
+ChatGPT++ 是面向 Codex 桌面应用的 codex-plusplus tweak 系统的延续项目。
+MIT 许可证头部保留原作者版权（c）2026 Bennett。
 
 ## 贡献者
 
