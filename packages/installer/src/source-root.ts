@@ -45,6 +45,7 @@ export function describeInstallationSource(sourceRoot: string | null | undefined
   if (existsSync(join(sourceRoot, "standalone.json"))) {
     return { kind: "standalone-package", label: "Standalone 安装包", detail: sourceRoot };
   }
+  // 兼容旧项目名 Homebrew 安装路径（老用户升级后路径仍为 codexplusplus）。
   if (/\/(?:Homebrew|homebrew)\/Cellar\/(?:chatgptplusplus|codexplusplus)\//.test(normalized)) {
     return { kind: "homebrew", label: "Homebrew", detail: sourceRoot };
   }

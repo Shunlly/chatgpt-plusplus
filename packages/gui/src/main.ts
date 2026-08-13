@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+// tweak id 自改名后未变：老用户数据按此 id 存储，改动会导致主题/设置丢失，勿改。
 const TWEAK_ID = "com.codexplusplus.dream-skin";
 
 function userRoot(): string {

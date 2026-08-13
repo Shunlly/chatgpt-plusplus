@@ -955,6 +955,7 @@ function migrateLegacyDreamSkinCustomThemes(): void {
       "themes",
     );
     if (!existsSync(studioThemes)) return;
+    // tweak id 自项目改名后未变：老用户主题数据仍存于 com.codexplusplus.dream-skin 下，迁移必须沿用，勿改。
     const dstDir = join(userRoot!, "tweak-data", "com.codexplusplus.dream-skin", "custom");
     mkdirSync(dstDir, { recursive: true });
     const indexFile = join(dstDir, "index.json");
@@ -1611,6 +1612,7 @@ function compareVersions(a: string, b: string): number {
 function fallbackSourceRoot(): string | null {
   const candidates = [
     join(homedir(), ".chatgpt-plusplus", "source"),
+    // 兼容老版本（项目还叫 codex-plusplus 时期）的源码安装位置，勿删。
     join(homedir(), ".codex-plusplus", "source"),
     join(userRoot!, "source"),
   ];

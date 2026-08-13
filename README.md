@@ -377,7 +377,7 @@ See [Security](./SECURITY.md).
 
 ## Credits
 
-ChatGPT++ is a continuation of the codex-plusplus tweak system for the Codex desktop app.
+ChatGPT++ is a continuation of the tweak system for the Codex desktop app.
 The MIT license header retains the original copyright (c) 2026 Bennett.
 
 ## Contributors
