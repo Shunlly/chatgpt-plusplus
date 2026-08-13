@@ -4,6 +4,9 @@ All notable changes to chatgpt-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+> 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
+> 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
+
 ## 1.0.24
 
 ### Fixed
@@ -43,7 +46,7 @@ Release notes: [docs/releases/0.1.7.md](docs/releases/0.1.7.md)
 - Added a Tweak Store sidebar badge showing how many installed tweaks have newer approved versions available.
 - Improved self-update command execution diagnostics by capturing stdout/stderr tails when dependency install, build, or repair commands fail.
 - Made local macOS signing identity export/import use a generated PKCS#12 password and redact that secret from command failures.
-- Documented the safe-mode exit command in CLI help and kept blank `codexplusplus` invocations mapped to help output.
+- Documented the safe-mode exit command in CLI help and kept blank `chatgptplusplus` invocations mapped to help output.
 
 ### Fixed
 
@@ -70,7 +73,7 @@ Release notes: [docs/releases/0.1.5.md](docs/releases/0.1.5.md)
 
 - Tweak Store approval now relies on store icons instead of screenshot submissions.
 - Updated Bennett's UI Improvements in the store registry to `0.1.5`.
-- Changed macOS repair guidance to direct users to `codexplusplus repair` from Terminal when the background watcher is blocked.
+- Changed macOS repair guidance to direct users to `chatgptplusplus repair` from Terminal when the background watcher is blocked.
 
 ### Fixed
 
@@ -91,7 +94,7 @@ Release notes: [docs/releases/0.1.4.md](docs/releases/0.1.4.md)
 - Improved auto-repair watcher retries after Codex updates and reduced repair checks to a 5-minute interval.
 - Kept Codex++ release checks throttled to hourly while allowing app repair checks to run more often.
 - Made Codex.app settle detection depend only on patch-critical inputs.
-- Made blank `codexplusplus` invocations show help instead of a command error.
+- Made blank `chatgptplusplus` invocations show help instead of a command error.
 
 ### Fixed
 
@@ -157,12 +160,12 @@ Release notes: [docs/releases/0.1.2.md](docs/releases/0.1.2.md)
 - Added a native Codex window bridge for main-scope tweaks.
 - Tweaks can now create Codex-registered chat windows for routes such as `/local/<conversation-id>`, which enables split-screen chat tweaks to render the real Codex chat UI instead of transcript clones or unregistered BrowserViews.
 - The installer now exposes Codex's internal window services to the Codex++ runtime during asar patching.
-- Added `codexplusplus` as the preferred CLI command, while keeping `codex-plusplus` as an alias.
-- Added `codexplusplus update` / `codexplusplus self-update` to refresh Codex++ from GitHub source, rebuild it, and run `repair`.
-- Added `codexplusplus update-codex` for macOS Sparkle updates. It restores a signed Codex.app before the official updater runs, then lets the watcher reapply Codex++ after Codex restarts.
+- Added `chatgptplusplus` as the preferred CLI command, while keeping the legacy `codex-plusplus` alias for migration.
+- Added `chatgptplusplus update` / `chatgptplusplus self-update` to refresh Codex++ from GitHub source, rebuild it, and run `repair`.
+- Added `chatgptplusplus update-codex` for macOS Sparkle updates. It restores a signed Codex.app before the official updater runs, then lets the watcher reapply Codex++ after Codex restarts.
 - Added a native Windows PowerShell bootstrap script, `install.ps1`.
-- Added `update.sh` and `update.ps1` helper scripts for users whose shell does not yet have `codexplusplus` on PATH.
-- Added Homebrew formula scaffolding and Bun/global-install metadata so `codexplusplus` can be installed as a normal command.
+- Added `update.sh` and `update.ps1` helper scripts for users whose shell does not yet have `chatgptplusplus` on PATH.
+- Added Homebrew formula scaffolding and Bun/global-install metadata so `chatgptplusplus` can be installed as a normal command.
 
 ### Fixed
 
@@ -177,7 +180,7 @@ Release notes: [docs/releases/0.1.2.md](docs/releases/0.1.2.md)
 
 ### Changed
 
-- Source bootstrap installs local CLI shims into a writable PATH directory when possible, so users can run `codexplusplus repair`, `codexplusplus status`, and `codexplusplus update` after the first install.
+- Source bootstrap installs local CLI shims into a writable PATH directory when possible, so users can run `chatgptplusplus repair`, `chatgptplusplus status`, and `chatgptplusplus update` after the first install.
 - macOS installs now preserve a signed Codex.app backup when available, which supports safer official Codex updates.
 - Settings injection now hides Codex++ settings surfaces more cleanly when leaving settings.
 

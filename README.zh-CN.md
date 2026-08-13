@@ -359,7 +359,7 @@ ChatGPT++ 会在你的 ChatGPT 桌面应用内运行本地代码。请只安装�
 
 ## 致谢与上游项目
 
-ChatGPT++ 是面向 Codex 桌面应用的 codex-plusplus tweak 系统的延续项目。
+ChatGPT++ 是面向 Codex 桌面应用的 tweak 系统的延续项目。
 MIT 许可证头部保留原作者版权（c）2026 Bennett。
 
 ## 贡献者
