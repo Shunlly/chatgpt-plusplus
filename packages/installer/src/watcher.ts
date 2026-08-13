@@ -426,7 +426,9 @@ function windowsQuote(value: string): string {
 }
 
 export function windowsWatcherVbsContent(scriptPath: string): string {
-  return `CreateObject("WScript.Shell").Run ${vbsEscape(windowsQuote(scriptPath))}, 0, False`;
+  // WScript.Shell.Run 不能直接启动 .cmd/.bat，必须经 cmd.exe /c 包装，
+  // 否则计划任务静默失败（watcher 不工作）。
+  return `CreateObject("WScript.Shell").Run "cmd.exe /c ${vbsEscape(windowsQuote(scriptPath))}", 0, False`;
 }
 
 function vbsEscape(value: string): string {
