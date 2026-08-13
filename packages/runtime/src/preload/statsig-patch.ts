@@ -66,3 +66,38 @@ export function applyStatsigModelVisibilityPatch(): {
 
   return { matched, changed, skipped };
 }
+
+/**
+ * 持续维护 use_hidden_models=false：
+ * 新版 Codex 会在运行中刷新 Statsig 配置，把缓存里的 use_hidden_models 写回
+ * true（表现为自定义 model_catalog 模型“突然消失”）。页面加载时打一次补丁
+ * 不够，这里通过 storage 事件 + 周期性重打 + 回前台重打保证缓存始终为 false。
+ * changed>0 时才回调，避免每次轮询都打日志。
+ */
+export function startStatsigModelVisibilityMaintenance(opts: {
+  intervalMs?: number;
+  onChange?: (changed: number) => void;
+} = {}): () => void {
+  const intervalMs = opts.intervalMs ?? 10_000;
+
+  const reapply = () => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    const result = applyStatsigModelVisibilityPatch();
+    if (result.changed > 0) opts.onChange?.(result.changed);
+  };
+
+  const onStorage = () => reapply();
+  const onVisibility = () => {
+    if (!document.hidden) reapply();
+  };
+
+  window.addEventListener("storage", onStorage);
+  document.addEventListener("visibilitychange", onVisibility);
+  const timer = window.setInterval(reapply, intervalMs);
+
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.clearInterval(timer);
+  };
+}

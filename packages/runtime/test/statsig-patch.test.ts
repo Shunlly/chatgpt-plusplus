@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyStatsigModelVisibilityPatch } from "../src/preload/statsig-patch";
+import {
+  applyStatsigModelVisibilityPatch,
+  startStatsigModelVisibilityMaintenance,
+} from "../src/preload/statsig-patch";
 
 function fakeLocalStorage(initial: Record<string, string>) {
   const store = new Map(Object.entries(initial));
@@ -97,4 +100,92 @@ test("无关 key 与坏 JSON 不抛错", () => {
   const r = applyStatsigModelVisibilityPatch();
   assert.deepEqual(r, { matched: 0, changed: 0, skipped: 2 });
   assert.equal(store.get("other"), "x");
+});
+
+function fakeWindowDocument() {
+  const listeners = new Map<string, Set<() => void>>();
+  const win: Record<string, unknown> = {
+    addEventListener: (type: string, fn: () => void) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener: (type: string, fn: () => void) => {
+      listeners.get(type)?.delete(fn);
+    },
+    setInterval: (fn: () => void, ms: number) => {
+      const t = setTimeout(fn, ms);
+      return t as unknown as number;
+    },
+    clearInterval: (t: number) => clearTimeout(t),
+  };
+  let hidden = false;
+  const doc: Record<string, unknown> = {
+    get hidden() {
+      return hidden;
+    },
+    setHidden(v: boolean) {
+      hidden = v;
+    },
+    addEventListener: (type: string, fn: () => void) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener: (type: string, fn: () => void) => {
+      listeners.get(type)?.delete(fn);
+    },
+  };
+  Object.defineProperty(globalThis, "window", { value: win, configurable: true });
+  Object.defineProperty(globalThis, "document", { value: doc, configurable: true });
+  return { win, doc, fire: (t: string) => {
+    for (const fn of [...(listeners.get(t) ?? [])]) fn();
+  } };
+}
+
+test("storage 事件触发时把写回 true 的缓存改回 false", () => {
+  const key = "statsig.cached.evaluations.123";
+  const store = fakeLocalStorage({ [key]: statsigEntry(true) });
+  const { fire } = fakeWindowDocument();
+  const changedLog: number[] = [];
+  const stop = startStatsigModelVisibilityMaintenance({ onChange: (n) => changedLog.push(n) });
+  try {
+    fire("storage");
+    assert.equal(readStored(store, key), false);
+    assert.deepEqual(changedLog, [1]);
+  } finally {
+    stop();
+  }
+});
+
+test("周期重打兜底（隐藏窗口跳过）", async () => {
+  const key = "statsig.cached.evaluations.123";
+  const store = fakeLocalStorage({ [key]: statsigEntry(true) });
+  const { doc, fire } = fakeWindowDocument();
+  const changedLog: number[] = [];
+  const stop = startStatsigModelVisibilityMaintenance({ intervalMs: 30, onChange: (n) => changedLog.push(n) });
+  try {
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(readStored(store, key), false);
+    assert.equal(changedLog.length, 1);
+    store.set(key, statsigEntry(true));
+    doc.setHidden(true);
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(readStored(store, key), true, "隐藏窗口不应重打");
+    doc.setHidden(false);
+    fire("visibilitychange");
+    assert.equal(readStored(store, key), false, "回前台应重打");
+  } finally {
+    stop();
+  }
+});
+
+test("stop 后不再重打", async () => {
+  const key = "statsig.cached.evaluations.123";
+  const store = fakeLocalStorage({ [key]: statsigEntry(true) });
+  fakeWindowDocument();
+  const changedLog: number[] = [];
+  const stop = startStatsigModelVisibilityMaintenance({ intervalMs: 20, onChange: (n) => changedLog.push(n) });
+  stop();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(readStored(store, key), true);
+  assert.deepEqual(changedLog, []);
 });
