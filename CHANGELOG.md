@@ -4,6 +4,19 @@ All notable changes to chatgpt-plusplus are documented here.
 
 This project uses semver for the installer, runtime, SDK, and published CLI package. Tweak authors should also use semver release tags so the manager can compare installed and available versions.
 
+## 1.0.24
+
+### Fixed
+
+- 修复使用中/多会话卡死：settings-injector 的 MutationObserver 不再对每次 DOM 变化全量扫描页面所有 div（getBoundingClientRect 强制 layout 风暴），改为按变更记录过滤——只有变化发生在已判定侧边栏区域内才重扫；非设置页侧边栏缓存，聊天区内容变化零扫描；拒绝日志去重，消除 IPC 日志风暴。
+- 同页内切到设置视图的兜底：500ms 兜底定时器改用廉价的按钮文本扫描检测设置信号，命中才全量重扫；onNav（pushState/hashchange）清缓存强制重新判定。
+- Dream Skin 换肤：隐藏窗口不再空转（4 秒轮询、2 秒翻译/选择轮询全部短路）；观察器合并窗口从每帧（约 16ms）调整为 200ms；回前台由 visibilitychange 立即全量恢复；清理与热重载路径同步移除监听。
+- 侧边栏观察器：隐藏窗口不扫描，可见窗口把高频 DOM 变化合并到 200ms 内执行一次。
+
+### Added
+
+- settings-injector 侧边栏扫描过滤逻辑的单元测试（sidebar-scan-filter）。
+
 ## 1.0.23
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "@chatgpt-plusplus/sdk",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Public types and helpers for chatgpt-plusplus tweak authors",
   "type": "module",
   "main": "dist/index.js",
