@@ -522,6 +522,7 @@ function registerPreload(s: Electron.Session, label: string): void {
 
 app.whenReady().then(() => {
   log("info", "app ready fired");
+  startResourceMonitoring();
   if (isChatgptPlusPlusSafeModeEnabled()) {
     log("warn", "safe mode is enabled; preload will not be registered");
     return;
@@ -532,6 +533,41 @@ app.whenReady().then(() => {
     log,
   });
 });
+
+// 渲染进程崩溃上报：崩溃详情（reason/exitCode）写入日志，
+// 便于定位 ChatGPT++ 不稳定的根因（v1.0.25 前曾发生 Electron 崩溃）。
+app.on("render-process-gone", (_event, _webContents, details) => {
+  log("error", "render-process-gone", {
+    reason: details.reason,
+    exitCode: details.exitCode,
+    details: String(details),
+  });
+});
+
+// 资源监控：主进程堆内存/RSS 超阈值时告警。
+// 阈值设计为“提醒而非强杀”——Electron 主进程堆超过 500MB 或 RSS 超过 1GB
+// 说明存在泄漏或异常，日志留痕供诊断；不直接自杀以免影响用户会话。
+const MEMORY_CHECK_INTERVAL_MS = 60_000;
+const HEAP_WARN_MB = 500;
+const RSS_CRITICAL_MB = 1000;
+let memoryMonitorStarted = false;
+function startResourceMonitoring(): void {
+  if (memoryMonitorStarted) return;
+  memoryMonitorStarted = true;
+  const monitor = setInterval(() => {
+    const usage = process.memoryUsage();
+    const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
+    const rssMB = Math.round(usage.rss / 1024 / 1024);
+    if (heapUsedMB > HEAP_WARN_MB) {
+      log("warn", `High heap usage: ${heapUsedMB}MB (rss=${rssMB}MB)`);
+    }
+    if (rssMB > RSS_CRITICAL_MB) {
+      log("error", `Critical memory usage: ${rssMB}MB, consider restart`);
+    }
+  }, MEMORY_CHECK_INTERVAL_MS);
+  monitor.unref?.();
+  log("info", `resource monitor started (heap>${HEAP_WARN_MB}MB warn, rss>${RSS_CRITICAL_MB}MB critical, every ${MEMORY_CHECK_INTERVAL_MS / 1000}s)`);
+}
 
 app.on("session-created", (s) => {
   if (isChatgptPlusPlusSafeModeEnabled()) return;

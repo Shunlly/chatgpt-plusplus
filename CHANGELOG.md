@@ -7,6 +7,50 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.0.26
+
+紧急修复版：Watcher 死锁 + 依赖漏洞 + 主题页体验优化。
+
+### Fixed
+
+- **修复 watcher 死锁（紧急）**：GitHub API/下载请求无超时保护，网络黑洞时
+  `update --watcher` 无限等待，watcher 进程烧满 CPU 数小时（本次修复前实测
+  1h43m 内消耗 81 分钟 CPU）。所有请求改为 30 秒超时（源码归档下载 5 分钟），
+  AbortController 强制中止。
+- **watcher 双重看门狗**：CLI 在 watcher 模式最多运行 5 分钟强制退出；
+  launchd/systemd 脚本新增 POSIX `timeout_run` 看门狗（300 秒强杀，
+  macOS 无 GNU timeout 命令），Windows 批处理改用 PowerShell
+  Start-Process + 300 秒 WaitForExit 强杀。
+- **修复持久化 CLI 被 shim 覆盖（watcher 忙循环根因）**：独立包安装时
+  `installCliShims` 把 `<userRoot>/bin/chatgpt-plusplus` 的 SEA 二进制覆盖成
+  "exec 自身"的 shim，watcher 每次运行都陷入自我 exec 死循环（CPU 100%）。
+  现在该路径保持为二进制本体，只有另一个命令名（`chatgptplusplus`）写 shim。
+- **依赖漏洞**：`brace-expansion` 升到 1.1.18（3 个高危 DoS，
+  CVE-2026-14257 等）、`tar` 升到 7.5.22（critical 文件走私/DoS），
+  `npm audit` 0 漏洞。
+- **命令注入加固**：watcher shell/批处理命令与参数做元字符过滤
+  （`;&|`$()`），dev-tweak 的 `--name` 走 `validatePath` 防止路径遍历。
+
+### Added
+
+- **主进程资源监控**：每分钟检查堆内存（>500MB warn）/RSS（>1GB critical）
+  写日志；`render-process-gone` 崩溃自动上报 reason/exitCode。
+- **主题页（GUI）体验优化**：预览图懒加载（IntersectionObserver 提前 50px）、
+  加载骨架屏/失败态/淡入动画、当前主题高亮 +「使用中」角标、拖拽上传 +
+  预览确认模态框、响应式网格、空状态提示、切换淡出/淡入动画。
+- **主题预览内存防护**：Blob URL 引用计数 + 200MB LRU 上限自动淘汰，
+  页面卸载全量释放。
+- 单元测试：watcher 超时/看门狗/注入过滤、网络请求超时、
+  dream-skin 内存防护、cli-shim 回归（合计 13 个新用例，全套 191 个测试通过）。
+
+### Docs
+
+- 新增 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)：推荐配置、监控命令、
+  低端设备优化、常见性能问题。
+- [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) 新增 watcher 卡死、
+  内存泄漏、系统过热/重启排查章节。
+- README（中/英）补充系统要求与已知问题列表。
+
 ## 1.0.24
 
 ### Fixed

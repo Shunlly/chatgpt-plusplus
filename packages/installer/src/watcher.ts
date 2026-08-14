@@ -330,27 +330,43 @@ const LEGACY_SCHEDULED_TASK_NAMES = [
   "codex-plusplus-watcher-daily",
 ];
 
+/**
+ * 命令注入加固：watcher 的 shell/批处理命令由代码生成（参数均为静态字面量），
+ * 但防御性过滤仍是必要的——任何外部输入混入参数都不会突破引号/拼接。
+ * command 只保留 [a-z-]；args 剥离 shell 元字符。
+ */
+export function sanitizeCliToken(value: string): string {
+  return value.replace(/[;&|`$()]/g, "");
+}
+
 function cliShellCommand(command: string, args: string[] = []): string {
   // 独立包优先用持久 CLI（macOS 克隆流程会覆盖安装器 app，旁置文件随克隆消失，
   // 不能依赖 isStandalone() 在安装后期仍为 true）。
+  const safeCommand = sanitizeCliToken(command);
+  const safeArgs = args.map(sanitizeCliToken);
   const cli = standaloneCliPath();
-  if (cli) {
-    return ["CHATGPT_PLUSPLUS_WATCHER=1", shellQuote(cli), command, ...args].join(" ");
-  }
   const moduleCli = currentCliPath();
-  return [
-    "CHATGPT_PLUSPLUS_WATCHER=1",
-    shellQuote(process.execPath),
-    ...nodeExecArgsForCli(moduleCli).map(shellQuote),
-    shellQuote(moduleCli),
-    command,
-    ...args,
-  ].join(" ");
+  const base = cli
+    ? [shellQuote(cli), safeCommand, ...safeArgs].join(" ")
+    : [
+        shellQuote(process.execPath),
+        ...nodeExecArgsForCli(moduleCli).map(shellQuote),
+        shellQuote(moduleCli),
+        safeCommand,
+        ...safeArgs,
+      ].join(" ");
+  // timeout_run：POSIX 看门狗（macOS 默认没有 GNU timeout 命令）。
+  // 后台运行 CLI 并最多等待 300 秒，超时强杀——与 CLI 进程内
+  // 5 分钟超时（self-update.ts WATCHER_RUN_TIMEOUT_MS）双重兜底，
+  // 防止网络挂起把 watcher 拖入无限循环（v1.0.25 前的死锁事故）。
+  return `CHATGPT_PLUSPLUS_WATCHER=1 timeout_run ${base}`;
 }
 
 export function watcherShellScript(logPath?: string): string {
   const commands = [
     "sleep 3",
+    // 定义看门狗函数；必须与后续调用处于同一 shell 会话（launchd/systemd 均为 /bin/sh -c 整段执行）。
+    `timeout_run() { "$@" & p=$!; ( sleep 300; kill -9 "$p" 2>/dev/null ) & w=$!; wait "$p"; s=$?; kill "$w" 2>/dev/null; return $s; }`,
     `${cliShellCommand("update", ["--watcher", "--quiet", "--no-repair"])} || true`,
     `${cliShellCommand("repair", ["--watcher", "--quiet"])} || true`,
   ];
@@ -381,18 +397,36 @@ function xmlEscape(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function windowsCommand(command: string, args: string[] = []): string {
+function windowsCommand(command: string, args: string[] = []): { file: string; args: string[] } {
+  const safeCommand = sanitizeCliToken(command);
+  const safeArgs = args.map(sanitizeCliToken);
   const standaloneCli = standaloneCliPath();
   if (standaloneCli) {
-    return [windowsQuote(standaloneCli), command, ...args].join(" ");
+    return { file: standaloneCli, args: [safeCommand, ...safeArgs] };
   }
   const cli = currentCliPath();
+  return {
+    file: process.execPath,
+    args: [...nodeExecArgsForCli(cli), cli, safeCommand, ...safeArgs],
+  };
+}
+
+/**
+ * Windows 看门狗：PowerShell Start-Process 启动 CLI 并最多等待 300 秒，
+ * 超时强杀——CLI 进程内 5 分钟超时（self-update.ts）之外的第二道防线。
+ * cmd 批处理无法像 POSIX sh 一样轻松做后台任务 + 超时强杀。
+ */
+function windowsWatchdogCommand(command: string, args: string[] = []): string {
+  const { file, args: cmdArgs } = windowsCommand(command, args);
+  const ps = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  const argList = cmdArgs.map(ps).join(",");
   return [
-    windowsQuote(process.execPath),
-    ...nodeExecArgsForCli(cli).map(windowsQuote),
-    windowsQuote(cli),
-    command,
-    ...args,
+    "powershell.exe",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    `$p = Start-Process -FilePath ${ps(file)} -ArgumentList @(${argList}) -PassThru -WindowStyle Hidden; if (-not $p.WaitForExit(300000)) { $p.Kill(); exit 1 }; exit $p.ExitCode`,
   ].join(" ");
 }
 
@@ -410,8 +444,8 @@ function windowsWatcherTaskCommand(): string {
     [
       "@echo off",
       "set CHATGPT_PLUSPLUS_WATCHER=1",
-      `${windowsCommand("update", ["--watcher", "--quiet", "--no-repair"])}`,
-      `${windowsCommand("repair", ["--watcher", "--quiet"])}`,
+      `${windowsWatchdogCommand("update", ["--watcher", "--quiet", "--no-repair"])}`,
+      `${windowsWatchdogCommand("repair", ["--watcher", "--quiet"])}`,
       "exit /b 0",
       "",
     ].join("\r\n"),

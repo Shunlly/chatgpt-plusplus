@@ -362,10 +362,30 @@ Important details:
 
 See [Security](./SECURITY.md).
 
+## System Requirements And Known Issues
+
+**System requirements:**
+
+- macOS 14.0+ / Windows 10 1809+ / Linux (systemd) — ChatGPT++ patches the local
+  ChatGPT/Codex desktop app, so it inherits the app's platform support.
+- 8 GB RAM recommended (16 GB+ for heavy use). See
+  [Performance](./docs/PERFORMANCE.md) for monitoring commands and low-end device tips.
+
+**Known issues:**
+
+- **watcher 卡死（v1.0.25 及更早）**：GitHub API 请求无超时，网络黑洞时 watcher
+  可能无限等待并烧满 CPU。v1.0.26+ 已加进程级 5 分钟看门狗 + 30 秒请求超时；
+  旧版本请升级并清理卡死进程（见 [Troubleshooting](./docs/TROUBLESHOOTING.md)）。
+- **Electron 崩溃**：渲染进程偶发崩溃时主进程会记录
+  `render-process-gone`（reason/exitCode）到 `log/main.log`，反馈 issue 时请附上。
+- **依赖安全**：`brace-expansion`/`tar` 高危漏洞已在 v1.0.26 修复
+  （`npm audit` 0 漏洞）。
+
 ## More Docs
 
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Troubleshooting](./docs/TROUBLESHOOTING.md)
+- [Performance](./docs/PERFORMANCE.md)
 - [Writing Tweaks](./docs/WRITING-TWEAKS.md)
 - [Tweak API Reference](./docs/tweaks/api-reference.md)
 - [Manifest Reference](./docs/tweaks/manifest.md)

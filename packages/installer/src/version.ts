@@ -1,5 +1,5 @@
 // 由 scripts/sync-version.mjs 自动生成，勿手工修改。
-export const CHATGPT_PLUSPLUS_VERSION = "1.0.25";
+export const CHATGPT_PLUSPLUS_VERSION = "1.0.26";
 
 const SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 

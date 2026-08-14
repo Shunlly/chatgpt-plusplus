@@ -344,10 +344,30 @@ ChatGPT++ 会在你的 ChatGPT 桌面应用内运行本地代码。请只安装�
 
 参见 [安全](./SECURITY.md)。
 
+## 系统要求与已知问题
+
+**系统要求：**
+
+- macOS 14.0+ / Windows 10 1809+ / Linux (systemd) —— ChatGPT++ 补丁的是本机
+  ChatGPT/Codex 桌面应用，平台支持跟随应用本身。
+- 建议 8GB 内存（重度使用建议 16GB+）。监控命令与低端设备优化见
+  [性能优化](./docs/PERFORMANCE.md)。
+
+**已知问题：**
+
+- **watcher 卡死（v1.0.25 及更早）**：GitHub API 请求无超时，网络黑洞时 watcher
+  可能无限等待并烧满 CPU。v1.0.26+ 已加进程级 5 分钟看门狗 + 30 秒请求超时；
+  旧版本请升级并清理卡死进程（见 [故障排查](./docs/TROUBLESHOOTING.md)）。
+- **Electron 崩溃**：渲染进程偶发崩溃时主进程会记录
+  `render-process-gone`（reason/exitCode）到 `log/main.log`，反馈 issue 时请附上。
+- **依赖安全**：`brace-expansion`/`tar` 高危漏洞已在 v1.0.26 修复
+  （`npm audit` 0 漏洞）。
+
 ## 更多文档
 
 - [架构](./docs/ARCHITECTURE.md)
 - [故障排查](./docs/TROUBLESHOOTING.md)
+- [性能优化](./docs/PERFORMANCE.md)
 - [编写 Tweak](./docs/WRITING-TWEAKS.md)
 - [Tweak API 参考](./docs/tweaks/api-reference.md)
 - [Manifest 参考](./docs/tweaks/manifest.md)
