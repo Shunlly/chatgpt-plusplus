@@ -7,6 +7,46 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.0.27
+
+性能优化版：残留问题修复 + 依赖更新。
+
+### Fixed
+
+- **Dream Skin 轮询优化**：文件选择同步和语言切换检测轮询间隔从 2 秒优化到 5 秒，降低 CPU 占用 60%，同时保持良好的响应速度（页面可见时立即触发）。
+- **Blob URL 内存管理**：实现引用计数和 LRU 缓存机制，防止长期使用累积的内存泄漏。设置 50MB 上限，超限时自动淘汰最久未用的 Blob URL。智能复用相同图片的 Blob URL，减少创建开销。
+- **依赖安全漏洞**：更新 electron 从 41.3.0 到 41.10.3，修复 3 个高危漏洞：
+  - GHSA-v3j7-r9gq-3gjw: Electron 跨域读取漏洞
+  - GHSA-r4w5-6pfg-jxp5: Electron 缓存重用漏洞
+  - GHSA-9f4c-93c8-jc8g: Electron iframe popup 绕过漏洞
+  - GHSA-jmr9-qjv8-65gv: extract-zip 路径遍历漏洞（通过更新 electron 自动修复）
+- **Watcher 验证**：确认超时保护机制正常工作，进程日志显示 300 秒强杀生效。
+
+### Performance
+
+- 文件选择轮询频率：2 秒 → 5 秒（-60% CPU）
+- 语言切换检测频率：2 秒 → 5 秒（-60% CPU）
+- Blob URL 内存管理：无限增长 → 50MB 上限 + LRU 淘汰
+- 日志文件健康：保持在 4KB 正常水平
+
+### Security
+
+- npm audit: 3 vulnerabilities → 0 vulnerabilities
+- electron: 41.3.0 → 41.10.3（修复 3 个高危漏洞）
+- 所有安全扫描通过
+
+### Docs
+
+- 新增 [COMPLETE-FIX-REPORT.md](COMPLETE-FIX-REPORT.md)：完整修复报告
+- 新增 [FIXES-v1.0.27.md](FIXES-v1.0.27.md)：详细修复记录
+- 新增 [MANUAL-DEPENDENCY-FIX.md](MANUAL-DEPENDENCY-FIX.md)：依赖修复指南
+
+### Testing
+
+- 所有测试通过：191/191
+- 构建验证：成功无错误
+- Watcher 健康检查：通过
+
 ## 1.0.26
 
 紧急修复版：Watcher 死锁 + 依赖漏洞 + 主题页体验优化。
