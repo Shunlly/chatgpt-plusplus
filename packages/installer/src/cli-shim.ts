@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import kleur from "kleur";
 import { standaloneCliPath } from "./standalone.js";
@@ -62,7 +62,21 @@ function shimScript(win32: boolean): string {
   return `#!/bin/sh\nexec "${exec}"${argText ? ` ${argText}` : ""} "$@"\n`;
 }
 
+/**
+ * shim 目标路径是否与持久化 CLI 二进制冲突。
+ *
+ * 独立包模式（dmg/exe）下 persistStandaloneCli 会把 SEA 二进制复制到
+ * <userRoot>/bin/chatgpt-plusplus；如果在这里再写一个"exec 该路径"的 shim，
+ * 就会变成自我 exec 死循环（v1.0.22~v1.0.25 回归：watcher 每次运行烧满 CPU）。
+ * 该路径必须保持为二进制本体；PATH 目录里的符号链接会直接指向它。
+ */
+export function shimClashesWithCli(path: string): boolean {
+  const cli = standaloneCliPath();
+  return !!cli && resolve(path) === resolve(cli);
+}
+
 function writeShim(path: string): void {
+  if (shimClashesWithCli(path)) return;
   if (platform() === "win32") {
     writeFileSync(`${path}.cmd`, shimScript(true), "utf8");
     return;

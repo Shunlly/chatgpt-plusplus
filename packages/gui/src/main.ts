@@ -81,32 +81,101 @@ function status() {
 }
 
 // 主题列表：预设（tweak 包内）+ 自定义（tweak-data）+ 当前选择（磁盘桥接文件）。
+// 预览图改为按需提供（theme-art IPC）：列表只回名称/类型/id，
+// base64 图片在渲染进程滚动到卡片附近时才读取，首屏不再一次性解码全部主题图。
 function themes() {
-  const presets: { id: string; name: string; art: string | null }[] = [];
+  const presets: { id: string; name: string }[] = [];
   const presetRoot = join(tweakDir(), "presets");
   if (existsSync(presetRoot)) {
     for (const id of readdirSync(presetRoot)) {
       try {
         const theme = JSON.parse(readFileSync(join(presetRoot, id, "theme.json"), "utf8"));
-        const artFile = join(presetRoot, id, "background.jpg");
-        const art = existsSync(artFile) ? "data:image/jpeg;base64," + readFileSync(artFile).toString("base64") : null;
-        presets.push({ id, name: theme.name ?? id, art });
+        presets.push({ id, name: theme.name ?? id });
       } catch {
         // 单个预设损坏不影响其它主题
       }
     }
   }
-  const custom: { id: string; name: string; art: string | null }[] = [];
+  const custom: { id: string; name: string }[] = [];
   const index = tryReadJson(join(tweakDataDir(), "custom", "index.json")) as { id: string; name?: string }[] | null;
   if (Array.isArray(index)) {
     for (const rec of index) {
       const recFile = join(tweakDataDir(), "custom", `${rec.id}.json`);
-      const data = tryReadJson(recFile) as { name?: string; artUrl?: string } | null;
-      custom.push({ id: rec.id, name: data?.name ?? rec.name ?? rec.id, art: data?.artUrl ?? null });
+      const data = tryReadJson(recFile) as { name?: string } | null;
+      custom.push({ id: rec.id, name: data?.name ?? rec.name ?? rec.id });
     }
   }
   const selection = tryReadJson(join(tweakDataDir(), "selection.json")) as { type?: string; id?: string } | null;
   return { presets, custom, selection };
+}
+
+/** 主题 id 只允许安全字符集，防止路径遍历（id 会拼进文件路径）。 */
+function isSafeThemeId(id: string): boolean {
+  return /^[a-zA-Z0-9._-]+$/.test(id);
+}
+
+function themeArtPath(type: string, id: string): string | null {
+  if (!isSafeThemeId(id)) return null;
+  if (type === "preset") {
+    const file = join(tweakDir(), "presets", id, "background.jpg");
+    return existsSync(file) ? file : null;
+  }
+  if (type === "custom") {
+    const file = join(tweakDataDir(), "custom", `${id}.json`);
+    return existsSync(file) ? file : null;
+  }
+  return null;
+}
+
+// 主题图按需读取（主进程侧）：预设读 background.jpg，自定义读记录里的 artUrl。
+function themeArt(type: string, id: string): string | null {
+  const file = themeArtPath(type, id);
+  if (!file) return null;
+  try {
+    if (type === "preset") {
+      return "data:image/jpeg;base64," + readFileSync(file).toString("base64");
+    }
+    const rec = tryReadJson(file) as { artUrl?: string } | null;
+    return typeof rec?.artUrl === "string" ? rec.artUrl : null;
+  } catch {
+    return null;
+  }
+}
+
+// 自定义主题上限：base64 图片数据最大 8MB（约 6MB 原始图片），防大图撑爆内存。
+const THEME_ART_MAX_BASE64_CHARS = 8 * 1024 * 1024;
+
+function createTheme(input: { name?: string; dataUrl?: string }): {
+  ok: boolean;
+  id?: string;
+  name?: string;
+  error?: string;
+} {
+  const name = (input.name ?? "").trim().slice(0, 60) || "未命名主题";
+  const dataUrl = input.dataUrl ?? "";
+  if (!/^data:image\/(?:png|jpe?g|webp|gif);base64,/.test(dataUrl)) {
+    return { ok: false, error: "仅支持图片文件（PNG/JPEG/WebP/GIF）" };
+  }
+  const comma = dataUrl.indexOf(",");
+  const body = comma >= 0 ? dataUrl.slice(comma + 1) : "";
+  if (body.length > THEME_ART_MAX_BASE64_CHARS) {
+    return { ok: false, error: "图片过大（上限约 6MB），请压缩后重试" };
+  }
+  try {
+    const customDir = join(tweakDataDir(), "custom");
+    mkdirSync(customDir, { recursive: true });
+    const id = `custom-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const rec = { name, artUrl: dataUrl, theme: null, createdAt: new Date().toISOString() };
+    writeFileSync(join(customDir, `${id}.json`), JSON.stringify(rec), "utf8");
+    const indexFile = join(customDir, "index.json");
+    const existing = tryReadJson(indexFile);
+    const index = Array.isArray(existing) ? existing : [];
+    index.push({ id, name });
+    writeFileSync(indexFile, JSON.stringify(index), "utf8");
+    return { ok: true, id, name };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 function applyTheme(sel: { type: string; id?: string }): { ok: boolean; error?: string } {
@@ -226,6 +295,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("status", () => status());
   ipcMain.handle("themes", () => themes());
+  ipcMain.handle("theme-art", (_e, type: string, id: string) => themeArt(type, id));
+  ipcMain.handle("create-theme", (_e, input: { name?: string; dataUrl?: string }) => createTheme(input));
   ipcMain.handle("apply-theme", (_e, sel: { type: string; id?: string }) => applyTheme(sel));
   ipcMain.handle("open-app", () => openPatchedApp());
   ipcMain.handle("run-cli", async (_e, cmd: "install" | "repair" | "uninstall") => {

@@ -1,7 +1,7 @@
 {
   "name": "chatgpt-plusplus",
   "private": true,
-  "version": "1.0.25",
+  "version": "1.0.26",
   "license": "MIT",
   "description": "Tweak system for the OpenAI ChatGPT desktop app",
   "type": "module",
@@ -48,6 +48,9 @@
     "plist": "^3.1.0",
     "prompts": "^2.4.2",
     "sade": "^1.8.1",
-    "tar": "^7.5.2"
+    "tar": "^7.5.22"
+  },
+  "overrides": {
+    "brace-expansion": "^1.1.18"
   }
 }

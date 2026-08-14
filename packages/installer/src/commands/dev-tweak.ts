@@ -13,7 +13,7 @@ import {
 import { platform } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { validateTweakManifest, type TweakManifest } from "@chatgpt-plusplus/sdk";
-import { ensureUserPaths } from "../paths.js";
+import { ensureUserPaths, validatePath } from "../paths.js";
 
 interface DevTweakOpts {
   name?: string;
@@ -27,7 +27,9 @@ export async function devTweak(target = ".", opts: DevTweakOpts = {}): Promise<v
   const manifest = readValidManifest(manifestPath);
   const paths = ensureUserPaths();
   const linkName = opts.name ?? manifest.id;
-  const linkPath = join(paths.tweaks, linkName);
+  // linkName 来自 CLI 参数（--name）或 tweak 清单（manifest.id），都是外部输入：
+  // 先验证必须落在 tweaks 目录内，防止 `../` 或绝对路径逃逸到任意位置。
+  const linkPath = validatePath(linkName, paths.tweaks);
 
   ensureDevLink(sourceDir, linkPath, opts.replace === true);
   touchReloadMarker(linkPath);

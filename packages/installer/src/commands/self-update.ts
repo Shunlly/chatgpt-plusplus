@@ -69,6 +69,13 @@ interface UpdateTarget {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WATCHER_SELF_UPDATE_INTERVAL_MS = 60 * 60 * 1000;
+// watcher 模式下的进程级看门狗：自更新/修复流程最多运行 5 分钟，
+// 超时强制退出，防止 GitHub API 挂起/网络黑洞把 watcher 拖入死循环。
+// 曾发生 watcher 运行 51+ 小时、消耗 42 小时 CPU 的死锁事故（v1.0.25 前）。
+export const WATCHER_RUN_TIMEOUT_MS = 5 * 60 * 1000;
+// GitHub API / 下载请求超时：网络黑洞时 fetch 永远不会 resolve，
+// 没有超时保护会无限等待（watcher 卡死的直接原因之一）。
+const FETCH_TIMEOUT_MS = 30_000;
 const COMMAND_OUTPUT_TAIL_CHARS = 8_000;
 
 interface RunOptions {
@@ -84,6 +91,17 @@ export interface CommandResult {
 }
 
 export async function selfUpdate(opts: Opts = {}): Promise<void> {
+  // watcher 模式看门狗：进程级超时保护。无论内部逻辑如何卡死
+  // （fetch 挂起、npm 挂起、滚动更新死锁），5 分钟后强制退出。
+  // unref() 保证正常路径结束时不会因该定时器阻塞进程退出。
+  if (opts.watcher) {
+    const watchdog = setTimeout(() => {
+      console.error(`[watcher] Timeout after ${WATCHER_RUN_TIMEOUT_MS / 60000} minutes, force exit`);
+      process.exit(1);
+    }, WATCHER_RUN_TIMEOUT_MS);
+    watchdog.unref();
+  }
+
   const paths = ensureUserPaths();
   const config = readRuntimeConfig(paths.configFile);
   const repo = opts.repo ?? process.env.CHATGPT_PLUSPLUS_REPO ?? process.env.CODEX_PLUSPLUS_REPO ?? config.updateRepo ?? "Shunlly/chatgpt-plusplus";
@@ -228,17 +246,41 @@ async function resolveUpdateTarget(
   };
 }
 
+/**
+ * 带超时的 fetch：网络黑洞/代理挂起时 fetch 可能永不返回，
+ * AbortController 在 timeoutMs 后中止请求并抛错。
+ * 所有 GitHub API 与下载请求都必须经此函数，防止 watcher 无限等待。
+ */
+export async function fetchWithTimeout(
+  url: string,
+  timeoutMs = FETCH_TIMEOUT_MS,
+  headers: Record<string, string> = {},
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal, headers });
+  } catch (e) {
+    if (controller.signal.aborted) {
+      throw new Error(`Request timed out after ${timeoutMs}ms: ${url}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchLatestRelease(repo: string): Promise<GitHubRelease> {
-  const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-    headers: { "User-Agent": "chatgpt-plusplus-self-update" },
+  const res = await fetchWithTimeout(`https://api.github.com/repos/${repo}/releases/latest`, FETCH_TIMEOUT_MS, {
+    "User-Agent": "chatgpt-plusplus-self-update",
   });
   if (!res.ok) throw new Error(`Release check failed: ${res.status} ${res.statusText}`);
   return (await res.json()) as GitHubRelease;
 }
 
 async function fetchLatestAnyRelease(repo: string): Promise<GitHubRelease> {
-  const res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=20`, {
-    headers: { "User-Agent": "chatgpt-plusplus-self-update" },
+  const res = await fetchWithTimeout(`https://api.github.com/repos/${repo}/releases?per_page=20`, FETCH_TIMEOUT_MS, {
+    "User-Agent": "chatgpt-plusplus-self-update",
   });
   if (!res.ok) throw new Error(`Release check failed: ${res.status} ${res.statusText}`);
   const releases = (await res.json()) as GitHubRelease[];
@@ -248,8 +290,9 @@ async function fetchLatestAnyRelease(repo: string): Promise<GitHubRelease> {
 }
 
 async function download(url: string, target: string): Promise<void> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": "chatgpt-plusplus-self-update" },
+  // 源码归档下载可能很大，超时放宽到 5 分钟；watcher 进程级看门狗兜底。
+  const res = await fetchWithTimeout(url, 5 * 60 * 1000, {
+    "User-Agent": "chatgpt-plusplus-self-update",
   });
   if (!res.ok || !res.body) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
   await pipeline(res.body, createWriteStream(target));
