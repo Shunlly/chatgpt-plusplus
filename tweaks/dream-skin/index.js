@@ -44,20 +44,73 @@ function decodeDataUrl(dataUrl) {
 
 // 缩略图用 blob URL 而非 data URL：Codex 页面 CSP 可能拦截 img-src data:，
 // blob: 与注入脚本背景图机制一致，可正常显示。
-const objectUrls = new Set();
+// 优化方案 4.3：引用计数 + LRU 缓存，防止内存泄漏（简化版，完整版在 GUI art-store.ts）
+const objectUrlCache = new Map(); // dataUrl -> { blobUrl, refs, lastUsed }
+const MAX_CACHE_SIZE = 50 * 1024 * 1024; // 50MB 上限（tweaks 运行在页面上下文，比 GUI 更保守）
+
 function dataUrlToObjectUrl(dataUrl) {
+  // 从缓存中复用
+  const cached = objectUrlCache.get(dataUrl);
+  if (cached) {
+    cached.refs += 1;
+    cached.lastUsed = Date.now();
+    return cached.blobUrl;
+  }
+
+  // 创建新的 Blob URL
   const comma = dataUrl.indexOf(",");
   const mime = /^data:([^;,]+)/.exec(dataUrl)?.[1] || "image/png";
   const bin = atob(dataUrl.slice(comma + 1));
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
   const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
-  objectUrls.add(url);
+
+  objectUrlCache.set(dataUrl, {
+    blobUrl: url,
+    refs: 1,
+    lastUsed: Date.now(),
+    sizeBytes: Math.ceil((bin.length * 3) / 4)
+  });
+
+  // 淘汰超限条目
+  evictBlobUrlCache();
   return url;
 }
+
+function releaseBlobUrl(dataUrl) {
+  const cached = objectUrlCache.get(dataUrl);
+  if (cached) {
+    cached.refs = Math.max(0, cached.refs - 1);
+    cached.lastUsed = Date.now();
+  }
+}
+
+function evictBlobUrlCache() {
+  let totalBytes = 0;
+  for (const entry of objectUrlCache.values()) {
+    totalBytes += entry.sizeBytes;
+  }
+
+  if (totalBytes <= MAX_CACHE_SIZE) return;
+
+  // LRU 淘汰：优先踢出无引用且最久未用的
+  const entries = Array.from(objectUrlCache.entries())
+    .filter(([_, e]) => e.refs === 0)
+    .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+
+  for (const [dataUrl, entry] of entries) {
+    if (totalBytes <= MAX_CACHE_SIZE * 0.8) break; // 淘汰到 80%
+    objectUrlCache.delete(dataUrl);
+    URL.revokeObjectURL(entry.blobUrl);
+    totalBytes -= entry.sizeBytes;
+  }
+}
+
 function revokeObjectUrls() {
-  for (const url of objectUrls) URL.revokeObjectURL(url);
-  objectUrls.clear();
+  for (const entry of objectUrlCache.values()) {
+    URL.revokeObjectURL(entry.blobUrl);
+  }
+  objectUrlCache.clear();
 }
 
 // 清理当前注入：优先用注入脚本自带的 cleanup，再兜底移除标记与节点。
@@ -232,7 +285,8 @@ async function applySaved(api) {
   }
 }
 
-// 磁盘选择同步：独立 GUI 写入 selection.json 后，这里轮询应用（2 秒内生效）。
+// 磁盘选择同步：独立 GUI 写入 selection.json 后，这里轮询应用（5 秒内生效）。
+// 优化方案 4.2：从 2 秒提升到 5 秒，降低 CPU 占用 60%。
 async function pollDiskSelection(api) {
   if (document.hidden) return;
   try {
@@ -879,7 +933,8 @@ function startMainNav(api) {
   syncMainNav(api);
   mainNavObserver = new MutationObserver(() => scheduleMainNav(api));
   mainNavObserver.observe(document.documentElement, { childList: true, subtree: true });
-  if (!langTimer) langTimer = setInterval(() => translateSidebar(), 2000);
+  // 优化方案 4.2：语言切换检测从 2 秒提升到 5 秒，降低 CPU 占用
+  if (!langTimer) langTimer = setInterval(() => translateSidebar(), 5000);
   api.log.info("main nav ready", JSON.stringify({ href: location.href, plug: !!findMainPluginBtn() }));
 }
 
@@ -932,7 +987,8 @@ module.exports = {
     await applySaved(api);
     startMainNav(api);
     if (selectionPoll) clearInterval(selectionPoll);
-    selectionPoll = setInterval(() => pollDiskSelection(api), 2000);
+    // 优化方案 4.2：从 2 秒提升到 5 秒，降低 CPU 占用 60%
+    selectionPoll = setInterval(() => pollDiskSelection(api), 5000);
     if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
     visibilityHandler = () => {
       if (!document.hidden) {
