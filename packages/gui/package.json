@@ -1,6 +1,6 @@
 {
   "name": "@chatgpt-plusplus/gui",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "ChatGPT++ 独立图形界面（安装/修复/打开/主题管理）",
   "private": true,
   "main": "dist/main.js",
