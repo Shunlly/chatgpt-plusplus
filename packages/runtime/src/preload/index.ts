@@ -113,14 +113,32 @@ queueMicrotask(() => {
 async function boot() {
   fileLog("boot start", { readyState: document.readyState });
   try {
+    // 立即执行关键注入器，确保设置生效
     startSettingsInjector();
     fileLog("settings injector started");
-    await startTweakHost();
-    fileLog("tweak host started");
-    await mountManager();
-    fileLog("manager mounted");
-    subscribeReload();
-    fileLog("boot complete");
+
+    // 延迟加载 tweaks，不阻塞窗口显示（优化首屏性能）
+    // 使用 requestIdleCallback 在浏览器空闲时加载
+    const loadTweaks = async () => {
+      try {
+        await startTweakHost();
+        fileLog("tweak host started");
+        await mountManager();
+        fileLog("manager mounted");
+        subscribeReload();
+        fileLog("boot complete");
+      } catch (e) {
+        fileLog("tweaks load FAILED", String((e as Error)?.stack ?? e));
+        console.error("[chatgpt-plusplus] tweaks load failed:", e);
+      }
+    };
+
+    // 优先使用 requestIdleCallback，降级到 setTimeout
+    if (typeof requestIdleCallback !== "undefined") {
+      requestIdleCallback(() => loadTweaks(), { timeout: 1000 });
+    } else {
+      setTimeout(() => loadTweaks(), 100);
+    }
   } catch (e) {
     fileLog("boot FAILED", String((e as Error)?.stack ?? e));
     console.error("[chatgpt-plusplus] preload boot failed:", e);

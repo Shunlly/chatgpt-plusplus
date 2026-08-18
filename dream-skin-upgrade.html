@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dream Skin → Wallpaper Engine 级别升级方案</title>
+  <style>
+    :root {
+      --bg: #0f0f23;
+      --surface: #1a1a2e;
+      --primary: #00d9ff;
+      --secondary: #7b2cbf;
+      --accent: #ff006e;
+      --text: #e6e6e6;
+      --text-dim: #999;
+      --border: #2d2d44;
+      --code-bg: #16213e;
+      --success: #06ffa5;
+      --warning: #ffd60a;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 0;
+      overflow-x: hidden;
+    }
+    
+    .hero {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 4rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+      background-size: 50px 50px;
+      animation: drift 20s linear infinite;
+    }
+    
+    @keyframes drift {
+      from { transform: translate(0, 0); }
+      to { transform: translate(50px, 50px); }
+    }
+    
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      position: relative;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    .hero .subtitle {
+      font-size: 1.3rem;
+      opacity: 0.95;
+      position: relative;
+    }
+    
+    .hero .version {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      margin-top: 1rem;
+      font-weight: 600;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    .nav {
+      position: sticky;
+      top: 0;
+      background: rgba(15, 15, 35, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 2px solid var(--border);
+      padding: 1rem 2rem;
+      z-index: 100;
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    
+    .nav a:hover {
+      color: var(--primary);
+    }
+    
+    section {
+      margin: 3rem 0;
+      padding: 2rem;
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    
+    h2 {
+      font-size: 2rem;
+      color: var(--primary);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    h3 {
+      font-size: 1.5rem;
+      color: var(--secondary);
+      margin: 2rem 0 1rem;
+    }
+    
+    h4 {
+      font-size: 1.2rem;
+      color: var(--accent);
+      margin: 1.5rem 0 1rem;
+    }
+    
+    .card {
+      background: var(--code-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      border-left: 4px solid var(--primary);
+    }
+    
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    
+    .card-grid .card {
+      margin: 0;
+    }
+    
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin: 2rem 0;
+    }
+    
+    @media (max-width: 768px) {
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .comparison .side {
+      padding: 1.5rem;
+      border-radius: 8px;
+    }
+    
+    .comparison .current {
+      background: rgba(255, 0, 110, 0.1);
+      border: 2px solid var(--accent);
+    }
+    
+    .comparison .target {
+      background: rgba(6, 255, 165, 0.1);
+      border: 2px solid var(--success);
+    }
+    
+    .comparison h4 {
+      margin-top: 0;
+    }
+    
+    .comparison ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    
+    .comparison ul li {
+      padding: 0.5rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .comparison ul li::before {
+      font-size: 1.2rem;
+    }
+    
+    .current ul li::before {
+      content: '❌';
+    }
+    
+    .target ul li::before {
+      content: '✅';
+    }
+    
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+      margin: 2rem 0;
+    }
+    
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--primary), var(--secondary));
+    }
+    
+    .timeline-item {
+      position: relative;
+      padding: 1.5rem;
+      background: var(--code-bg);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      margin-left: 1rem;
+    }
+    
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -2.5rem;
+      top: 2rem;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: 3px solid var(--bg);
+    }
+    
+    .timeline-week {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    
+    .theme-card {
+      background: var(--code-bg);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    .theme-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
+    }
+    
+    .theme-card.priority-high {
+      border-color: var(--accent);
+    }
+    
+    .theme-preview {
+      width: 100%;
+      height: 150px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+    
+    .theme-info {
+      padding: 1rem;
+    }
+    
+    .theme-name {
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    
+    .theme-priority {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    
+    .theme-priority.high {
+      background: var(--accent);
+      color: white;
+    }
+    
+    .theme-priority.medium {
+      background: var(--warning);
+      color: #000;
+    }
+    
+    .theme-priority.low {
+      background: var(--text-dim);
+      color: white;
+    }
+    
+    pre {
+      background: var(--code-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      border-left: 4px solid var(--secondary);
+      margin: 1rem 0;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    
+    code {
+      background: var(--code-bg);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 0.3rem 0.8rem;
+      border-radius: 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 0.2rem;
+    }
+    
+    .badge.success {
+      background: var(--success);
+      color: #000;
+    }
+    
+    .badge.warning {
+      background: var(--warning);
+      color: #000;
+    }
+    
+    .badge.primary {
+      background: var(--primary);
+      color: #000;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    
+    .stat-card {
+      background: var(--code-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      text-align: center;
+      border: 2px solid var(--border);
+    }
+    
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+    
+    .cta {
+      text-align: center;
+      padding: 3rem 2rem;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+      border-radius: 12px;
+      margin: 3rem 0;
+    }
+    
+    .cta h2 {
+      color: var(--text);
+      margin-bottom: 1.5rem;
+      justify-content: center;
+    }
+    
+    .cta-button {
+      display: inline-block;
+      padding: 1rem 2.5rem;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      transition: all 0.3s;
+      margin: 0.5rem;
+    }
+    
+    .cta-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(0, 217, 255, 0.5);
+    }
+    
+    .feature-list {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .feature-list li {
+      padding: 0.8rem 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+    
+    .feature-list li::before {
+      content: '✨';
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+    
+    .arrow {
+      color: var(--primary);
+      font-weight: 700;
+      margin: 0 1rem;
+    }
+    
+    footer {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      margin-top: 4rem;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <h1>🎨 Dream Skin Plus</h1>
+    <p class="subtitle">从静态换肤工具到 Wallpaper Engine 级别动态主题系统</p>
+    <div class="version">v1.x → v2.0</div>
+  </div>
+
+  <nav class="nav">
+    <a href="#overview">概述</a>
+    <a href="#comparison">对比</a>
+    <a href="#strategy">升级策略</a>
+    <a href="#themes">主题库</a>
+    <a href="#tech">技术架构</a>
+    <a href="#timeline">开发计划</a>
+    <a href="#success">成功标准</a>
+  </nav>
+
+  <div class="container">
+    <section id="overview">
+      <h2>📊 项目概述</h2>
+      
+      <div class="card">
+        <h4>🎯 核心目标</h4>
+        <p>将 ChatGPT++ 的 Dream Skin 从"静态图片换肤工具"升级为"<strong>Wallpaper Engine 级别的动态主题系统</strong>"</p>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value">8</div>
+          <div class="stat-label">周开发周期</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">30+</div>
+          <div class="stat-label">精美主题</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">60fps</div>
+          <div class="stat-label">流畅动画</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">&lt;15%</div>
+          <div class="stat-label">CPU 占用</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>✨ 核心价值</h4>
+        <p style="font-size: 1.2rem; text-align: center; font-weight: 600; color: var(--primary);">
+          让 ChatGPT 界面从"工具窗口"变成"艺术品"
+        </p>
+      </div>
+    </section>
+
+    <section id="comparison">
+      <h2>⚖️ 现状 vs 目标</h2>
+      
+      <div class="comparison">
+        <div class="side current">
+          <h4>当前 Dream Skin (v1.x)</h4>
+          <ul>
+            <li>只支持静态图片</li>
+            <li>预设太少（仅6个）</li>
+            <li>无动画效果</li>
+            <li>无交互功能</li>
+            <li>无社区分享</li>
+          </ul>
+        </div>
+        
+        <div class="side target">
+          <h4>目标 Dream Skin (v2.0)</h4>
+          <ul>
+            <li>动态背景（粒子/渐变/视频）</li>
+            <li>丰富预设（30+ 主题）</li>
+            <li>流畅动画（60fps）</li>
+            <li>交互效果（鼠标/点击）</li>
+            <li>主题商店（社区分享）</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4>🆚 对比竞品</h4>
+        <ul class="feature-list">
+          <li><strong>OpenAI 官方</strong>：只有亮/暗两种模式</li>
+          <li><strong>其他增强工具</strong>：最多改改颜色</li>
+          <li><strong>Dream Skin v2</strong>：Wallpaper Engine 级别动态主题 ⭐</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="strategy">
+      <h2>🚀 三步走升级策略</h2>
+      
+      <div class="card-grid">
+        <div class="card">
+          <h4>第一步：动态化</h4>
+          <p><strong>时间</strong>：4 周</p>
+          <p><strong>目标</strong>：从静态到动态</p>
+          <ul class="feature-list">
+            <li>粒子系统（星空、代码雨、雪花）</li>
+            <li>渐变动画（极光、呼吸灯）</li>
+            <li>视频壁纸支持</li>
+          </ul>
+          <div style="margin-top: 1rem;">
+            <span class="badge primary">Canvas 2D</span>
+            <span class="badge success">60fps</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>第二步：交互化</h4>
+          <p><strong>时间</strong>：2 周</p>
+          <p><strong>目标</strong>：增加交互效果</p>
+          <ul class="feature-list">
+            <li>鼠标跟随/躲避</li>
+            <li>点击特效（涟漪、爆炸）</li>
+            <li>打字效果（可选）</li>
+          </ul>
+          <div style="margin-top: 1rem;">
+            <span class="badge primary">事件监听</span>
+            <span class="badge warning">可配置</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>第三步：社区化</h4>
+          <p><strong>时间</strong>：2 周</p>
+          <p><strong>目标</strong>：建立主题分享生态</p>
+          <ul class="feature-list">
+            <li>主题商店界面</li>
+            <li>一键安装</li>
+            <li>评分/收藏</li>
+          </ul>
+          <div style="margin-top: 1rem;">
+            <span class="badge success">GitHub</span>
+            <span class="badge primary">CDN</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="themes">
+      <h2>🎬 初始主题库（30个）</h2>
+      
+      <h3>最优先开发（5个）</h3>
+      <div class="theme-grid">
+        <div class="theme-card priority-high">
+          <div class="theme-preview">🌧️</div>
+          <div class="theme-info">
+            <div class="theme-name">矩阵代码雨</div>
+            <span class="theme-priority high">⭐⭐⭐ 最高优先级</span>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-dim);">
+              赛博朋克经典，绿色代码流动
+            </p>
+          </div>
+        </div>
+
+        <div class="theme-card priority-high">
+          <div class="theme-preview">✨</div>
+          <div class="theme-info">
+            <div class="theme-name">星空银河</div>
+            <span class="theme-priority high">⭐⭐ 高优先级</span>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-dim);">
+              自然风格，星点闪烁
+            </p>
+          </div>
+        </div>
+
+        <div class="theme-card priority-high">
+          <div class="theme-preview">🌌</div>
+          <div class="theme-info">
+            <div class="theme-name">极光之夜</div>
+            <span class="theme-priority high">⭐⭐ 高优先级</span>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-dim);">
+              多色渐变流动，视觉震撼
+            </p>
+          </div>
+        </div>
+
+        <div class="theme-card priority-high">
+          <div class="theme-preview">🌃</div>
+          <div class="theme-info">
+            <div class="theme-name">赛博朋克霓虹</div>
+            <span class="theme-priority high">⭐⭐ 高优先级</span>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-dim);">
+              霓虹线条，故障艺术
+            </p>
+          </div>
+        </div>
+
+        <div class="theme-card priority-high">
+          <div class="theme-preview">💙</div>
+          <div class="theme-info">
+            <div class="theme-name">纯色呼吸</div>
+            <span class="theme-priority medium">⭐ 中优先级</span>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-dim);">
+              极简风格，缓慢呼吸
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <h3>6 大分类覆盖</h3>
+      <div class="card-grid">
+        <div class="card">
+          <h4>🎨 抽象艺术 (5个)</h4>
+          <p>彩虹渐变、几何粒子云、光谱波纹、液态金属、抽象线条</p>
+        </div>
+        <div class="card">
+          <h4>🌲 自然风光 (5个)</h4>
+          <p>星空银河、极光之夜、樱花飘落、海洋波浪、雨天窗户</p>
+        </div>
+        <div class="card">
+          <h4>🤖 科幻未来 (5个)</h4>
+          <p>矩阵代码雨、赛博朋克霓虹、全息投影、数据流、量子粒子</p>
+        </div>
+        <div class="card">
+          <h4>⚪ 极简主义 (5个)</h4>
+          <p>纯色呼吸、简约线条、极简渐变、单色噪点、黑白几何</p>
+        </div>
+        <div class="card">
+          <h4>⚡ 赛博朋克 (5个)</h4>
+          <p>霓虹雨夜、故障艺术、扫描线、像素雨、终端矩阵</p>
+        </div>
+        <div class="card">
+          <h4>🎭 动漫二次元 (5个)</h4>
+          <p>樱花季节、星空物语、夜空焰火、魔法粒子、光之翼</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="tech">
+      <h2>🔧 技术架构</h2>
+      
+      <div class="card">
+        <h4>核心引擎设计</h4>
+        <pre>DreamSkinEngine
+├── StaticRenderer（已有 - 静态图片）
+├── CanvasRenderer（新增 - 粒子/渐变）
+├── VideoRenderer（新增 - 视频壁纸）
+└── PerformanceMonitor（性能监控 + 动态降级）</pre>
+      </div>
+
+      <div class="card">
+        <h4>主题包格式</h4>
+        <pre>{
+  "id": "cyberpunk-rain",
+  "name": "赛博朋克代码雨",
+  "type": "canvas",
+  "preview": "preview.gif",
+  "performance": "medium",
+  "effects": [
+    {
+      "type": "particles",
+      "config": {
+        "count": 100,
+        "speed": 5,
+        "color": "#00ff00"
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": true,
+    "click": true
+  }
+}</pre>
+      </div>
+
+      <h3>性能优化（4 大策略）</h3>
+      <div class="card-grid">
+        <div class="card">
+          <h4>1. 动态降级</h4>
+          <p><strong>High (60fps)</strong>: 粒子 100%，全特效</p>
+          <p><strong>Medium (45fps)</strong>: 粒子 50%，减少特效</p>
+          <p><strong>Low (30fps)</strong>: 粒子 25%，禁用交互</p>
+          <p><strong>Emergency (&lt;20fps)</strong>: 切回静态</p>
+        </div>
+        <div class="card">
+          <h4>2. 后台节流</h4>
+          <p>窗口可见: <code>60fps</code></p>
+          <p>窗口隐藏: <code>5fps</code> 或暂停</p>
+          <p style="color: var(--success); margin-top: 0.5rem;">💡 省电 92%</p>
+        </div>
+        <div class="card">
+          <h4>3. 对象池</h4>
+          <p>粒子对象复用，减少 GC</p>
+          <p>Canvas 尺寸限制</p>
+          <p>Blob URL 及时释放</p>
+        </div>
+        <div class="card">
+          <h4>4. 离屏渲染</h4>
+          <p>静态元素预渲染</p>
+          <p>每帧只绘制动态部分</p>
+          <p style="color: var(--success); margin-top: 0.5rem;">⚡ 性能提升 40%+</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="timeline">
+      <h2>📅 8 周开发计划</h2>
+      
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-week">Week 1-2: 核心引擎</div>
+          <ul>
+            <li>DreamSkinEngine 架构搭建</li>
+            <li>CanvasRenderer 实现</li>
+            <li>PerformanceMonitor 性能监控</li>
+            <li>粒子系统基础框架</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: 可运行的代码雨 demo</p>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-week">Week 3: 预设主题</div>
+          <ul>
+            <li>矩阵代码雨 ⭐⭐⭐</li>
+            <li>星空银河 ⭐⭐</li>
+            <li>极光之夜 ⭐⭐</li>
+            <li>纯色呼吸 ⭐</li>
+            <li>赛博朋克霓虹 ⭐⭐</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: 5 个精品主题</p>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-week">Week 4: 交互层</div>
+          <ul>
+            <li>鼠标跟随效果</li>
+            <li>点击特效（涟漪、爆炸）</li>
+            <li>配置界面</li>
+            <li>交互开关</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: 交互功能完整</p>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-week">Week 5: 扩充主题库</div>
+          <ul>
+            <li>再开发 10 个主题</li>
+            <li>视频壁纸支持</li>
+            <li>性能测试与优化</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: 15 个主题</p>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-week">Week 6: 主题商店 UI</div>
+          <ul>
+            <li>商店界面设计与实现</li>
+            <li>主题详情页</li>
+            <li>安装/卸载流程</li>
+            <li>搜索与筛选</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: 商店 MVP</p>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-week">Week 7: GitHub 集成</div>
+          <ul>
+            <li>themes 仓库搭建</li>
+            <li>30 个主题打包上传</li>
+            <li>jsDelivr CDN 配置</li>
+            <li>自动更新机制</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: 完整主题库上线</p>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-week">Week 8: 优化上线</div>
+          <ul>
+            <li>全面性能优化</li>
+            <li>Bug 修复</li>
+            <li>文档完善</li>
+            <li>v2.0 正式发布</li>
+          </ul>
+          <p style="margin-top: 1rem;"><strong>交付</strong>: Dream Skin v2.0 🎉</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="success">
+      <h2>✅ 成功标准</h2>
+      
+      <h3>技术指标</h3>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value">60fps</div>
+          <div class="stat-label">主流设备稳定运行</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">&lt;15%</div>
+          <div class="stat-label">动态主题 CPU 占用</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">&lt;30MB</div>
+          <div class="stat-label">内存占用</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">&lt;1s</div>
+          <div class="stat-label">主题加载时间</div>
+        </div>
+      </div>
+
+      <h3>用户体验</h3>
+      <div class="card-grid">
+        <div class="card">
+          <h4>内容丰富</h4>
+          <p>✅ 30+ 精美主题</p>
+          <p>✅ 6 大分类覆盖</p>
+          <p>✅ 动态 + 交互</p>
+        </div>
+        <div class="card">
+          <h4>操作简单</h4>
+          <p>✅ 一键切换</p>
+          <p>✅ 简单配置</p>
+          <p>✅ 流畅动画</p>
+        </div>
+        <div class="card">
+          <h4>社区活跃</h4>
+          <p>✅ GitHub Stars +500</p>
+          <p>✅ 用户好评 90%+</p>
+          <p>✅ 社区主题 10+（3个月）</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="cta">
+      <h2>🚀 让我们开始吧！</h2>
+      <p style="font-size: 1.2rem; margin-bottom: 2rem; color: var(--text);">
+        专注做好一件事：让 Dream Skin 成为 ChatGPT 最好的主题系统
+      </p>
+      <a href="https://github.com/Shunlly/chatgpt-plusplus" class="cta-button">
+        ⭐ GitHub 仓库
+      </a>
+      <a href="#timeline" class="cta-button">
+        📅 查看计划
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    <p>
+      <strong>ChatGPT++ Dream Skin Plus</strong><br>
+      完全开源 • 社区驱动 • 持续进化
+    </p>
+    <p style="margin-top: 1rem;">
+      <a href="https://github.com/Shunlly/chatgpt-plusplus">GitHub</a> •
+      <a href="https://discord.gg/6bY6gGX36H">Discord</a> •
+      <a href="https://github.com/Shunlly/chatgpt-plusplus/blob/main/CHANGELOG.md">Changelog</a>
+    </p>
+    <p style="margin-top: 1rem; font-size: 0.9rem;">
+      © 2026 ChatGPT++ • MIT License
+    </p>
+  </footer>
+</body>
+</html>

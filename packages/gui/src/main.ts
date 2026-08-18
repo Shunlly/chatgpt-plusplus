@@ -1,8 +1,8 @@
 // ChatGPT++ 独立 GUI 主进程：安装状态、安装/修复/卸载、打开 ChatGPT、主题管理。
 // CLI 二进制随包放在 Resources/cli/（standalone.json 在同级 Resources，CLI 可自发现资源）。
 import { app, BrowserWindow, ipcMain, shell } from "electron";
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, type ChildProcess, execSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -22,6 +22,69 @@ function cliPath(): string {
   return join(process.resourcesPath, "cli", process.platform === "win32" ? "chatgpt-plusplus.exe" : "chatgpt-plusplus");
 }
 
+// 自动更新系统 CLI 工具：检测 GUI 内置 CLI 与系统安装的 CLI 版本是否一致，不一致则静默更新。
+async function autoUpdateCli(): Promise<void> {
+  try {
+    const appCli = cliPath();
+    if (!existsSync(appCli)) return;
+
+    // 获取 GUI 内置 CLI 版本
+    let appVersion: string;
+    try {
+      appVersion = execSync(`"${appCli}" --version`, { encoding: "utf8" }).trim();
+    } catch {
+      return; // 内置 CLI 无法运行，跳过
+    }
+
+    // 系统 CLI 安装路径（按优先级）
+    const home = homedir();
+    const systemCliPaths = process.platform === "win32"
+      ? [
+          join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), "Programs", "ChatGPT++", "chatgpt-plusplus.exe"),
+          join(home, ".local", "bin", "chatgpt-plusplus.exe"),
+        ]
+      : [
+          join(home, ".local", "bin", "chatgpt-plusplus"),
+          "/usr/local/bin/chatgpt-plusplus",
+        ];
+
+    for (const systemCli of systemCliPaths) {
+      if (!existsSync(systemCli)) continue;
+
+      // 获取系统 CLI 版本
+      let systemVersion: string;
+      try {
+        systemVersion = execSync(`"${systemCli}" --version`, { encoding: "utf8" }).trim();
+      } catch {
+        continue; // 系统 CLI 损坏，跳过
+      }
+
+      // 版本一致，无需更新
+      if (appVersion === systemVersion) continue;
+
+      // 版本不一致，静默更新
+      try {
+        const dir = join(systemCli, "..");
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+        copyFileSync(appCli, systemCli);
+        if (process.platform !== "win32") {
+          chmodSync(systemCli, 0o755);
+        }
+
+        console.log(`[autoUpdateCli] Updated ${systemCli}: ${systemVersion} → ${appVersion}`);
+        break; // 成功更新第一个找到的系统 CLI，停止
+      } catch (err) {
+        console.warn(`[autoUpdateCli] Failed to update ${systemCli}:`, err);
+        // 写入失败（权限问题）不阻塞启动，继续尝试下一个路径
+      }
+    }
+  } catch (err) {
+    // 自动更新失败不影响 GUI 启动
+    console.warn("[autoUpdateCli] Error:", err);
+  }
+}
+
 function tryReadJson(file: string): unknown | null {
   try {
     return JSON.parse(readFileSync(file, "utf8"));
@@ -36,13 +99,13 @@ async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> 
   const candidates: string[] = [];
   if (process.platform === "win32") {
     // Windows 的 state.appRoot 是镜像目录，必须启动目录里的主程序 exe，
-    // 直接 openPath 目录只会打开资源管理器窗口（看起来像“又弹了一个安装器”）。
+    // 直接 openPath 目录只会打开资源管理器窗口（看起来像"又弹了一个安装器"）。
     const root = state?.appRoot;
     if (root && existsSync(root)) {
       const exe = readdirSync(root).find(
         (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
       );
-      // 只启动主程序 exe；找不到就交给面板报错，绝不打开目录（那会像“又弹了个安装器”）。
+      // 只启动主程序 exe；找不到就交给面板报错，绝不打开目录（那会像"又弹了个安装器"）。
       if (exe) candidates.push(join(root, exe));
     }
   } else {
@@ -197,7 +260,7 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
     // Windows 上打补丁需要管理员权限（官方应用在 WindowsApps 受保护），
     // 通过 PowerShell Start-Process -Verb RunAs 触发 UAC 提权执行。
     // 提权进程是独立会话，stdout/stderr 不会回传，必须重定向到临时文件，
-    // 结束后再读回并显示——否则用户只看到“退出码 1”看不到失败原因。
+    // 结束后再读回并显示——否则用户只看到"退出码 1"看不到失败原因。
     if (process.platform === "win32" && args[0] !== "uninstall") {
       const cli = cliPath();
       const stamp = Date.now();
@@ -275,9 +338,12 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // 自动更新系统 CLI 工具（如果版本不一致）
+  await autoUpdateCli();
+
   // 已安装：ChatGPT++ 的入口就是补丁后的官方应用主界面，直接打开并退出自身；
   // 未安装（首次使用）：显示引导面板执行安装。
-  // --panel：显式打开修复/卸载面板（开始菜单“ChatGPT++ 修复工具”）。
+  // --panel：显式打开修复/卸载面板（开始菜单"ChatGPT++ 修复工具"）。
   const panelOnly = process.argv.includes("--panel");
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string } | null;
   if (!panelOnly && state) {

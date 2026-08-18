@@ -335,6 +335,12 @@ function installNotes(version) {
    主题等特征已内置，无需任何额外安装步骤。
 3. 官方 ChatGPT 出新版本后，下载新版安装包覆盖即可同步更新。
 
+更新 CLI 工具（可选）：
+  安装新版 DMG 后，在终端执行以下命令更新 CLI：
+  cp “/Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus” ~/.local/bin/
+
+  验证版本：chatgpt-plusplus --version
+
 卸载：
   在终端执行：
   /Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus uninstall
@@ -342,9 +348,9 @@ function installNotes(version) {
 修复 / 重新打补丁：
   /Applications/ChatGPT++.app/Contents/Resources/cli/chatgpt-plusplus install
 
-注意：本安装包未做 Apple 公证。若打开提示“已损坏，无法打开”，
+注意：本安装包未做 Apple 公证。若打开提示”已损坏，无法打开”，
 请在终端执行后重试：
-  xattr -dr com.apple.quarantine "/Applications/ChatGPT++.app"
+  xattr -dr com.apple.quarantine “/Applications/ChatGPT++.app”
 或者右键 ChatGPT++.app -> 打开。
 `;
 }
