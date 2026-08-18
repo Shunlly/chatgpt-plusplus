@@ -399,6 +399,27 @@ function renderPage(api, root) {
   grid.className = "grid grid-cols-2 gap-3 md:grid-cols-3";
   root.append(grid);
 
+  // 优化：使用 Intersection Observer 实现缩略图懒加载，减少初始加载开销
+  const lazyObserver = typeof IntersectionObserver !== "undefined"
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const img = entry.target;
+            const presetId = img.dataset.presetId;
+            if (presetId && !img.src) {
+              api.fs
+                .asset(`presets/${presetId}/background.jpg`)
+                .then((dataUrl) => {
+                  img.src = dataUrlToObjectUrl(dataUrl);
+                })
+                .catch((e) => api.log.warn("preset thumb failed", presetId, String(e)));
+            }
+            lazyObserver.unobserve(img);
+          }
+        });
+      }, { rootMargin: "50px" })
+    : null;
+
   for (const presetId of PRESET_IDS) {
     const item = document.createElement("button");
     item.type = "button";
@@ -412,6 +433,7 @@ function renderPage(api, root) {
     const img = document.createElement("img");
     img.alt = "";
     img.className = "h-full w-full object-cover";
+    img.dataset.presetId = presetId; // 存储 ID 用于懒加载
     thumb.append(img);
     const name = document.createElement("div");
     name.className = "min-w-0 text-sm text-token-text-primary";
@@ -430,12 +452,20 @@ function renderPage(api, root) {
       }
     };
     grid.append(item);
-    api.fs
-      .asset(`presets/${presetId}/background.jpg`)
-      .then((dataUrl) => {
-        img.src = dataUrlToObjectUrl(dataUrl);
-      })
-      .catch((e) => api.log.warn("preset thumb failed", presetId, String(e)));
+
+    // 使用懒加载或立即加载
+    if (lazyObserver) {
+      lazyObserver.observe(img);
+    } else {
+      // 降级：浏览器不支持 IntersectionObserver 时立即加载
+      api.fs
+        .asset(`presets/${presetId}/background.jpg`)
+        .then((dataUrl) => {
+          img.src = dataUrlToObjectUrl(dataUrl);
+        })
+        .catch((e) => api.log.warn("preset thumb failed", presetId, String(e)));
+    }
+
     img.onerror = () => api.log.warn("preset thumb render failed", presetId);
     loadPresetTheme(api, presetId)
       .then((theme) => {

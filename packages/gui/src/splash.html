@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT++ 启动中</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0d0d0d;
+      --fg: #ffffff;
+      --accent: #10a37f;
+      --accent-glow: rgba(16, 163, 127, 0.3);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --fg: #0d0d0d;
+        --accent: #10a37f;
+        --accent-glow: rgba(16, 163, 127, 0.2);
+      }
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 400px;
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 2rem;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--accent) 0%, #0ea77d 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 8px 24px var(--accent-glow);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 8px 24px var(--accent-glow);
+      }
+      50% {
+        transform: scale(1.05);
+        box-shadow: 0 12px 32px var(--accent-glow);
+      }
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      letter-spacing: -0.5px;
+    }
+
+    .status {
+      font-size: 14px;
+      color: var(--fg);
+      opacity: 0.6;
+      margin-bottom: 2rem;
+    }
+
+    .progress {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent) 0%, #0ea77d 100%);
+      border-radius: 999px;
+      animation: progress 1.5s ease-in-out infinite;
+      width: 40%;
+    }
+
+    @keyframes progress {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(350%);
+      }
+    }
+
+    .version {
+      margin-top: 2rem;
+      font-size: 12px;
+      opacity: 0.4;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .progress {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+
+    @media (prefers-color-scheme: light) {
+      .progress {
+        background: rgba(0, 0, 0, 0.1);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">++</div>
+    <h1>ChatGPT++</h1>
+    <div class="status" id="status">正在启动...</div>
+    <div class="progress">
+      <div class="progress-bar"></div>
+    </div>
+    <div class="version">v1.0.27</div>
+  </div>
+
+  <script>
+    // 模拟启动状态
+    const statuses = [
+      '正在启动...',
+      '加载主题系统...',
+      '连接服务...',
+      '准备就绪...'
+    ];
+    let currentIndex = 0;
+    const statusEl = document.getElementById('status');
+
+    const updateStatus = () => {
+      currentIndex = (currentIndex + 1) % statuses.length;
+      statusEl.textContent = statuses[currentIndex];
+    };
+
+    // 每 500ms 更新一次状态
+    setInterval(updateStatus, 500);
+  </script>
+</body>
+</html>

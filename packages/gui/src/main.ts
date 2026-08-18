@@ -317,27 +317,62 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
   });
 }
 
-function createWindow() {
+function createSplashWindow(): BrowserWindow {
+  const splash = new BrowserWindow({
+    width: 400,
+    height: 500,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    center: true,
+    resizable: false,
+    skipTaskbar: true,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  splash.loadFile(join(__dirname, "splash.html"));
+  return splash;
+}
+
+function createWindow(splash?: BrowserWindow) {
   const win = new BrowserWindow({
     width: 460,
     height: 700,
     title: "ChatGPT++",
     backgroundColor: "#10131a",
     autoHideMenuBar: true,
+    show: false, // 优化：先隐藏，准备好后再显示
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
   win.loadFile(join(__dirname, "renderer.html"));
+
+  // 优化：窗口准备好后关闭启动画面并显示主窗口
+  win.once("ready-to-show", () => {
+    if (splash && !splash.isDestroyed()) {
+      splash.close();
+    }
+    win.show();
+  });
+
   win.on("closed", () => {
     if (logWindow === win) logWindow = null;
   });
+
   return win;
 }
 
 app.whenReady().then(async () => {
+  // 优化：先显示启动画面，改善用户感知
+  const splash = createSplashWindow();
+
   // 自动更新系统 CLI 工具（如果版本不一致）
   await autoUpdateCli();
 
@@ -349,11 +384,12 @@ app.whenReady().then(async () => {
   if (!panelOnly && state) {
     const opened = await openPatchedApp();
     if (opened.ok) {
+      if (splash && !splash.isDestroyed()) splash.close();
       app.quit();
       return;
     }
   }
-  const win = createWindow();
+  const win = createWindow(splash);
   logWindow = win;
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
