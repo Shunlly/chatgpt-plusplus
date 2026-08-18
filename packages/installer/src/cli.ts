@@ -1,18 +1,9 @@
 #!/usr/bin/env node
+// 性能优化：仅导入启动必需的模块，命令处理函数延迟加载
 import sade from "sade";
 import kleur from "kleur";
-import { install } from "./commands/install.js";
-import { uninstall } from "./commands/uninstall.js";
-import { repair } from "./commands/repair.js";
-import { updateCodex } from "./commands/update-codex.js";
-import { selfUpdate } from "./commands/self-update.js";
-import { status } from "./commands/status.js";
-import { debug } from "./commands/debug.js";
-import { browserUi } from "./commands/browser-ui.js";
-import { doctor } from "./commands/doctor.js";
-import { safeMode } from "./commands/safe-mode.js";
 import { CHATGPT_PLUSPLUS_VERSION } from "./version.js";
-import { buildCliFailureIssueUrl, showPatchFailedAlert } from "./alerts.js";
+import { buildCliFailureIssueUrl } from "./alerts.js";
 import { appendInstallerError, capKnownLogFiles } from "./logging.js";
 
 interface InstallCliOpts {
@@ -40,7 +31,7 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
   return ((...args: Parameters<T>) => {
     Promise.resolve()
       .then(() => fn(...args))
-      .catch((e: unknown) => {
+      .catch(async (e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
         const command = process.argv[2];
         // 错误同时打到 stdout：NSIS 安装器用 nsExec::ExecToLog 只显示 stdout，
@@ -56,24 +47,66 @@ function wrap<T extends (...args: never[]) => unknown | Promise<unknown>>(fn: T)
         console.log(out);
         console.error(out);
         appendInstallerError(`command=${process.argv.slice(2).join(" ")} error=${msg}`);
-        maybeShowPatchFailedAlert(msg);
+        await maybeShowPatchFailedAlert(msg);
         process.exit(1);
       });
   }) as unknown as T;
 }
 
-function runInstall(opts: InstallCliOpts): Promise<void> {
+async function runInstall(opts: InstallCliOpts): Promise<void> {
+  const { install } = await import("./commands/install.js");
   return install({
     ...opts,
     localSigning: resolveLocalSigning(opts),
   });
 }
 
-function runRepair(opts: RepairCliOpts): Promise<void> {
+async function runUninstall(opts: never): Promise<void> {
+  const { uninstall } = await import("./commands/uninstall.js");
+  return uninstall(opts);
+}
+
+async function runRepair(opts: RepairCliOpts): Promise<void> {
+  const { repair } = await import("./commands/repair.js");
   return repair({
     ...opts,
     localSigning: resolveLocalSigning(opts),
   });
+}
+
+async function runUpdateCodex(opts: never): Promise<void> {
+  const { updateCodex } = await import("./commands/update-codex.js");
+  return updateCodex(opts);
+}
+
+async function runSelfUpdate(opts: never): Promise<void> {
+  const { selfUpdate } = await import("./commands/self-update.js");
+  return selfUpdate(opts);
+}
+
+async function runStatus(): Promise<void> {
+  const { status } = await import("./commands/status.js");
+  return status();
+}
+
+async function runDebug(opts: never): Promise<void> {
+  const { debug } = await import("./commands/debug.js");
+  return debug(opts);
+}
+
+async function runBrowserUi(opts: never): Promise<void> {
+  const { browserUi } = await import("./commands/browser-ui.js");
+  return browserUi(opts);
+}
+
+async function runDoctor(): Promise<void> {
+  const { doctor } = await import("./commands/doctor.js");
+  return doctor();
+}
+
+async function runSafeMode(opts: never): Promise<void> {
+  const { safeMode } = await import("./commands/safe-mode.js");
+  return safeMode(opts);
 }
 
 function resolveLocalSigning(opts: {
@@ -102,9 +135,10 @@ async function runDevTweak(target: string | undefined, opts: never): Promise<voi
   return devTweak(target, opts);
 }
 
-function maybeShowPatchFailedAlert(message: string): void {
+async function maybeShowPatchFailedAlert(message: string): Promise<void> {
   const command = process.argv[2];
   if (command !== "repair") return;
+  const { showPatchFailedAlert } = await import("./alerts.js");
   showPatchFailedAlert(message);
 }
 
@@ -131,7 +165,7 @@ prog
   .describe("Restore ChatGPT.app from backup and remove the watcher")
   .option("--app", "Path to Codex.app / install dir")
   .option("--purge", "Delete tweaks, config, logs, backups, and ChatGPT++ user data")
-  .action(wrap(uninstall));
+  .action(wrap(runUninstall));
 
 prog
   .command("repair")
@@ -148,7 +182,7 @@ prog
   .command("update-codex")
   .describe("Restore signed ChatGPT.app so the official updater can run, then reapply ChatGPT++ after restart")
   .option("--app", "Path to Codex.app / install dir")
-  .action(wrap(updateCodex));
+  .action(wrap(runUpdateCodex));
 
 prog
   .command("update")
@@ -159,7 +193,7 @@ prog
   .option("--quiet", "Suppress non-error output")
   .option("--watcher", "Run in watcher mode and respect automatic refresh settings")
   .option("--force", "Download and rebuild even if the selected release is already installed")
-  .action(wrap(selfUpdate));
+  .action(wrap(runSelfUpdate));
 
 prog
   .command("self-update")
@@ -170,18 +204,18 @@ prog
   .option("--quiet", "Suppress non-error output")
   .option("--watcher", "Run in watcher mode and respect automatic refresh settings")
   .option("--force", "Download and rebuild even if the selected release is already installed")
-  .action(wrap(selfUpdate));
+  .action(wrap(runSelfUpdate));
 
 prog
   .command("status")
   .describe("Show patch status, paths, version")
-  .action(status);
+  .action(wrap(runStatus));
 
 prog
   .command("debug")
   .describe("Show Codex install, runtime, data paths, and open state")
   .option("--app", "Path to Codex.app / install dir")
-  .action(wrap(debug));
+  .action(wrap(runDebug));
 
 prog
   .command("browser")
@@ -190,12 +224,12 @@ prog
   .option("--port", "Local browser UI port", 8765)
   .option("--open", "Open the browser tab after launch", true)
   .option("--keep-window", "Leave the Codex desktop window visible")
-  .action(wrap(browserUi));
+  .action(wrap(runBrowserUi));
 
 prog
   .command("doctor")
   .describe("Diagnose common issues (signature, fuses, asar integrity, perms)")
-  .action(doctor);
+  .action(wrap(runDoctor));
 
 prog
   .command("create-tweak <target>")
@@ -226,7 +260,7 @@ prog
   .option("--on", "Enable safe mode (default)")
   .option("--off", "Disable safe mode and return to normal tweak loading")
   .option("--status", "Print current safe mode status")
-  .action(wrap(safeMode));
+  .action(wrap(runSafeMode));
 
 const argv = process.argv.length <= 2 ? [...process.argv, "--help"] : process.argv;
 
