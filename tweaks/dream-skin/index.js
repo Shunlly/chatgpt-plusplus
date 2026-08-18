@@ -17,6 +17,9 @@ const PRESET_IDS = [
   // v2.0 动态主题
   "preset-matrix-rain",
   "preset-starry-galaxy",
+  "preset-aurora-night",
+  "preset-breathing-color",
+  "preset-cyberpunk-neon",
 ];
 
 const DEFAULT_PRESET = "preset-midnight-aurora";
@@ -225,6 +228,27 @@ async function loadV2Engine(api, theme) {
 
     if (effectType === "starry-galaxy" && !window.StarryGalaxyEffect) {
       const effectData = await api.fs.asset("assets/engine/effects/starry-galaxy.js");
+      const effectScript = decodeDataUrl(effectData);
+      // eslint-disable-next-line no-new-func
+      new Function(effectScript)();
+    }
+
+    if (effectType === "aurora" && !window.AuroraEffect) {
+      const effectData = await api.fs.asset("assets/engine/effects/aurora.js");
+      const effectScript = decodeDataUrl(effectData);
+      // eslint-disable-next-line no-new-func
+      new Function(effectScript)();
+    }
+
+    if (effectType === "breathing" && !window.BreathingEffect) {
+      const effectData = await api.fs.asset("assets/engine/effects/breathing.js");
+      const effectScript = decodeDataUrl(effectData);
+      // eslint-disable-next-line no-new-func
+      new Function(effectScript)();
+    }
+
+    if (effectType === "cyberpunk-neon" && !window.CyberpunkNeonEffect) {
+      const effectData = await api.fs.asset("assets/engine/effects/cyberpunk-neon.js");
       const effectScript = decodeDataUrl(effectData);
       // eslint-disable-next-line no-new-func
       new Function(effectScript)();

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 2,
+  "id": "breathing-color",
+  "name": "纯色呼吸",
+  "type": "canvas",
+  "version": "2.0.0",
+  "author": "chatgpt-plusplus",
+  "description": "单色背景，缓慢明暗变化，类似呼吸节奏，专注模式",
+  "tags": ["dynamic", "minimal", "animated", "focus", "calm"],
+  "performance": "low",
+  "backgroundColor": "#1a1a2e",
+  "appearance": "dark",
+  "effects": [
+    {
+      "type": "breathing",
+      "config": {
+        "baseColor": "#1a1a2e",
+        "breathSpeed": 0.0015,
+        "minBrightness": 0.6,
+        "maxBrightness": 1.2,
+        "easing": "sine",
+        "vignette": true,
+        "vignetteStrength": 0.3
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": false,
+    "click": false
+  },
+  "art": {
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeArea": "center",
+    "taskMode": "focus"
+  },
+  "customization": {
+    "baseColor": {
+      "label": "基础颜色",
+      "type": "color",
+      "default": "#1a1a2e",
+      "path": "effects.0.config.baseColor"
+    },
+    "breathSpeed": {
+      "label": "呼吸速度",
+      "type": "select",
+      "options": [
+        { "label": "慢", "value": 0.001 },
+        { "label": "中", "value": 0.0015 },
+        { "label": "快", "value": 0.002 }
+      ],
+      "default": 0.0015,
+      "path": "effects.0.config.breathSpeed"
+    },
+    "amplitude": {
+      "label": "变化幅度",
+      "type": "select",
+      "options": [
+        { "label": "小（10-20%）", "value": { "min": 0.9, "max": 1.1 } },
+        { "label": "中（20-40%）", "value": { "min": 0.8, "max": 1.2 } },
+        { "label": "大（40-60%）", "value": { "min": 0.7, "max": 1.3 } }
+      ],
+      "default": { "min": 0.8, "max": 1.2 },
+      "paths": {
+        "min": "effects.0.config.minBrightness",
+        "max": "effects.0.config.maxBrightness"
+      }
+    },
+    "vignette": {
+      "label": "暗角效果",
+      "type": "boolean",
+      "default": true,
+      "path": "effects.0.config.vignette"
+    }
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 2,
+  "id": "aurora-night",
+  "name": "极光之夜",
+  "type": "canvas",
+  "version": "2.0.0",
+  "author": "chatgpt-plusplus",
+  "description": "多色渐变流动，类似北极光，平滑过渡，视觉震撼",
+  "tags": ["dynamic", "nature", "animated", "relaxing", "visual"],
+  "performance": "medium",
+  "backgroundColor": "#0a0e27",
+  "appearance": "dark",
+  "effects": [
+    {
+      "type": "aurora",
+      "config": {
+        "colors": [
+          "#667eea",
+          "#764ba2",
+          "#f093fb",
+          "#4facfe",
+          "#00f2fe"
+        ],
+        "speed": 0.0005,
+        "waveAmplitude": 100,
+        "waveFrequency": 0.003,
+        "layers": 3,
+        "opacity": 0.7,
+        "blurAmount": 40
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": false,
+    "click": false
+  },
+  "art": {
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeArea": "center",
+    "taskMode": "ambient"
+  },
+  "customization": {
+    "colors": {
+      "label": "颜色组合",
+      "type": "select",
+      "options": [
+        {
+          "label": "蓝绿（经典北极光）",
+          "value": ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#00f2fe"]
+        },
+        {
+          "label": "紫红（梦幻）",
+          "value": ["#ee9ca7", "#ffdde1", "#a18cd1", "#fbc2eb", "#f093fb"]
+        },
+        {
+          "label": "橙黄（暖色）",
+          "value": ["#fa709a", "#fee140", "#ff9a56", "#feca57", "#ff6348"]
+        }
+      ],
+      "default": ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#00f2fe"],
+      "path": "effects.0.config.colors"
+    },
+    "speed": {
+      "label": "流动速度",
+      "type": "range",
+      "min": 0.0001,
+      "max": 0.001,
+      "default": 0.0005,
+      "path": "effects.0.config.speed"
+    },
+    "waveAmplitude": {
+      "label": "波动幅度",
+      "type": "select",
+      "options": [
+        { "label": "小", "value": 50 },
+        { "label": "中", "value": 100 },
+        { "label": "大", "value": 150 }
+      ],
+      "default": 100,
+      "path": "effects.0.config.waveAmplitude"
+    }
+  }
+}

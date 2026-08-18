@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "id": "cyberpunk-neon",
+  "name": "赛博朋克霓虹",
+  "type": "canvas",
+  "version": "2.0.0",
+  "author": "chatgpt-plusplus",
+  "description": "霓虹线条、故障闪烁、扫描线效果，点击产生电流特效",
+  "tags": ["dynamic", "cyberpunk", "animated", "interactive", "neon"],
+  "performance": "high",
+  "backgroundColor": "#0d0221",
+  "appearance": "dark",
+  "effects": [
+    {
+      "type": "cyberpunk-neon",
+      "config": {
+        "neonColor": "#ff006e",
+        "accentColor": "#3a86ff",
+        "lineCount": 20,
+        "lineSpeed": 2,
+        "glitchChance": 0.005,
+        "glitchDuration": 100,
+        "scanlineSpeed": 1,
+        "scanlineOpacity": 0.1,
+        "gridSize": 50,
+        "showGrid": true
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": true,
+    "click": true
+  },
+  "art": {
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeArea": "center",
+    "taskMode": "ambient"
+  },
+  "customization": {
+    "neonColor": {
+      "label": "霓虹颜色",
+      "type": "color",
+      "default": "#ff006e",
+      "path": "effects.0.config.neonColor"
+    },
+    "accentColor": {
+      "label": "强调色",
+      "type": "color",
+      "default": "#3a86ff",
+      "path": "effects.0.config.accentColor"
+    },
+    "lineCount": {
+      "label": "线条密度",
+      "type": "select",
+      "options": [
+        { "label": "低", "value": 10 },
+        { "label": "中", "value": 20 },
+        { "label": "高", "value": 30 }
+      ],
+      "default": 20,
+      "path": "effects.0.config.lineCount"
+    },
+    "glitchChance": {
+      "label": "故障频率",
+      "type": "select",
+      "options": [
+        { "label": "无", "value": 0 },
+        { "label": "低", "value": 0.002 },
+        { "label": "中", "value": 0.005 },
+        { "label": "高", "value": 0.01 }
+      ],
+      "default": 0.005,
+      "path": "effects.0.config.glitchChance"
+    },
+    "showGrid": {
+      "label": "显示网格",
+      "type": "boolean",
+      "default": true,
+      "path": "effects.0.config.showGrid"
+    }
+  }
+}

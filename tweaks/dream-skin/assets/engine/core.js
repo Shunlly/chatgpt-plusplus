@@ -209,6 +209,12 @@ class CanvasRenderer extends BaseRenderer {
           return window.MatrixRainEffect ? new window.MatrixRainEffect(cfg.config, this.performance) : null;
         case "starry-galaxy":
           return window.StarryGalaxyEffect ? new window.StarryGalaxyEffect(cfg.config, this.performance) : null;
+        case "aurora":
+          return window.AuroraEffect ? new window.AuroraEffect(cfg.config, this.performance) : null;
+        case "breathing":
+          return window.BreathingEffect ? new window.BreathingEffect(cfg.config, this.performance) : null;
+        case "cyberpunk-neon":
+          return window.CyberpunkNeonEffect ? new window.CyberpunkNeonEffect(cfg.config, this.performance) : null;
         default:
           console.warn(`[dream-skin] Unknown effect type: ${cfg.type}`);
           return null;
