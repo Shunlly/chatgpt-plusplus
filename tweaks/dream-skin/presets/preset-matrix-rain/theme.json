@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 2,
+  "id": "matrix-code-rain",
+  "name": "矩阵代码雨",
+  "type": "canvas",
+  "version": "2.0.0",
+  "author": "chatgpt-plusplus",
+  "description": "经典赛博朋克风格，绿色代码字符从上往下流动",
+  "tags": ["dynamic", "cyberpunk", "animated", "interactive"],
+  "performance": "medium",
+  "backgroundColor": "#000000",
+  "appearance": "dark",
+  "effects": [
+    {
+      "type": "matrix-rain",
+      "config": {
+        "speed": 5,
+        "density": 1.0,
+        "color": "#00ff00",
+        "trailLength": 20,
+        "glowIntensity": 0.3,
+        "fontSize": 16,
+        "charset": "01アイウエオカキクケコサシスセソタチツテト",
+        "fadeSpeed": 0.05
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": true,
+    "click": true
+  },
+  "art": {
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeArea": "center",
+    "taskMode": "ambient"
+  },
+  "customization": {
+    "speed": {
+      "label": "代码速度",
+      "type": "range",
+      "min": 1,
+      "max": 10,
+      "default": 5,
+      "path": "effects.0.config.speed"
+    },
+    "color": {
+      "label": "代码颜色",
+      "type": "color",
+      "default": "#00ff00",
+      "path": "effects.0.config.color"
+    },
+    "density": {
+      "label": "粒子密度",
+      "type": "select",
+      "options": [
+        { "label": "低", "value": 0.5 },
+        { "label": "中", "value": 1.0 },
+        { "label": "高", "value": 1.5 }
+      ],
+      "default": 1.0,
+      "path": "effects.0.config.density"
+    },
+    "mouseEffect": {
+      "label": "鼠标效果",
+      "type": "boolean",
+      "default": true,
+      "path": "interactive.mouse"
+    }
+  }
+}

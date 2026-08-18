@@ -14,6 +14,9 @@ const PRESET_IDS = [
   "preset-cyber-neon",
   "preset-forest-mist",
   "preset-sakura-dawn",
+  // v2.0 动态主题
+  "preset-matrix-rain",
+  "preset-starry-galaxy",
 ];
 
 const DEFAULT_PRESET = "preset-midnight-aurora";
@@ -115,6 +118,18 @@ function revokeObjectUrls() {
 
 // 清理当前注入：优先用注入脚本自带的 cleanup，再兜底移除标记与节点。
 function teardownSkin() {
+  // 清理 v2.0 引擎
+  try {
+    const engineV2 = window.__CODEX_DREAM_SKIN_V2_ENGINE__;
+    if (engineV2 && typeof engineV2.cleanup === "function") {
+      engineV2.cleanup();
+    }
+    delete window.__CODEX_DREAM_SKIN_V2_ENGINE__;
+  } catch (e) {
+    console.warn("[dream-skin] v2 engine cleanup failed", e);
+  }
+
+  // 清理 v1.x 注入
   try {
     const state = window.__CODEX_DREAM_SKIN_STATE__;
     if (state && typeof state.cleanup === "function") state.cleanup();
@@ -124,6 +139,8 @@ function teardownSkin() {
   document.documentElement?.classList.remove("codex-dream-skin");
   document.getElementById("codex-dream-skin-style")?.remove();
   document.getElementById("codex-dream-skin-chrome")?.remove();
+  document.getElementById("dream-skin-canvas")?.remove(); // v2.0 canvas
+  document.getElementById("dream-skin-video")?.remove();  // v2.0 video
   delete window.__CODEX_DREAM_SKIN_STATE__;
 }
 
@@ -141,6 +158,28 @@ async function persistSelection(api) {
 async function applyTheme(api, theme, artUrl) {
   const seq = ++applySeq;
   teardownSkin();
+
+  // v2.0 动态主题：使用新引擎
+  if (theme.schemaVersion === 2 && theme.type === "canvas") {
+    // 加载引擎和效果脚本
+    await loadV2Engine(api, theme);
+
+    if (seq !== applySeq) return; // 已有更新的切换请求，丢弃本次
+
+    // 初始化引擎
+    if (window.DreamSkinEngine) {
+      const engine = new window.DreamSkinEngine();
+      engine.loadTheme(theme);
+
+      // 保存引擎实例到全局状态
+      window.__CODEX_DREAM_SKIN_V2_ENGINE__ = engine;
+    }
+
+    await persistSelection(api);
+    return;
+  }
+
+  // v1.x 静态主题：使用原有渲染方式
   const [cssData, templateData] = await Promise.all([
     api.fs.asset("assets/dream-skin.css"),
     api.fs.asset("assets/renderer-inject.js"),
@@ -159,6 +198,38 @@ async function applyTheme(api, theme, artUrl) {
   // eslint-disable-next-line no-new-func
   new Function(payload)();
   await persistSelection(api);
+}
+
+// 加载 v2.0 引擎和效果脚本
+async function loadV2Engine(api, theme) {
+  // 加载核心引擎
+  if (!window.DreamSkinEngine) {
+    const coreData = await api.fs.asset("assets/engine/core.js");
+    const coreScript = decodeDataUrl(coreData);
+    // eslint-disable-next-line no-new-func
+    new Function(coreScript)();
+  }
+
+  // 加载所需的效果脚本
+  const effects = theme.effects || [];
+  for (const effect of effects) {
+    const effectType = effect.type;
+
+    // 检查效果是否已加载
+    if (effectType === "matrix-rain" && !window.MatrixRainEffect) {
+      const effectData = await api.fs.asset("assets/engine/effects/matrix-rain.js");
+      const effectScript = decodeDataUrl(effectData);
+      // eslint-disable-next-line no-new-func
+      new Function(effectScript)();
+    }
+
+    if (effectType === "starry-galaxy" && !window.StarryGalaxyEffect) {
+      const effectData = await api.fs.asset("assets/engine/effects/starry-galaxy.js");
+      const effectScript = decodeDataUrl(effectData);
+      // eslint-disable-next-line no-new-func
+      new Function(effectScript)();
+    }
+  }
 }
 
 async function loadPresetTheme(api, presetId) {

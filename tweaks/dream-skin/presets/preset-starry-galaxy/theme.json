@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "id": "starry-galaxy",
+  "name": "星空银河",
+  "type": "canvas",
+  "version": "2.0.0",
+  "author": "chatgpt-plusplus",
+  "description": "白色星点闪烁，缓慢移动，鼠标靠近时星星变亮",
+  "tags": ["dynamic", "nature", "animated", "interactive", "relaxing"],
+  "performance": "low",
+  "backgroundColor": "#000814",
+  "appearance": "dark",
+  "effects": [
+    {
+      "type": "starry-galaxy",
+      "config": {
+        "starCount": 150,
+        "twinkleSpeed": 0.02,
+        "moveSpeed": 0.5,
+        "minSize": 1,
+        "maxSize": 3,
+        "minOpacity": 0.3,
+        "maxOpacity": 1.0,
+        "mouseGlowRadius": 150,
+        "mouseGlowIntensity": 0.5,
+        "shootingStarChance": 0.001
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": true,
+    "click": true
+  },
+  "art": {
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeArea": "center",
+    "taskMode": "ambient"
+  },
+  "customization": {
+    "starCount": {
+      "label": "星星数量",
+      "type": "range",
+      "min": 50,
+      "max": 300,
+      "default": 150,
+      "path": "effects.0.config.starCount"
+    },
+    "twinkleSpeed": {
+      "label": "闪烁速度",
+      "type": "select",
+      "options": [
+        { "label": "慢", "value": 0.01 },
+        { "label": "中", "value": 0.02 },
+        { "label": "快", "value": 0.04 }
+      ],
+      "default": 0.02,
+      "path": "effects.0.config.twinkleSpeed"
+    },
+    "moveSpeed": {
+      "label": "移动速度",
+      "type": "range",
+      "min": 0,
+      "max": 2,
+      "default": 0.5,
+      "path": "effects.0.config.moveSpeed"
+    }
+  }
+}
