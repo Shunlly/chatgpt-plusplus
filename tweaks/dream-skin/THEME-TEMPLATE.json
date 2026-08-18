@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "schemaVersion": 2,
+  "id": "my-custom-theme",
+  "name": "我的自定义主题",
+  "type": "canvas",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "description": "描述你的主题效果",
+  "tags": ["custom", "dynamic"],
+  "performance": "medium",
+  "backgroundColor": "#1a1a2e",
+  "appearance": "dark",
+  "effects": [
+    {
+      "type": "particles",
+      "config": {
+        "count": 100,
+        "speed": 5,
+        "color": "#ffffff",
+        "size": 2,
+        "opacity": 0.8,
+        "shape": "circle"
+      }
+    }
+  ],
+  "interactive": {
+    "mouse": false,
+    "click": false
+  },
+  "customization": {
+    "speed": {
+      "label": "动画速度",
+      "type": "range",
+      "min": 1,
+      "max": 10,
+      "default": 5,
+      "path": "effects.0.config.speed"
+    },
+    "particleCount": {
+      "label": "粒子数量",
+      "type": "range",
+      "min": 50,
+      "max": 300,
+      "default": 100,
+      "path": "effects.0.config.count"
+    },
+    "color": {
+      "label": "粒子颜色",
+      "type": "color",
+      "default": "#ffffff",
+      "path": "effects.0.config.color"
+    },
+    "enableInteraction": {
+      "label": "启用鼠标交互",
+      "type": "boolean",
+      "default": false,
+      "path": "interactive.mouse"
+    }
+  }
+}

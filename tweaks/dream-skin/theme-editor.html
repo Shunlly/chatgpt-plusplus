@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dream Skin v2.0 主题编辑器</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* 左侧编辑器 */
+    .editor-panel {
+      width: 400px;
+      background: #1a1a2e;
+      border-right: 1px solid #2a2a3e;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .editor-header {
+      padding: 20px;
+      border-bottom: 1px solid #2a2a3e;
+      background: #16162a;
+    }
+
+    .editor-header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #ffffff;
+    }
+
+    .editor-header p {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .editor-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .editor-content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .editor-content::-webkit-scrollbar-track {
+      background: #16162a;
+    }
+
+    .editor-content::-webkit-scrollbar-thumb {
+      background: #2a2a3e;
+      border-radius: 4px;
+    }
+
+    .editor-content::-webkit-scrollbar-thumb:hover {
+      background: #3a3a4e;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #b0b0b0;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0f0f1a;
+      border: 1px solid #2a2a3e;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 60px;
+      font-family: monospace;
+    }
+
+    .form-group input[type="color"] {
+      height: 42px;
+      cursor: pointer;
+    }
+
+    .form-group input[type="range"] {
+      padding: 0;
+    }
+
+    .range-value {
+      display: inline-block;
+      margin-left: 10px;
+      color: #667eea;
+      font-weight: 600;
+    }
+
+    .form-group-inline {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .form-group-inline input[type="checkbox"] {
+      width: auto;
+    }
+
+    .effect-list {
+      margin-top: 10px;
+    }
+
+    .effect-item {
+      background: #0f0f1a;
+      border: 1px solid #2a2a3e;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 10px;
+    }
+
+    .effect-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .effect-item-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .btn-remove {
+      background: #ff006e;
+      color: #ffffff;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-remove:hover {
+      background: #d10058;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background: #5568d3;
+    }
+
+    .btn-secondary {
+      background: #2a2a3e;
+    }
+
+    .btn-secondary:hover {
+      background: #3a3a4e;
+    }
+
+    .editor-footer {
+      padding: 20px;
+      border-top: 1px solid #2a2a3e;
+      background: #16162a;
+    }
+
+    /* 右侧预览 */
+    .preview-panel {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .preview-header {
+      padding: 20px;
+      background: #16162a;
+      border-bottom: 1px solid #2a2a3e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preview-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .stats {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .stats span {
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .preview-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #preview-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #ffffff;
+      margin: 25px 0 15px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #2a2a3e;
+    }
+
+    .section-title:first-child {
+      margin-top: 0;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .tag-input {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      background: #0f0f1a;
+      border: 1px solid #2a2a3e;
+      border-radius: 6px;
+      min-height: 42px;
+    }
+
+    .tag {
+      background: #667eea;
+      color: #ffffff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tag-remove {
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .tag-input input {
+      flex: 1;
+      min-width: 100px;
+      background: transparent;
+      border: none;
+      color: #e0e0e0;
+      padding: 4px;
+    }
+
+    .tag-input input:focus {
+      outline: none;
+    }
+
+    .json-output {
+      background: #0f0f1a;
+      border: 1px solid #2a2a3e;
+      border-radius: 6px;
+      padding: 15px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+      color: #e0e0e0;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #1a1a2e;
+      border: 1px solid #2a2a3e;
+      border-radius: 8px;
+      padding: 30px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-content h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: #ffffff;
+    }
+
+    .modal-close {
+      float: right;
+      font-size: 24px;
+      cursor: pointer;
+      color: #888;
+    }
+
+    .modal-close:hover {
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 左侧编辑器 -->
+    <div class="editor-panel">
+      <div class="editor-header">
+        <h1>🎨 主题编辑器</h1>
+        <p>实时预览，所见即所得</p>
+      </div>
+
+      <div class="editor-content">
+        <!-- 基本信息 -->
+        <div class="section-title">基本信息</div>
+
+        <div class="form-group">
+          <label>主题 ID <span style="color: #ff006e;">*</span></label>
+          <input type="text" id="theme-id" placeholder="my-custom-theme" value="my-custom-theme">
+          <div class="hint">小写字母、数字、连字符</div>
+        </div>
+
+        <div class="form-group">
+          <label>主题名称 <span style="color: #ff006e;">*</span></label>
+          <input type="text" id="theme-name" placeholder="我的自定义主题" value="我的自定义主题">
+        </div>
+
+        <div class="form-group">
+          <label>作者</label>
+          <input type="text" id="theme-author" placeholder="Your Name" value="">
+        </div>
+
+        <div class="form-group">
+          <label>描述</label>
+          <textarea id="theme-description" placeholder="描述你的主题效果"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>标签</label>
+          <div class="tag-input" id="tag-input">
+            <input type="text" id="tag-text" placeholder="输入标签并按 Enter">
+          </div>
+        </div>
+
+        <!-- 外观设置 -->
+        <div class="section-title">外观设置</div>
+
+        <div class="form-group">
+          <label>背景颜色</label>
+          <input type="color" id="bg-color" value="#1a1a2e">
+        </div>
+
+        <div class="form-group">
+          <label>外观模式</label>
+          <select id="appearance">
+            <option value="dark">暗色</option>
+            <option value="light">亮色</option>
+            <option value="auto">自动</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>性能等级</label>
+          <select id="performance">
+            <option value="low">低 (CPU < 5%)</option>
+            <option value="medium" selected>中 (CPU 10-15%)</option>
+            <option value="high">高 (CPU 15-20%)</option>
+          </select>
+        </div>
+
+        <!-- 效果配置 -->
+        <div class="section-title">效果配置</div>
+
+        <div class="form-group">
+          <label>效果类型</label>
+          <select id="effect-type">
+            <option value="particles">粒子效果</option>
+            <option value="gradient">渐变效果</option>
+            <option value="matrix-rain">矩阵代码雨</option>
+            <option value="starry-galaxy">星空银河</option>
+            <option value="aurora">极光</option>
+            <option value="breathing">呼吸效果</option>
+            <option value="cyberpunk-neon">赛博朋克霓虹</option>
+          </select>
+        </div>
+
+        <div id="effect-config">
+          <!-- 动态生成效果配置 -->
+        </div>
+
+        <!-- 交互设置 -->
+        <div class="section-title">交互设置</div>
+
+        <div class="form-group form-group-inline">
+          <input type="checkbox" id="mouse-enabled">
+          <label for="mouse-enabled">启用鼠标交互</label>
+        </div>
+
+        <div class="form-group form-group-inline">
+          <input type="checkbox" id="click-enabled">
+          <label for="click-enabled">启用点击交互</label>
+        </div>
+      </div>
+
+      <div class="editor-footer">
+        <button class="btn" onclick="exportTheme()">📥 导出主题 JSON</button>
+        <button class="btn btn-secondary" onclick="loadTemplate()">📄 加载模板</button>
+        <button class="btn btn-secondary" onclick="showHelp()">❓ 开发文档</button>
+      </div>
+    </div>
+
+    <!-- 右侧预览 -->
+    <div class="preview-panel">
+      <div class="preview-header">
+        <h2>实时预览</h2>
+        <div class="stats">
+          <div>FPS: <span id="fps-display">60</span></div>
+          <div>质量: <span id="quality-display">high</span></div>
+        </div>
+      </div>
+      <div class="preview-container">
+        <canvas id="preview-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导出 Modal -->
+  <div class="modal" id="export-modal">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeModal('export-modal')">&times;</span>
+      <h2>导出主题 JSON</h2>
+      <p style="color: #888; margin-bottom: 15px;">复制下面的 JSON 并保存为 theme.json</p>
+      <div class="json-output" id="json-output"></div>
+      <button class="btn" onclick="copyJSON()">📋 复制到剪贴板</button>
+    </div>
+  </div>
+
+  <!-- 帮助 Modal -->
+  <div class="modal" id="help-modal">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeModal('help-modal')">&times;</span>
+      <h2>快速帮助</h2>
+      <p style="color: #888; margin-bottom: 15px;">
+        查看完整开发文档: <strong>THEME-DEVELOPMENT-GUIDE.md</strong>
+      </p>
+      <div style="line-height: 1.8; font-size: 14px;">
+        <p><strong>步骤：</strong></p>
+        <ol style="margin-left: 20px; margin-top: 10px;">
+          <li>填写基本信息（ID、名称、作者）</li>
+          <li>设置背景颜色和性能等级</li>
+          <li>选择效果类型并调整参数</li>
+          <li>在右侧实时预览效果</li>
+          <li>导出 theme.json 文件</li>
+          <li>将文件放到 presets/your-theme/ 目录</li>
+        </ol>
+        <p style="margin-top: 15px;"><strong>提示：</strong></p>
+        <ul style="margin-left: 20px; margin-top: 10px;">
+          <li>实时预览会自动更新</li>
+          <li>性能统计显示在右上角</li>
+          <li>支持多种内置效果类型</li>
+          <li>可以启用鼠标和点击交互</li>
+        </ul>
+      </div>
+      <button class="btn" onclick="closeModal('help-modal')">关闭</button>
+    </div>
+  </div>
+
+  <script src="assets/engine/core.js"></script>
+  <script src="assets/engine/effects/matrix-rain.js"></script>
+  <script src="assets/engine/effects/starry-galaxy.js"></script>
+  <script src="assets/engine/effects/aurora.js"></script>
+  <script src="assets/engine/effects/breathing.js"></script>
+  <script src="assets/engine/effects/cyberpunk-neon.js"></script>
+
+  <script>
+    let engine = null;
+    let tags = ['custom', 'dynamic'];
+
+    // 效果配置模板
+    const effectConfigs = {
+      particles: {
+        count: { type: 'range', label: '粒子数量', min: 10, max: 500, default: 100 },
+        speed: { type: 'range', label: '移动速度', min: 1, max: 20, default: 5 },
+        color: { type: 'color', label: '颜色', default: '#ffffff' },
+        size: { type: 'range', label: '大小', min: 1, max: 10, default: 2 },
+        opacity: { type: 'range', label: '不透明度', min: 0, max: 1, step: 0.1, default: 0.8 },
+      },
+      gradient: {
+        colors: { type: 'colors', label: '颜色列表', default: ['#667eea', '#764ba2'] },
+        speed: { type: 'range', label: '流动速度', min: 0, max: 0.01, step: 0.0001, default: 0.001 },
+        angle: { type: 'range', label: '初始角度', min: 0, max: 360, default: 0 },
+      },
+      'matrix-rain': {
+        speed: { type: 'range', label: '下落速度', min: 1, max: 10, default: 5 },
+        density: { type: 'range', label: '密度倍率', min: 0.5, max: 2, step: 0.1, default: 1.0 },
+        color: { type: 'color', label: '代码颜色', default: '#00ff00' },
+        trailLength: { type: 'range', label: '拖尾长度', min: 10, max: 40, default: 20 },
+        glowIntensity: { type: 'range', label: '发光强度', min: 0, max: 1, step: 0.1, default: 0.3 },
+        fontSize: { type: 'range', label: '字体大小', min: 10, max: 24, default: 16 },
+      },
+      'starry-galaxy': {
+        starCount: { type: 'range', label: '星星数量', min: 50, max: 300, default: 150 },
+        twinkleSpeed: { type: 'range', label: '闪烁速度', min: 0.01, max: 0.1, step: 0.01, default: 0.02 },
+        moveSpeed: { type: 'range', label: '移动速度', min: 0.1, max: 2, step: 0.1, default: 0.5 },
+        minSize: { type: 'range', label: '最小大小', min: 1, max: 3, default: 1 },
+        maxSize: { type: 'range', label: '最大大小', min: 2, max: 5, default: 3 },
+        mouseGlowRadius: { type: 'range', label: '鼠标发光半径', min: 50, max: 300, default: 150 },
+      },
+      aurora: {
+        colors: { type: 'colors', label: '颜色组合', default: ['#667eea', '#764ba2', '#f093fb'] },
+        speed: { type: 'range', label: '流动速度', min: 0.0001, max: 0.002, step: 0.0001, default: 0.0005 },
+        waveAmplitude: { type: 'range', label: '波动幅度', min: 50, max: 200, default: 100 },
+        waveFrequency: { type: 'range', label: '波动频率', min: 0.001, max: 0.01, step: 0.001, default: 0.003 },
+        layers: { type: 'range', label: '极光层数', min: 1, max: 5, default: 3 },
+        opacity: { type: 'range', label: '不透明度', min: 0.3, max: 1, step: 0.1, default: 0.7 },
+        blurAmount: { type: 'range', label: '模糊程度', min: 0, max: 60, default: 40 },
+      },
+      breathing: {
+        baseColor: { type: 'color', label: '基础颜色', default: '#1a1a2e' },
+        breathSpeed: { type: 'range', label: '呼吸速度', min: 0.0005, max: 0.005, step: 0.0005, default: 0.0015 },
+        minBrightness: { type: 'range', label: '最小亮度', min: 0.3, max: 0.9, step: 0.1, default: 0.6 },
+        maxBrightness: { type: 'range', label: '最大亮度', min: 1.0, max: 1.5, step: 0.1, default: 1.2 },
+        vignette: { type: 'checkbox', label: '启用暗角', default: true },
+        vignetteStrength: { type: 'range', label: '暗角强度', min: 0, max: 1, step: 0.1, default: 0.3 },
+      },
+      'cyberpunk-neon': {
+        neonColor: { type: 'color', label: '霓虹主色', default: '#ff006e' },
+        accentColor: { type: 'color', label: '强调色', default: '#3a86ff' },
+        lineCount: { type: 'range', label: '线条数量', min: 10, max: 40, default: 20 },
+        lineSpeed: { type: 'range', label: '线条速度', min: 1, max: 5, default: 2 },
+        glitchChance: { type: 'range', label: '故障概率', min: 0, max: 0.02, step: 0.001, default: 0.005 },
+        gridSize: { type: 'range', label: '网格大小', min: 30, max: 80, default: 50 },
+        showGrid: { type: 'checkbox', label: '显示网格', default: true },
+      },
+    };
+
+    // 初始化
+    function init() {
+      renderEffectConfig('particles');
+      updatePreview();
+      setupTagInput();
+
+      // 监听所有输入变化
+      document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.addEventListener('input', debounce(updatePreview, 300));
+        el.addEventListener('change', updatePreview);
+      });
+
+      // 效果类型切换
+      document.getElementById('effect-type').addEventListener('change', (e) => {
+        renderEffectConfig(e.target.value);
+        updatePreview();
+      });
+    }
+
+    // 渲染效果配置
+    function renderEffectConfig(effectType) {
+      const container = document.getElementById('effect-config');
+      container.innerHTML = '';
+
+      const config = effectConfigs[effectType];
+      if (!config) return;
+
+      for (const [key, field] of Object.entries(config)) {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+
+        if (field.type === 'range') {
+          const label = document.createElement('label');
+          label.textContent = field.label;
+          group.appendChild(label);
+
+          const wrapper = document.createElement('div');
+          wrapper.style.display = 'flex';
+          wrapper.style.alignItems = 'center';
+
+          const input = document.createElement('input');
+          input.type = 'range';
+          input.id = `config-${key}`;
+          input.min = field.min;
+          input.max = field.max;
+          input.step = field.step || (field.max > 10 ? 1 : 0.01);
+          input.value = field.default;
+          input.style.flex = '1';
+
+          const valueDisplay = document.createElement('span');
+          valueDisplay.className = 'range-value';
+          valueDisplay.textContent = field.default;
+
+          input.addEventListener('input', (e) => {
+            valueDisplay.textContent = e.target.value;
+          });
+
+          wrapper.appendChild(input);
+          wrapper.appendChild(valueDisplay);
+          group.appendChild(wrapper);
+        } else if (field.type === 'color') {
+          const label = document.createElement('label');
+          label.textContent = field.label;
+          group.appendChild(label);
+
+          const input = document.createElement('input');
+          input.type = 'color';
+          input.id = `config-${key}`;
+          input.value = field.default;
+          group.appendChild(input);
+        } else if (field.type === 'checkbox') {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'form-group-inline';
+
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.id = `config-${key}`;
+          input.checked = field.default;
+
+          const label = document.createElement('label');
+          label.htmlFor = `config-${key}`;
+          label.textContent = field.label;
+
+          wrapper.appendChild(input);
+          wrapper.appendChild(label);
+          group.appendChild(wrapper);
+        } else if (field.type === 'colors') {
+          const label = document.createElement('label');
+          label.textContent = field.label;
+          group.appendChild(label);
+
+          const textarea = document.createElement('textarea');
+          textarea.id = `config-${key}`;
+          textarea.value = JSON.stringify(field.default);
+          textarea.placeholder = '["#color1", "#color2", ...]';
+          group.appendChild(textarea);
+        }
+
+        container.appendChild(group);
+      }
+    }
+
+    // 生成主题配置
+    function generateThemeConfig() {
+      const effectType = document.getElementById('effect-type').value;
+      const config = effectConfigs[effectType];
+      const effectConfig = {};
+
+      if (config) {
+        for (const key of Object.keys(config)) {
+          const el = document.getElementById(`config-${key}`);
+          if (!el) continue;
+
+          if (el.type === 'checkbox') {
+            effectConfig[key] = el.checked;
+          } else if (el.tagName === 'TEXTAREA') {
+            try {
+              effectConfig[key] = JSON.parse(el.value);
+            } catch {
+              effectConfig[key] = el.value.split(',').map(c => c.trim());
+            }
+          } else {
+            const value = el.value;
+            effectConfig[key] = isNaN(value) ? value : parseFloat(value);
+          }
+        }
+      }
+
+      return {
+        schemaVersion: 2,
+        id: document.getElementById('theme-id').value || 'my-custom-theme',
+        name: document.getElementById('theme-name').value || '我的自定义主题',
+        type: 'canvas',
+        version: '1.0.0',
+        author: document.getElementById('theme-author').value || '',
+        description: document.getElementById('theme-description').value || '',
+        tags: tags,
+        performance: document.getElementById('performance').value,
+        backgroundColor: document.getElementById('bg-color').value,
+        appearance: document.getElementById('appearance').value,
+        effects: [
+          {
+            type: effectType,
+            config: effectConfig,
+          },
+        ],
+        interactive: {
+          mouse: document.getElementById('mouse-enabled').checked,
+          click: document.getElementById('click-enabled').checked,
+        },
+      };
+    }
+
+    // 更新预览
+    function updatePreview() {
+      const themeConfig = generateThemeConfig();
+
+      // 清理旧引擎
+      if (engine) {
+        engine.cleanup();
+        engine = null;
+      }
+
+      // 创建新引擎
+      const canvas = document.getElementById('preview-canvas');
+      engine = new DreamSkinEngine(themeConfig, canvas);
+      engine.start();
+
+      // 更新统计信息
+      setInterval(() => {
+        if (engine) {
+          const stats = engine.getStats();
+          document.getElementById('fps-display').textContent = stats.fps;
+          document.getElementById('quality-display').textContent = stats.quality;
+        }
+      }, 1000);
+    }
+
+    // 标签输入
+    function setupTagInput() {
+      const input = document.getElementById('tag-text');
+      const container = document.getElementById('tag-input');
+
+      // 初始化标签
+      renderTags();
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && input.value.trim()) {
+          e.preventDefault();
+          const tag = input.value.trim();
+          if (!tags.includes(tag)) {
+            tags.push(tag);
+            renderTags();
+            updatePreview();
+          }
+          input.value = '';
+        }
+      });
+    }
+
+    function renderTags() {
+      const container = document.getElementById('tag-input');
+      const input = document.getElementById('tag-text');
+
+      // 清空除了输入框的内容
+      const existingTags = container.querySelectorAll('.tag');
+      existingTags.forEach(tag => tag.remove());
+
+      // 添加标签
+      tags.forEach((tag, index) => {
+        const tagEl = document.createElement('div');
+        tagEl.className = 'tag';
+        tagEl.innerHTML = `${tag} <span class="tag-remove" onclick="removeTag(${index})">×</span>`;
+        container.insertBefore(tagEl, input);
+      });
+    }
+
+    function removeTag(index) {
+      tags.splice(index, 1);
+      renderTags();
+      updatePreview();
+    }
+
+    // 导出主题
+    function exportTheme() {
+      const themeConfig = generateThemeConfig();
+      const json = JSON.stringify(themeConfig, null, 2);
+
+      document.getElementById('json-output').textContent = json;
+      document.getElementById('export-modal').classList.add('active');
+    }
+
+    function copyJSON() {
+      const text = document.getElementById('json-output').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('已复制到剪贴板！');
+      });
+    }
+
+    // Modal
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    function showHelp() {
+      document.getElementById('help-modal').classList.add('active');
+    }
+
+    function loadTemplate() {
+      if (confirm('加载模板会重置当前配置，确定吗？')) {
+        location.reload();
+      }
+    }
+
+    // 防抖
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>

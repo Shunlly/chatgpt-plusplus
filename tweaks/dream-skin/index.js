@@ -7,8 +7,7 @@
 const TWEAK_VERSION = "1.1.0";
 
 // 随包预设：目录结构与 Codex-Dream-Skin 仓库的 macos/presets 一致。
-const PRESET_IDS = [
-  "preset-midnight-aurora",
+const PRESET_IDS = ["preset-midnight-aurora",
   "preset-romantic-rose",
   "preset-amber-dusk",
   "preset-cyber-neon",
@@ -19,7 +18,7 @@ const PRESET_IDS = [
   "preset-starry-galaxy",
   "preset-aurora-night",
   "preset-breathing-color",
-  "preset-cyberpunk-neon",
+  "preset-cyberpunk-neon"
 ];
 
 const DEFAULT_PRESET = "preset-midnight-aurora";
