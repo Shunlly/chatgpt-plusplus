@@ -381,7 +381,45 @@ function registerSettingsPage(api) {
                 <strong>HTML</strong>
                 <small>带样式的网页</small>
               </div>
+              <div class="export-import-format-option" data-format="pdf">
+                <strong>PDF</strong>
+                <small>专业文档格式</small>
+              </div>
             </div>
+
+            <!-- 导出选项 -->
+            <div class="export-import-options" id="export-options">
+              <details open>
+                <summary style="cursor: pointer; font-weight: 500; margin-bottom: 12px;">⚙️ 导出选项</summary>
+                <div style="padding-left: 20px;">
+                  <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="export-include-timestamps" checked style="margin-right: 8px;">
+                    <span>包含消息时间戳</span>
+                  </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="export-include-toc" checked style="margin-right: 8px;">
+                    <span>生成目录（TOC）</span>
+                  </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="export-include-metadata" checked style="margin-right: 8px;">
+                    <span>包含元数据（YAML frontmatter）</span>
+                  </label>
+                  <label style="display: flex; align-items: center; margin-bottom: 8px; cursor: pointer;">
+                    <input type="checkbox" id="export-code-syntax" checked style="margin-right: 8px;">
+                    <span>代码块语法高亮标记</span>
+                  </label>
+                  <label style="display: block; margin-bottom: 8px;">
+                    <span style="display: block; margin-bottom: 4px;">HTML 主题：</span>
+                    <select id="export-html-theme" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
+                      <option value="auto">自动（跟随系统）</option>
+                      <option value="light">亮色主题</option>
+                      <option value="dark">暗色主题</option>
+                    </select>
+                  </label>
+                </div>
+              </details>
+            </div>
+
             <div class="export-import-buttons">
               <button class="export-import-btn export-import-btn-primary" id="export-current-btn">
                 <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -450,12 +488,26 @@ function registerSettingsPage(api) {
 
       // 导出当前会话
       root.querySelector('#export-current-btn').addEventListener('click', async () => {
-        await exportCurrentConversation(selectedFormat, api, root);
+        const options = {
+          includeTimestamps: root.querySelector('#export-include-timestamps').checked,
+          includeToc: root.querySelector('#export-include-toc').checked,
+          includeMetadata: root.querySelector('#export-include-metadata').checked,
+          codeSyntax: root.querySelector('#export-code-syntax').checked,
+          htmlTheme: root.querySelector('#export-html-theme').value,
+        };
+        await exportCurrentConversation(selectedFormat, api, root, options);
       });
 
       // 导出全部会话
       root.querySelector('#export-all-btn').addEventListener('click', async () => {
-        await exportAllConversations(selectedFormat, api, root);
+        const options = {
+          includeTimestamps: root.querySelector('#export-include-timestamps').checked,
+          includeToc: root.querySelector('#export-include-toc').checked,
+          includeMetadata: root.querySelector('#export-include-metadata').checked,
+          codeSyntax: root.querySelector('#export-code-syntax').checked,
+          htmlTheme: root.querySelector('#export-html-theme').value,
+        };
+        await exportAllConversations(selectedFormat, api, root, options);
       });
 
       // 导入会话
@@ -498,7 +550,7 @@ function registerSettingsPage(api) {
 /**
  * 导出当前会话
  */
-async function exportCurrentConversation(format, api, root) {
+async function exportCurrentConversation(format, api, root, options = {}) {
   const progressDiv = root.querySelector('#export-progress');
   const progressBar = progressDiv.querySelector('.export-import-progress-bar-fill');
 
@@ -520,7 +572,7 @@ async function exportCurrentConversation(format, api, root) {
 
     switch (format) {
       case 'markdown':
-        content = convertToMarkdown(conversation);
+        content = convertToMarkdown(conversation, options);
         filename = `conversation-${conversationId}.md`;
         mimeType = 'text/markdown';
         break;
@@ -530,10 +582,18 @@ async function exportCurrentConversation(format, api, root) {
         mimeType = 'application/json';
         break;
       case 'html':
-        content = convertToHTML(conversation);
+        content = convertToHTML(conversation, options);
         filename = `conversation-${conversationId}.html`;
         mimeType = 'text/html';
         break;
+      case 'pdf':
+        await exportToPDF(conversation, options, api);
+        progressBar.style.width = '100%';
+        setTimeout(() => {
+          progressDiv.style.display = 'none';
+          progressBar.style.width = '0%';
+        }, 1000);
+        return;
     }
 
     downloadFile(content, filename, mimeType);
@@ -555,7 +615,139 @@ async function exportCurrentConversation(format, api, root) {
 /**
  * 导出全部会话
  */
-async function exportAllConversations(format, api, root) {
+async function exportAllConversations(format, api, root, options = {}) {
+  const progressDiv = root.querySelector('#export-all-progress');
+  const progressBar = root.querySelector('#export-all-progress-bar');
+  const statusDiv = root.querySelector('#export-all-status');
+
+  try {
+    progressDiv.style.display = 'block';
+    statusDiv.textContent = '正在获取会话列表...';
+
+    const conversations = await fetchAllConversations(api);
+    const total = conversations.length;
+
+    if (total === 0) {
+      alert('没有找到任何会话');
+      progressDiv.style.display = 'none';
+      return;
+    }
+
+    // 检查是否支持 ZIP
+    const useZip = window.JSZip && JSZipLoaded;
+
+    if (useZip) {
+      statusDiv.textContent = '正在创建 ZIP 文件...';
+      const zip = new JSZip();
+      const folder = zip.folder('conversations');
+
+      for (let i = 0; i < total; i++) {
+        const conv = conversations[i];
+        statusDiv.textContent = `正在导出 ${i + 1}/${total}: ${conv.title || conv.id}`;
+        progressBar.style.width = `${((i + 1) / total) * 100}%`;
+
+        try {
+          const fullConv = await fetchConversation(conv.id, api);
+          let content, extension;
+
+          switch (format) {
+            case 'markdown':
+              content = convertToMarkdown(fullConv, options);
+              extension = 'md';
+              break;
+            case 'json':
+              content = JSON.stringify(fullConv, null, 2);
+              extension = 'json';
+              break;
+            case 'html':
+              content = convertToHTML(fullConv, options);
+              extension = 'html';
+              break;
+          }
+
+          const filename = `${sanitizeFilename(conv.title || conv.id)}.${extension}`;
+          folder.file(filename, content);
+        } catch (error) {
+          api.log.warn(`跳过会话 ${conv.id}:`, error);
+        }
+
+        // 避免请求过快
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      statusDiv.textContent = '正在生成 ZIP 文件...';
+      progressBar.style.width = '95%';
+
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      progressBar.style.width = '100%';
+      statusDiv.textContent = `导出完成！共 ${total} 个会话`;
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      downloadBlob(blob, `conversations-${timestamp}.zip`, 'application/zip');
+
+      api.log.info(`批量导出完成: ${total} 个会话 (ZIP)`);
+    } else {
+      // 降级方案：逐个下载
+      statusDiv.textContent = '正在导出（逐个文件模式）...';
+
+      for (let i = 0; i < Math.min(10, total); i++) {
+        const conv = conversations[i];
+        statusDiv.textContent = `正在导出 ${i + 1}/${Math.min(10, total)}: ${conv.title || conv.id}`;
+        progressBar.style.width = `${((i + 1) / Math.min(10, total)) * 100}%`;
+
+        try {
+          const fullConv = await fetchConversation(conv.id, api);
+          let content, filename, mimeType;
+
+          switch (format) {
+            case 'markdown':
+              content = convertToMarkdown(fullConv, options);
+              filename = `${sanitizeFilename(conv.title || conv.id)}.md`;
+              mimeType = 'text/markdown';
+              break;
+            case 'json':
+              content = JSON.stringify(fullConv, null, 2);
+              filename = `${sanitizeFilename(conv.title || conv.id)}.json`;
+              mimeType = 'application/json';
+              break;
+            case 'html':
+              content = convertToHTML(fullConv, options);
+              filename = `${sanitizeFilename(conv.title || conv.id)}.html`;
+              mimeType = 'text/html';
+              break;
+          }
+
+          downloadFile(content, filename, mimeType);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          api.log.warn(`跳过会话 ${conv.id}:`, error);
+        }
+      }
+
+      if (total > 10) {
+        alert(`已导出前 10 个会话。总共 ${total} 个会话。\n建议刷新页面以加载 JSZip 库，以支持完整 ZIP 导出。`);
+      }
+
+      statusDiv.textContent = `导出完成！共 ${Math.min(10, total)} 个会话`;
+      api.log.info(`批量导出完成: ${Math.min(10, total)} 个会话 (逐个文件)`);
+    }
+
+    setTimeout(() => {
+      progressDiv.style.display = 'none';
+      progressBar.style.width = '0%';
+    }, 2000);
+
+  } catch (error) {
+    api.log.error('批量导出失败:', error);
+    alert('批量导出失败: ' + error.message);
+    progressDiv.style.display = 'none';
+  }
+}
   const progressDiv = root.querySelector('#export-all-progress');
   const progressBar = root.querySelector('#export-all-progress-bar');
   const statusDiv = root.querySelector('#export-all-status');
@@ -796,20 +988,73 @@ async function fetchAllConversations(api) {
 }
 
 /**
- * 转换为 Markdown
+ * 转换为 Markdown（增强版）
  */
-function convertToMarkdown(conversation) {
-  let markdown = `# ${conversation.title || '未命名会话'}\n\n`;
-  markdown += `**会话 ID**: ${conversation.id}\n`;
-  markdown += `**创建时间**: ${new Date(conversation.create_time * 1000).toLocaleString()}\n\n`;
+function convertToMarkdown(conversation, options = {}) {
+  const {
+    includeTimestamps = true,
+    includeToc = true,
+    includeMetadata = true,
+    codeSyntax = true,
+  } = options;
+
+  let markdown = '';
+
+  // YAML frontmatter
+  if (includeMetadata) {
+    markdown += `---\n`;
+    markdown += `title: "${escapeYaml(conversation.title || '未命名会话')}"\n`;
+    markdown += `conversation_id: ${conversation.id}\n`;
+    markdown += `create_time: ${new Date(conversation.create_time * 1000).toISOString()}\n`;
+    markdown += `update_time: ${new Date(conversation.update_time * 1000).toISOString()}\n`;
+    markdown += `model: ${conversation.current_node ? getModelFromNode(conversation.mapping, conversation.current_node) : 'unknown'}\n`;
+    markdown += `---\n\n`;
+  }
+
+  // 标题
+  markdown += `# ${conversation.title || '未命名会话'}\n\n`;
+
+  // 元信息
+  markdown += `**会话 ID**: \`${conversation.id}\`\n`;
+  markdown += `**创建时间**: ${new Date(conversation.create_time * 1000).toLocaleString('zh-CN')}\n`;
+  markdown += `**更新时间**: ${new Date(conversation.update_time * 1000).toLocaleString('zh-CN')}\n\n`;
   markdown += `---\n\n`;
 
   if (conversation.mapping) {
     const messages = extractMessages(conversation.mapping);
-    messages.forEach(msg => {
-      const role = msg.role === 'user' ? '👤 用户' : '🤖 助手';
-      markdown += `## ${role}\n\n`;
-      markdown += `${msg.content}\n\n`;
+
+    // 生成目录
+    if (includeToc && messages.length > 5) {
+      markdown += `## 📑 目录\n\n`;
+      messages.forEach((msg, index) => {
+        const role = msg.role === 'user' ? '👤 用户' : msg.role === 'assistant' ? '🤖 助手' : '⚙️ 系统';
+        const preview = msg.content.substring(0, 50).replace(/\n/g, ' ');
+        markdown += `${index + 1}. [${role}](#消息-${index + 1}) - ${preview}${msg.content.length > 50 ? '...' : ''}\n`;
+      });
+      markdown += `\n---\n\n`;
+    }
+
+    // 消息内容
+    messages.forEach((msg, index) => {
+      const role = msg.role === 'user' ? '👤 用户' : msg.role === 'assistant' ? '🤖 助手' : '⚙️ 系统';
+      markdown += `## 消息 ${index + 1}\n\n`;
+      markdown += `### ${role}\n\n`;
+
+      if (includeTimestamps && msg.create_time) {
+        markdown += `> 📅 ${new Date(msg.create_time * 1000).toLocaleString('zh-CN')}\n\n`;
+      }
+
+      // 处理代码块
+      let content = msg.content;
+      if (codeSyntax) {
+        // 尝试识别代码块并添加语言标识
+        content = content.replace(/```(\w+)?\n/g, (match, lang) => {
+          return lang ? match : '```plaintext\n';
+        });
+      }
+
+      markdown += `${content}\n\n`;
+      markdown += `---\n\n`;
     });
   }
 
@@ -817,69 +1062,352 @@ function convertToMarkdown(conversation) {
 }
 
 /**
- * 转换为 HTML
+ * 转换为 HTML（增强版）
  */
-function convertToHTML(conversation) {
+function convertToHTML(conversation, options = {}) {
+  const {
+    includeTimestamps = true,
+    htmlTheme = 'auto',
+    codeSyntax = true,
+  } = options;
+
+  const themeClass = htmlTheme === 'dark' ? 'theme-dark' : htmlTheme === 'light' ? 'theme-light' : '';
+
   let html = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="${themeClass}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(conversation.title || '未命名会话')}</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #1f2937;
+      --border-color: #e5e7eb;
+      --user-bg: #f3f4f6;
+      --assistant-bg: #f0fdf4;
+      --code-bg: #1e1e1e;
+      --code-color: #d4d4d4;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not(.theme-light) {
+        --bg-color: #111827;
+        --text-color: #f9fafb;
+        --border-color: #374151;
+        --user-bg: #1f2937;
+        --assistant-bg: #064e3b;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+    }
+
+    .theme-dark {
+      --bg-color: #111827;
+      --text-color: #f9fafb;
+      --border-color: #374151;
+      --user-bg: #1f2937;
+      --assistant-bg: #064e3b;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .theme-light {
+      --bg-color: #ffffff;
+      --text-color: #1f2937;
+      --border-color: #e5e7eb;
+      --user-bg: #f3f4f6;
+      --assistant-bg: #f0fdf4;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
       line-height: 1.6;
+      background: var(--bg-color);
+      color: var(--text-color);
     }
+
+    .header {
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    .meta {
+      color: #6b7280;
+      font-size: 14px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .message {
-      margin-bottom: 20px;
-      padding: 15px;
-      border-radius: 8px;
+      margin-bottom: 24px;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      animation: fadeIn 0.3s ease-out;
     }
-    .user {
-      background: #f0f0f0;
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
-    .assistant {
-      background: #e8f5e9;
+
+    .message.user {
+      background: var(--user-bg);
+      border-left: 4px solid #3b82f6;
     }
+
+    .message.assistant {
+      background: var(--assistant-bg);
+      border-left: 4px solid #10b981;
+    }
+
     .role {
-      font-weight: bold;
-      margin-bottom: 8px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
     }
+
+    .timestamp {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-left: auto;
+    }
+
+    .content {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
     pre {
-      background: #2d2d2d;
-      color: #fff;
-      padding: 12px;
-      border-radius: 4px;
+      background: var(--code-bg);
+      color: var(--code-color);
+      padding: 16px;
+      border-radius: 8px;
       overflow-x: auto;
+      margin: 16px 0;
+      position: relative;
+    }
+
+    code {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 14px;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #d4d4d4;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .search-box {
+      position: sticky;
+      top: 20px;
+      margin-bottom: 20px;
+      padding: 12px;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      z-index: 100;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      background: var(--bg-color);
+      color: var(--text-color);
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .highlight {
+      background: #fef08a;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+
+    @media print {
+      body {
+        max-width: 100%;
+        padding: 20px;
+      }
+      .search-box {
+        display: none;
+      }
+      .message {
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>${escapeHtml(conversation.title || '未命名会话')}</h1>
-  <p><strong>会话 ID</strong>: ${conversation.id}</p>
-  <p><strong>创建时间</strong>: ${new Date(conversation.create_time * 1000).toLocaleString()}</p>
-  <hr>
+  <div class="header">
+    <h1>${escapeHtml(conversation.title || '未命名会话')}</h1>
+    <div class="meta">
+      <div class="meta-item">
+        <span>🆔</span>
+        <span>${conversation.id}</span>
+      </div>
+      <div class="meta-item">
+        <span>📅</span>
+        <span>创建：${new Date(conversation.create_time * 1000).toLocaleString('zh-CN')}</span>
+      </div>
+      <div class="meta-item">
+        <span>🔄</span>
+        <span>更新：${new Date(conversation.update_time * 1000).toLocaleString('zh-CN')}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="🔍 搜索会话内容..." />
+  </div>
+
+  <div id="messages">
 `;
 
   if (conversation.mapping) {
     const messages = extractMessages(conversation.mapping);
-    messages.forEach(msg => {
+    messages.forEach((msg, index) => {
       const roleClass = msg.role === 'user' ? 'user' : 'assistant';
       const roleLabel = msg.role === 'user' ? '👤 用户' : '🤖 助手';
+      const timestamp = includeTimestamps && msg.create_time ?
+        `<span class="timestamp">${new Date(msg.create_time * 1000).toLocaleString('zh-CN')}</span>` : '';
+
+      let content = escapeHtml(msg.content);
+
+      // 处理代码块
+      if (codeSyntax) {
+        content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+          const language = lang || 'plaintext';
+          return `<pre><code class="language-${language}">${code.trim()}</code><button class="copy-btn" onclick="copyCode(this)">复制</button></pre>`;
+        });
+      }
+
+      // 换行处理
+      content = content.replace(/\n/g, '<br>');
+
       html += `
-  <div class="message ${roleClass}">
-    <div class="role">${roleLabel}</div>
-    <div>${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+  <div class="message ${roleClass}" data-index="${index}">
+    <div class="role">
+      ${roleLabel}
+      ${timestamp}
+    </div>
+    <div class="content">${content}</div>
   </div>
 `;
     });
   }
 
   html += `
+  </div>
+
+  <script>
+    // 搜索功能
+    const searchInput = document.getElementById('search-input');
+    const messages = document.getElementById('messages');
+
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const messageElements = document.querySelectorAll('.message');
+
+      messageElements.forEach(msg => {
+        const content = msg.textContent.toLowerCase();
+        if (!query || content.includes(query)) {
+          msg.style.display = 'block';
+          // 高亮搜索结果
+          if (query) {
+            const contentDiv = msg.querySelector('.content');
+            const originalText = contentDiv.innerHTML;
+            const regex = new RegExp(\`(\${query})\`, 'gi');
+            contentDiv.innerHTML = originalText.replace(/<span class="highlight">(.*?)<\\/span>/g, '$1');
+            contentDiv.innerHTML = contentDiv.innerHTML.replace(regex, '<span class="highlight">$1</span>');
+          }
+        } else {
+          msg.style.display = 'none';
+        }
+      });
+    });
+
+    // 复制代码功能
+    function copyCode(btn) {
+      const pre = btn.parentElement;
+      const code = pre.querySelector('code');
+      const text = code.textContent;
+
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = '已复制!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      }).catch(() => {
+        btn.textContent = '复制失败';
+      });
+    }
+
+    // 打印优化
+    if (window.matchMedia) {
+      const mediaQueryList = window.matchMedia('print');
+      mediaQueryList.addListener((mql) => {
+        if (mql.matches) {
+          searchInput.value = '';
+          searchInput.dispatchEvent(new Event('input'));
+        }
+      });
+    }
+  </script>
 </body>
 </html>`;
 
@@ -903,6 +1431,7 @@ function extractMessages(mapping) {
         messages.push({
           role: current.message.author.role,
           content: content.parts.join('\n'),
+          create_time: current.message.create_time,
         });
       }
     }
@@ -913,6 +1442,64 @@ function extractMessages(mapping) {
   }
 
   return messages;
+}
+
+/**
+ * 导出为 PDF
+ */
+async function exportToPDF(conversation, options = {}, api) {
+  try {
+    // 生成 HTML
+    const html = convertToHTML(conversation, options);
+
+    // 创建一个隐藏的 iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.left = '-9999px';
+    document.body.appendChild(iframe);
+
+    // 写入 HTML
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+
+    // 等待内容加载
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // 打印为 PDF
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 2000);
+
+    api.log.info(`已导出为 PDF: ${conversation.id}`);
+  } catch (error) {
+    api.log.error('PDF 导出失败:', error);
+    alert('PDF 导出失败，请使用浏览器的打印功能（Ctrl/Cmd+P）手动导出');
+  }
+}
+
+/**
+ * 从节点获取模型信息
+ */
+function getModelFromNode(mapping, nodeId) {
+  const node = mapping[nodeId];
+  if (node && node.message && node.message.metadata && node.message.metadata.model_slug) {
+    return node.message.metadata.model_slug;
+  }
+  return 'unknown';
+}
+
+/**
+ * YAML 字符串转义
+ */
+function escapeYaml(text) {
+  return text.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 
 /**
