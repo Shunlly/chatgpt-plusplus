@@ -1,0 +1,11 @@
+{
+  "id": "com.chatgpt-plusplus.conversation-delete",
+  "name": "会话删除",
+  "version": "1.0.0",
+  "description": "为会话列表添加删除按钮，支持删除单个会话",
+  "githubRepo": "Shunlly/chatgpt-plusplus",
+  "author": "ChatGPT++ Team",
+  "scope": "renderer",
+  "permissions": ["codex-runtime"],
+  "tags": ["ui", "conversation"]
+}
