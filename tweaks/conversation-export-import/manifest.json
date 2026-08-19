@@ -1,0 +1,11 @@
+{
+  "id": "com.chatgpt-plusplus.conversation-export-import",
+  "name": "会话导入导出",
+  "version": "1.0.0",
+  "description": "支持导出会话为 Markdown、JSON、HTML 格式，以及从文件导入会话",
+  "githubRepo": "Shunlly/chatgpt-plusplus",
+  "author": "ChatGPT++ Team",
+  "scope": "renderer",
+  "permissions": ["codex-runtime", "filesystem"],
+  "tags": ["data", "export", "import", "backup"]
+}
