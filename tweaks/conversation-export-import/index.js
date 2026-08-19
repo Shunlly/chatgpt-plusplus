@@ -1,7 +1,11 @@
 /**
  * 会话导入导出 Tweak
  * 支持导出会话为 Markdown、JSON、HTML，以及从文件导入
+ * 支持 ZIP 批量导出
  */
+
+// 内联简化版 JSZip 功能（使用原生 API）
+let JSZipLoaded = false;
 
 export default {
   async start(api) {
@@ -17,6 +21,9 @@ export default {
     });
 
     await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // 加载 JSZip 库
+    await loadJSZip(api);
 
     // 注入样式
     injectStyles();
@@ -43,6 +50,33 @@ export default {
     // 清理工作
   }
 };
+
+/**
+ * 加载 JSZip 库
+ */
+async function loadJSZip(api) {
+  if (JSZipLoaded || window.JSZip) {
+    JSZipLoaded = true;
+    return;
+  }
+
+  try {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+
+    await new Promise((resolve, reject) => {
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+
+    JSZipLoaded = true;
+    api.log.info('JSZip 库加载成功');
+  } catch (error) {
+    api.log.error('JSZip 库加载失败:', error);
+    // 降级到不使用 ZIP 的版本
+  }
+}
 
 /**
  * 注入样式
@@ -367,13 +401,13 @@ function registerSettingsPage(api) {
           <!-- 批量导出部分 -->
           <div class="export-import-section">
             <h3>📦 批量导出</h3>
-            <p>导出所有会话为一个压缩包</p>
+            <p>导出所有会话为一个压缩包 ${window.JSZip && JSZipLoaded ? '<span style="color: #10a37f;">✓ ZIP 支持已启用</span>' : '<span style="color: #ff9800;">⚠️ ZIP 库加载中...</span>'}</p>
             <div class="export-import-buttons">
               <button class="export-import-btn export-import-btn-secondary" id="export-all-btn">
                 <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M14 10V12.6667C14 13.0203 13.8595 13.3594 13.6095 13.6095C13.3594 13.8595 13.0203 14 12.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V10M11.3333 5.33333L8 2M8 2L4.66667 5.33333M8 2V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                导出全部会话
+                ${window.JSZip && JSZipLoaded ? '导出全部为 ZIP' : '导出全部会话（逐个文件）'}
               </button>
             </div>
             <div id="export-all-progress" style="display: none;" class="export-import-progress">
@@ -535,67 +569,119 @@ async function exportAllConversations(format, api, root) {
 
     if (total === 0) {
       alert('没有找到任何会话');
+      progressDiv.style.display = 'none';
       return;
     }
 
-    const exportedFiles = [];
+    // 检查是否支持 ZIP
+    const useZip = window.JSZip && JSZipLoaded;
 
-    for (let i = 0; i < total; i++) {
-      const conv = conversations[i];
-      statusDiv.textContent = `正在导出 ${i + 1}/${total}: ${conv.title || conv.id}`;
-      progressBar.style.width = `${((i + 1) / total) * 100}%`;
+    if (useZip) {
+      statusDiv.textContent = '正在创建 ZIP 文件...';
+      const zip = new JSZip();
+      const folder = zip.folder('conversations');
 
-      try {
-        const fullConv = await fetchConversation(conv.id, api);
-        let content;
+      for (let i = 0; i < total; i++) {
+        const conv = conversations[i];
+        statusDiv.textContent = `正在导出 ${i + 1}/${total}: ${conv.title || conv.id}`;
+        progressBar.style.width = `${((i + 1) / total) * 100}%`;
 
-        switch (format) {
-          case 'markdown':
-            content = convertToMarkdown(fullConv);
-            break;
-          case 'json':
-            content = JSON.stringify(fullConv, null, 2);
-            break;
-          case 'html':
-            content = convertToHTML(fullConv);
-            break;
+        try {
+          const fullConv = await fetchConversation(conv.id, api);
+          let content, extension;
+
+          switch (format) {
+            case 'markdown':
+              content = convertToMarkdown(fullConv);
+              extension = 'md';
+              break;
+            case 'json':
+              content = JSON.stringify(fullConv, null, 2);
+              extension = 'json';
+              break;
+            case 'html':
+              content = convertToHTML(fullConv);
+              extension = 'html';
+              break;
+          }
+
+          const filename = `${sanitizeFilename(conv.title || conv.id)}.${extension}`;
+          folder.file(filename, content);
+        } catch (error) {
+          api.log.warn(`跳过会话 ${conv.id}:`, error);
         }
 
-        exportedFiles.push({
-          name: `${sanitizeFilename(conv.title || conv.id)}.${format === 'html' ? 'html' : format === 'json' ? 'json' : 'md'}`,
-          content,
-        });
-      } catch (error) {
-        api.log.warn(`跳过会话 ${conv.id}:`, error);
+        // 避免请求过快
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // 避免请求过快
-      await new Promise(resolve => setTimeout(resolve, 100));
+      statusDiv.textContent = '正在生成 ZIP 文件...';
+      progressBar.style.width = '95%';
+
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      progressBar.style.width = '100%';
+      statusDiv.textContent = `导出完成！共 ${total} 个会话`;
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      downloadBlob(blob, `conversations-${timestamp}.zip`, 'application/zip');
+
+      api.log.info(`批量导出完成: ${total} 个会话 (ZIP)`);
+    } else {
+      // 降级方案：逐个下载
+      statusDiv.textContent = '正在导出（逐个文件模式）...';
+
+      for (let i = 0; i < Math.min(10, total); i++) {
+        const conv = conversations[i];
+        statusDiv.textContent = `正在导出 ${i + 1}/${Math.min(10, total)}: ${conv.title || conv.id}`;
+        progressBar.style.width = `${((i + 1) / Math.min(10, total)) * 100}%`;
+
+        try {
+          const fullConv = await fetchConversation(conv.id, api);
+          let content, filename, mimeType;
+
+          switch (format) {
+            case 'markdown':
+              content = convertToMarkdown(fullConv);
+              filename = `${sanitizeFilename(conv.title || conv.id)}.md`;
+              mimeType = 'text/markdown';
+              break;
+            case 'json':
+              content = JSON.stringify(fullConv, null, 2);
+              filename = `${sanitizeFilename(conv.title || conv.id)}.json`;
+              mimeType = 'application/json';
+              break;
+            case 'html':
+              content = convertToHTML(fullConv);
+              filename = `${sanitizeFilename(conv.title || conv.id)}.html`;
+              mimeType = 'text/html';
+              break;
+          }
+
+          downloadFile(content, filename, mimeType);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          api.log.warn(`跳过会话 ${conv.id}:`, error);
+        }
+      }
+
+      if (total > 10) {
+        alert(`已导出前 10 个会话。总共 ${total} 个会话。\n建议刷新页面以加载 JSZip 库，以支持完整 ZIP 导出。`);
+      }
+
+      statusDiv.textContent = `导出完成！共 ${Math.min(10, total)} 个会话`;
+      api.log.info(`批量导出完成: ${Math.min(10, total)} 个会话 (逐个文件)`);
     }
-
-    statusDiv.textContent = '正在打包...';
-    // 简化版：下载第一个文件（完整版需要 JSZip 库）
-    if (exportedFiles.length > 0) {
-      // 这里应该创建 ZIP，但为了简化，我们逐个下载前5个
-      for (let i = 0; i < Math.min(5, exportedFiles.length); i++) {
-        const file = exportedFiles[i];
-        downloadFile(file.content, file.name, format === 'html' ? 'text/html' : format === 'json' ? 'application/json' : 'text/markdown');
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      if (exportedFiles.length > 5) {
-        alert(`已导出前 5 个会话。总共 ${exportedFiles.length} 个会话。\n完整批量导出需要 ZIP 支持，将在后续版本实现。`);
-      }
-    }
-
-    statusDiv.textContent = `导出完成！共 ${exportedFiles.length} 个会话`;
 
     setTimeout(() => {
       progressDiv.style.display = 'none';
       progressBar.style.width = '0%';
     }, 2000);
 
-    api.log.info(`批量导出完成: ${exportedFiles.length} 个会话`);
   } catch (error) {
     api.log.error('批量导出失败:', error);
     alert('批量导出失败: ' + error.message);
@@ -861,6 +947,13 @@ function sanitizeFilename(name) {
  */
 function downloadFile(content, filename, mimeType) {
   const blob = new Blob([content], { type: mimeType });
+  downloadBlob(blob, filename, mimeType);
+}
+
+/**
+ * 下载 Blob
+ */
+function downloadBlob(blob, filename, mimeType) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
