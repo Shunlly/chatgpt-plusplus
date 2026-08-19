@@ -27,3 +27,4 @@ packages/installer/assets/runtime/
 packages/installer/assets/loader.cjs
 # Dream Skin 用户自定义主题数据（运行时生成，不入库）
 tweaks/dream-skin/custom-seed/
+exe/
