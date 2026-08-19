@@ -49,7 +49,164 @@ function resolveAssetsDir(): string {
 function resolveSourceRoot(): string {
   return standaloneResourcesRoot() ?? standaloneSourceRoot() ?? findSourceRoot(here);
 }
+
+/**
+ * 检测 App 内是否有更新的 CLI 版本，如果有则返回升级信息
+ */
+function checkAndUpgradeFromAppCli(appPath?: string): { appCliPath: string; appVersion: string } | null {
+  try {
+    // 定位目标 App
+    const codex = locateCodex(appPath);
+    if (!codex || codex.platform !== "darwin") return null;
+
+    // 检查是否是独立的 ChatGPT++.app
+    const appRoot = isDedicatedMacApp(codex.appRoot) ? codex.appRoot : MAC_CHATGPTPP_DEFAULT;
+    if (!existsSync(appRoot)) return null;
+
+    // 查找 App 内的 CLI
+    const appCliPath = join(appRoot, "Contents/Resources/cli/chatgpt-plusplus");
+    if (!existsSync(appCliPath)) return null;
+
+    // 读取 App 内 CLI 的版本
+    const standaloneJsonPath = join(dirname(appCliPath), "standalone.json");
+    if (!existsSync(standaloneJsonPath)) return null;
+
+    const standaloneData = JSON.parse(readFileSync(standaloneJsonPath, "utf8"));
+    const appVersion = standaloneData.version;
+    if (!appVersion) return null;
+
+    // 比较版本：如果 App 内版本更新，则返回升级信息
+    if (compareSemver(appVersion, CHATGPT_PLUSPLUS_VERSION) > 0) {
+      return { appCliPath, appVersion };
+    }
+
+    return null;
+  } catch (e) {
+    // 任何错误都忽略，继续使用当前 CLI
+    return null;
+  }
+}
+
+/**
+ * 从 opts 构建命令行参数数组
+ */
+function buildInstallArgs(opts: Opts): string[] {
+  const args: string[] = [];
+  if (opts.app) args.push("--app", opts.app);
+  if (opts.fuse === false) args.push("--no-fuse");
+  if (opts.resign === false) args.push("--no-resign");
+  if (opts.localSigning) args.push("--local-signing");
+  if (opts.watcher === false) args.push("--no-watcher");
+  if (opts.watcherKind) args.push("--watcher-kind", opts.watcherKind);
+  if (opts.quiet) args.push("--quiet");
+  if (opts.verbose) args.push("--verbose");
+  return args;
+}
+
+/**
+ * 更新系统中的 CLI 符号链接，指向最新版本
+ */
+function updateSystemCliIfNeeded(
+  appRoot: string,
+  detail?: (msg: string) => void,
+): void {
+  const appCliPath = join(appRoot, "Contents/Resources/cli/chatgpt-plusplus");
+  if (!existsSync(appCliPath)) return;
+
+  // 读取 App 内 CLI 的版本
+  const standaloneJsonPath = join(dirname(appCliPath), "standalone.json");
+  if (!existsSync(standaloneJsonPath)) return;
+
+  const standaloneData = JSON.parse(readFileSync(standaloneJsonPath, "utf8"));
+  const appVersion = standaloneData.version;
+  if (!appVersion) return;
+
+  // 查找系统中的 CLI 位置
+  const potentialPaths = [
+    join(homedir(), ".local/bin/chatgpt-plusplus"),
+    "/opt/homebrew/bin/chatgpt-plusplus",
+    "/usr/local/bin/chatgpt-plusplus",
+  ];
+
+  let updated = false;
+  for (const systemCliPath of potentialPaths) {
+    if (!existsSync(systemCliPath)) continue;
+
+    // 读取系统 CLI 的版本
+    let systemVersion: string | null = null;
+    try {
+      const result = execFileSync(systemCliPath, ["--version"], { encoding: "utf8" });
+      const match = result.match(/chatgpt-plusplus,\s*(\S+)/);
+      if (match) systemVersion = match[1];
+    } catch (e) {
+      continue;
+    }
+
+    // 如果系统版本较旧，则更新
+    if (systemVersion && compareSemver(appVersion, systemVersion) > 0) {
+      try {
+        // 备份旧版本
+        const backupPath = `${systemCliPath}.${systemVersion}`;
+        if (!existsSync(backupPath)) {
+          copyFileSync(systemCliPath, backupPath);
+        }
+
+        // 复制新版本
+        copyFileSync(appCliPath, systemCliPath);
+        chmodSync(systemCliPath, 0o755);
+
+        if (detail) {
+          detail(`CLI updated: ${systemCliPath} (${systemVersion} → ${appVersion})`);
+        }
+        updated = true;
+      } catch (e) {
+        // 更新失败，静默忽略
+      }
+    }
+  }
+
+  // 如果没有找到系统 CLI，且持久副本存在，则更新持久副本
+  if (!updated) {
+    const persistentCli = join(homedir(), "Library/Application Support/chatgpt-plusplus/bin/chatgpt-plusplus");
+    if (existsSync(persistentCli)) {
+      try {
+        let persistentVersion: string | null = null;
+        try {
+          const result = execFileSync(persistentCli, ["--version"], { encoding: "utf8" });
+          const match = result.match(/chatgpt-plusplus,\s*(\S+)/);
+          if (match) persistentVersion = match[1];
+        } catch (e) {
+          // 忽略
+        }
+
+        if (!persistentVersion || compareSemver(appVersion, persistentVersion) > 0) {
+          copyFileSync(appCliPath, persistentCli);
+          chmodSync(persistentCli, 0o755);
+          if (detail) {
+            detail(`CLI updated: ${persistentCli} (${persistentVersion || "unknown"} → ${appVersion})`);
+          }
+        }
+      } catch (e) {
+        // 更新失败，静默忽略
+      }
+    }
+  }
+}
+
+
 export async function install(opts: Opts = {}): Promise<void> {
+  // 自动检测并使用 App 内更新的 CLI 版本
+  const appCliUpgrade = checkAndUpgradeFromAppCli(opts.app);
+  if (appCliUpgrade) {
+    console.log(kleur.cyan(`Detected newer CLI in app (${appCliUpgrade.appVersion} > ${CHATGPT_PLUSPLUS_VERSION}), re-executing with updated CLI...`));
+    console.log();
+    const result = spawnSync(appCliUpgrade.appCliPath, ["install", ...buildInstallArgs(opts)], {
+      stdio: "inherit",
+      shell: false,
+    });
+    process.exit(result.status ?? 1);
+  }
+
   const wantsFuseFlip = opts.fuse !== false;
   const resign = opts.resign !== false;
   let localSigning = opts.localSigning === true;
@@ -209,6 +366,19 @@ export async function install(opts: Opts = {}): Promise<void> {
     sourceRoot: resolveSourceRoot(),
   });
   chownForTargetUser(paths.root, { recursive: true });
+
+  // 9. 更新系统中的 CLI 符号链接（如果当前运行的 CLI 版本较旧）
+  if (codex.platform === "darwin" && isStandalone()) {
+    try {
+      updateSystemCliIfNeeded(codex.appRoot, step.detail);
+    } catch (e) {
+      // 更新失败不影响安装流程
+      if (opts.verbose) {
+        console.warn(kleur.yellow(`CLI update skipped: ${(e as Error).message}`));
+      }
+    }
+  }
+
   if (reopenAfterPatch) {
     openCodex(codex.appRoot, { detached: true, delayMs: 1_000 });
     step("Codex reopened");
