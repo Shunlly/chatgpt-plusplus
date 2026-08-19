@@ -458,13 +458,23 @@ function registerSettingsPage(api) {
 
           <!-- 导入部分 -->
           <div class="export-import-section">
-            <h3>📥 导入会话</h3>
-            <p>从文件导入之前导出的会话（支持 JSON 格式）</p>
+            <h3>📥 导入会话预览</h3>
+            <p>解析和预览之前导出的会话文件</p>
+            <div style="margin-bottom: 16px; padding: 12px; background: #e0f2fe; border-radius: 8px; font-size: 14px;">
+              <strong>📌 支持的格式：</strong><br>
+              • ChatGPT++ 导出的 JSON 格式<br>
+              • ChatGPT++ 导出的 Markdown 格式
+            </div>
+            <div style="margin-bottom: 16px; padding: 12px; background: #fef3c7; border-radius: 8px; font-size: 13px;">
+              <strong>⚠️ 导入说明：</strong><br>
+              由于 ChatGPT 官方 API 限制，导入功能将解析并预览文件内容，但无法直接恢复会话到 ChatGPT。<br>
+              您可以查看解析结果，然后手动复制内容到新会话。
+            </div>
             <input type="file" id="import-file-input" class="export-import-file-input" accept=".json,.md" multiple>
             <div class="export-import-drop-zone" id="import-drop-zone">
               <div style="font-size: 48px; margin-bottom: 16px;">📁</div>
               <div style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">拖拽文件到这里</div>
-              <div style="color: #666; font-size: 14px;">或点击选择文件</div>
+              <div style="color: #666; font-size: 14px;">或点击选择文件（支持 JSON、Markdown）</div>
             </div>
             <div id="import-progress" style="display: none;" class="export-import-progress">
               <div id="import-status">准备导入...</div>
@@ -891,45 +901,288 @@ async function importConversations(files, api, root) {
 
   try {
     progressDiv.style.display = 'block';
-    const total = files.length;
-    let imported = 0;
+    statusDiv.textContent = '正在解析文件...';
+    progressBar.style.width = '10%';
 
-    for (let i = 0; i < total; i++) {
-      const file = files[i];
-      statusDiv.textContent = `正在导入 ${i + 1}/${total}: ${file.name}`;
-      progressBar.style.width = `${((i + 1) / total) * 100}%`;
+    const parsedFiles = [];
 
+    // 解析所有文件
+    for (const file of files) {
       try {
         const content = await readFileAsText(file);
-        const conversation = JSON.parse(content);
-
-        // 这里需要调用 ChatGPT API 创建会话
-        // 由于 API 限制，这里只是演示
-        await importConversation(conversation, api);
-        imported++;
+        const parsed = parseImportFile(file.name, content);
+        if (parsed) {
+          parsedFiles.push({ filename: file.name, ...parsed });
+        }
       } catch (error) {
         api.log.warn(`跳过文件 ${file.name}:`, error);
       }
-
-      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    statusDiv.textContent = `导入完成！成功导入 ${imported} 个会话`;
-
-    setTimeout(() => {
+    if (parsedFiles.length === 0) {
+      alert('没有找到可导入的文件。\n\n支持的格式：\n- ChatGPT++ 导出的 JSON 格式\n- ChatGPT++ 导出的 Markdown 格式');
       progressDiv.style.display = 'none';
-      progressBar.style.width = '0%';
-      // 刷新页面以显示新导入的会话
-      alert(`已导入 ${imported} 个会话，即将刷新页面`);
-      location.reload();
-    }, 2000);
+      return;
+    }
 
-    api.log.info(`导入完成: ${imported} 个会话`);
+    // 显示预览并确认
+    const confirmed = await showImportPreview(parsedFiles, root);
+    if (!confirmed) {
+      progressDiv.style.display = 'none';
+      return;
+    }
+
+    statusDiv.textContent = '正在导入会话...';
+    progressBar.style.width = '50%';
+
+    // 注意：由于 ChatGPT 官方 API 限制，实际导入功能需要逐条发送消息重建会话
+    // 这里提供一个演示版本，显示导入的内容
+    statusDiv.innerHTML = `
+      <div style="color: #10a37f; font-weight: 500;">✓ 解析完成！</div>
+      <div style="margin-top: 8px; font-size: 14px;">
+        共解析 <strong>${parsedFiles.length}</strong> 个会话<br>
+        总计 <strong>${parsedFiles.reduce((sum, f) => sum + f.messages.length, 0)}</strong> 条消息
+      </div>
+      <div style="margin-top: 12px; padding: 12px; background: #fff3cd; border-radius: 6px; font-size: 13px;">
+        ⚠️ <strong>注意</strong>：由于 ChatGPT 官方 API 限制，目前无法直接导入会话到 ChatGPT。<br><br>
+        您可以：<br>
+        1. 查看导出的文件内容，手动复制粘贴到新会话<br>
+        2. 使用导出的 JSON 作为备份，需要时查看<br>
+        3. 将 Markdown 文件导入到其他支持的应用（Notion、Obsidian 等）
+      </div>
+    `;
+    progressBar.style.width = '100%';
+
+    // 保存解析结果供用户查看
+    api.storage.set('lastImportPreview', parsedFiles);
+    api.log.info(`导入预览完成: ${parsedFiles.length} 个会话`);
+
   } catch (error) {
     api.log.error('导入失败:', error);
     alert('导入失败: ' + error.message);
     progressDiv.style.display = 'none';
   }
+}
+
+/**
+ * 解析导入文件
+ */
+function parseImportFile(filename, content) {
+  // 尝试解析 JSON
+  if (filename.endsWith('.json')) {
+    try {
+      const data = JSON.parse(content);
+
+      // 检查是否是我们导出的格式
+      if (data.id && data.mapping) {
+        return {
+          type: 'chatgpt-json',
+          title: data.title || '未命名会话',
+          id: data.id,
+          messages: extractMessages(data.mapping),
+          createTime: data.create_time ? new Date(data.create_time * 1000) : null,
+        };
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 尝试解析 Markdown
+  if (filename.endsWith('.md')) {
+    try {
+      const parsed = parseMarkdownConversation(content);
+      if (parsed && parsed.messages.length > 0) {
+        return {
+          type: 'markdown',
+          ...parsed,
+        };
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 解析 Markdown 会话
+ */
+function parseMarkdownConversation(content) {
+  const lines = content.split('\n');
+  const messages = [];
+  let title = '未命名会话';
+  let currentRole = null;
+  let currentContent = [];
+  let id = null;
+  let createTime = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // 提取标题
+    if (line.startsWith('# ')) {
+      title = line.substring(2).trim();
+      continue;
+    }
+
+    // 提取 ID
+    if (line.includes('**会话 ID**')) {
+      const match = line.match(/`([^`]+)`/);
+      if (match) id = match[1];
+      continue;
+    }
+
+    // 提取创建时间
+    if (line.includes('**创建时间**')) {
+      const timeStr = line.split('**创建时间**')[1]?.trim().replace(/[:：]/g, '');
+      if (timeStr) {
+        try {
+          createTime = new Date(timeStr);
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+      continue;
+    }
+
+    // 检测角色标记
+    if (line.includes('👤 用户') || line.includes('### 👤 用户')) {
+      // 保存上一条消息
+      if (currentRole && currentContent.length > 0) {
+        messages.push({
+          role: currentRole,
+          content: currentContent.join('\n').trim(),
+        });
+      }
+      currentRole = 'user';
+      currentContent = [];
+      continue;
+    }
+
+    if (line.includes('🤖 助手') || line.includes('### 🤖 助手')) {
+      // 保存上一条消息
+      if (currentRole && currentContent.length > 0) {
+        messages.push({
+          role: currentRole,
+          content: currentContent.join('\n').trim(),
+        });
+      }
+      currentRole = 'assistant';
+      currentContent = [];
+      continue;
+    }
+
+    // 跳过分隔线和时间戳
+    if (line.trim() === '---' || line.startsWith('> 📅') || line.startsWith('##')) {
+      continue;
+    }
+
+    // 收集消息内容
+    if (currentRole) {
+      currentContent.push(line);
+    }
+  }
+
+  // 保存最后一条消息
+  if (currentRole && currentContent.length > 0) {
+    messages.push({
+      role: currentRole,
+      content: currentContent.join('\n').trim(),
+    });
+  }
+
+  return {
+    title,
+    id: id || `imported-${Date.now()}`,
+    messages,
+    createTime,
+  };
+}
+
+/**
+ * 显示导入预览
+ */
+async function showImportPreview(parsedFiles, root) {
+  return new Promise((resolve) => {
+    // 创建预览模态框
+    const modal = document.createElement('div');
+    modal.className = 'conversation-delete-modal'; // 复用删除的模态框样式
+    modal.setAttribute('data-import-preview-modal', 'true');
+
+    const filesHtml = parsedFiles.map((file, index) => `
+      <div style="padding: 12px; background: #f9fafb; border-radius: 6px; margin-bottom: 8px;">
+        <div style="font-weight: 600; margin-bottom: 4px;">📄 ${escapeHtml(file.filename)}</div>
+        <div style="font-size: 13px; color: #6b7280;">
+          <strong>${escapeHtml(file.title)}</strong><br>
+          ${file.messages.length} 条消息
+          ${file.createTime ? `• ${file.createTime.toLocaleDateString('zh-CN')}` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    modal.innerHTML = `
+      <div class="conversation-delete-modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+        <div class="conversation-delete-modal-header">
+          <div class="conversation-delete-modal-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h2 class="conversation-delete-modal-title">导入预览</h2>
+        </div>
+        <div class="conversation-delete-modal-body">
+          <p>已解析以下文件，确认导入吗？</p>
+          <div style="margin-top: 16px; max-height: 300px; overflow-y: auto;">
+            ${filesHtml}
+          </div>
+          <div style="margin-top: 16px; padding: 12px; background: #fef3c7; border-radius: 6px; font-size: 13px;">
+            <strong>💡 提示</strong>：导入的内容将仅用于预览和参考，无法直接恢复到 ChatGPT。
+          </div>
+        </div>
+        <div class="conversation-delete-modal-actions">
+          <button class="conversation-delete-modal-btn conversation-delete-modal-btn-cancel">取消</button>
+          <button class="conversation-delete-modal-btn conversation-delete-modal-btn-delete" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+            确认导入
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const cancelBtn = modal.querySelector('.conversation-delete-modal-btn-cancel');
+    const confirmBtn = modal.querySelector('.conversation-delete-modal-btn-delete');
+
+    cancelBtn.addEventListener('click', () => {
+      modal.remove();
+      resolve(false);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(false);
+      }
+    });
+
+    confirmBtn.addEventListener('click', () => {
+      modal.remove();
+      resolve(true);
+    });
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        modal.remove();
+        resolve(false);
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+  });
 }
 
 /**
@@ -1500,17 +1753,6 @@ function getModelFromNode(mapping, nodeId) {
  */
 function escapeYaml(text) {
   return text.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-}
-
-/**
- * 导入单个会话
- */
-async function importConversation(conversation, api) {
-  // 注意：ChatGPT 官方 API 不支持直接导入会话
-  // 这里需要逐条发送消息来重建会话
-  // 由于限制，这里只是模拟
-  api.log.info(`准备导入会话: ${conversation.title || conversation.id}`);
-  // 实际实现需要调用 ChatGPT API 创建新会话并发送消息
 }
 
 /**
