@@ -1,0 +1,552 @@
+#!/usr/bin/env node
+/**
+ * vision-toolkit MCP server
+ * ---------------------------------------------------------------------------
+ * 一个零依赖的 MCP (Model Context Protocol) stdio server，为 Codex 里的纯文本
+ * 模型接入云端视觉能力。模型在对话中主动调用 `vision_glance` 工具，本进程把
+ * 图片 + 意图转发给云端多模态模型（默认 Groq 上的 qwen/qwen3.6-27b），把识别
+ * 结果作为工具输出返回给模型。
+ *
+ * 协议：JSON-RPC 2.0 over stdio（每行一个 JSON 消息，见 MCP 规范）。
+ * 视觉后端：通过 env 配置，默认走 OpenAI 兼容格式（Groq / Gemini / OpenRouter）。
+ *   VISION_BASE_URL   例：https://api.groq.com/openai/v1
+ *   VISION_MODEL      例：qwen/qwen3.6-27b
+ *   VISION_API_KEY    你的 key（留空则工具会返回友好报错）
+ *   VISION_PROTOCOL   openai | anthropic | dashscope（默认 openai）
+ *   VISION_LANG       zh | en（描述语言，默认 zh）
+ *   VISION_MAX_TOKENS 描述长度上限（默认 1024）
+ *
+ * 依赖：仅 Node 内置模块 + 全局 fetch（Node 18+）。不引任何第三方包。
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+
+// ---------------------------------------------------------------------------
+// 配置（从环境变量读取）
+// ---------------------------------------------------------------------------
+
+const CONFIG = {
+  baseUrl: (process.env.VISION_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
+  model: process.env.VISION_MODEL || "qwen/qwen3.6-27b",
+  apiKey: process.env.VISION_API_KEY || "",
+  protocol: (process.env.VISION_PROTOCOL || "openai").toLowerCase(),
+  lang: (process.env.VISION_LANG || "zh").toLowerCase(),
+  maxTokens: Number.parseInt(process.env.VISION_MAX_TOKENS || "1024", 10) || 1024,
+  enabledModels: (process.env.VISION_ENABLED_MODELS || "").split(",").map((s) => s.trim()).filter(Boolean),
+};
+
+// Groq 限制：单请求图片 ≤ 20MB、最多 5 张。留一点余量给 base64 膨胀（约 4/3）。
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGES = 5;
+
+const SERVER_INFO = { name: "vision-toolkit", version: "1.0.0" };
+const PROTOCOL_VERSION = "2024-11-05";
+
+// ---------------------------------------------------------------------------
+// 日志（只能写 stderr —— stdout 是 JSON-RPC 通道，绝不能污染）
+// ---------------------------------------------------------------------------
+
+function log(...args) {
+  try {
+    process.stderr.write(`[vision-toolkit] ${args.join(" ")}\n`);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 模型白名单检查（支持通配符）
+// ---------------------------------------------------------------------------
+
+function isModelEnabled(modelName) {
+  // 没配置白名单 → 默认全部允许（向后兼容）
+  if (!CONFIG.enabledModels.length) return true;
+
+  const name = (modelName || "").toLowerCase();
+  return CONFIG.enabledModels.some((pattern) => {
+    const pat = pattern.toLowerCase();
+    // 支持简单通配符：deepseek-* 匹配 deepseek-chat / deepseek-coder
+    if (pat.endsWith("*")) {
+      return name.startsWith(pat.slice(0, -1));
+    }
+    return name === pat;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 图片读取与归一化 —— 统一转成 { dataUri, mimeType, base64, bytes }
+// ---------------------------------------------------------------------------
+
+const MIME_BY_EXT = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+};
+
+/** 从字节流嗅探 MIME（覆盖常见格式），拿不准回退到扩展名/png。 */
+function sniffMime(buf, fallbackExt) {
+  if (buf.length >= 8) {
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return "image/gif";
+    if (buf[0] === 0x42 && buf[1] === 0x4d) return "image/bmp";
+    // WEBP: "RIFF"...."WEBP"
+    if (
+      buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
+    ) {
+      return "image/webp";
+    }
+  }
+  return MIME_BY_EXT[(fallbackExt || "").toLowerCase()] || "image/png";
+}
+
+/**
+ * 把用户给的一个 image 输入归一化。支持三种形态：
+ *  - 本地文件路径：读文件 → base64
+ *  - data URI：直接拆解
+ *  - http(s) URL：保持为 URL（交给视觉模型去拉，省流量；base64 仅用于本地图）
+ */
+async function normalizeImage(input) {
+  if (typeof input !== "string" || input.trim() === "") {
+    throw new Error("image 参数必须是非空字符串（文件路径 / URL / data URI）");
+  }
+  const value = input.trim();
+
+  // data URI
+  const dataUriMatch = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(value);
+  if (dataUriMatch) {
+    const mimeType = dataUriMatch[1] || "image/png";
+    const isBase64 = Boolean(dataUriMatch[2]);
+    const raw = dataUriMatch[3] || "";
+    const buf = isBase64 ? Buffer.from(raw, "base64") : Buffer.from(decodeURIComponent(raw), "utf8");
+    return { kind: "data", mimeType, base64: buf.toString("base64"), bytes: buf.length, dataUri: value, url: value };
+  }
+
+  // 远程 URL —— 保持为 URL 交给视觉模型（不下载，除非协议要求 base64）
+  if (/^https?:\/\//i.test(value)) {
+    return { kind: "url", mimeType: null, base64: null, bytes: 0, dataUri: null, url: value };
+  }
+
+  // 本地文件路径
+  const filePath = path.resolve(value);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`找不到图片文件：${filePath}`);
+  }
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) {
+    throw new Error(`不是文件：${filePath}`);
+  }
+  if (stat.size > MAX_IMAGE_BYTES) {
+    throw new Error(
+      `图片过大：${(stat.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_IMAGE_BYTES / 1024 / 1024}MB 限制`,
+    );
+  }
+  const buf = fs.readFileSync(filePath);
+  const mimeType = sniffMime(buf, path.extname(filePath));
+  const base64 = buf.toString("base64");
+  return {
+    kind: "file",
+    mimeType,
+    base64,
+    bytes: buf.length,
+    dataUri: `data:${mimeType};base64,${base64}`,
+    url: `data:${mimeType};base64,${base64}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Prompt 构造 —— focus hint 机制（把「为什么要看这张图」传给视觉模型）
+// ---------------------------------------------------------------------------
+
+function buildVisionPrompt(question) {
+  const q = (question || "").trim();
+  if (CONFIG.lang === "en") {
+    return q
+      ? `Look at the image(s) and answer this specific request, focusing only on what's relevant: ${q}`
+      : "Describe the image(s) in detail: layout, text content (OCR), UI elements, colors, and anything notable. Be precise and structured.";
+  }
+  return q
+    ? `请看图并针对下面这个具体需求作答，只聚焦相关内容：${q}`
+    : "请详细描述图片内容：整体布局、其中的文字（OCR 逐字转录）、UI 元素、颜色，以及任何值得注意的细节。要求准确、有条理。";
+}
+
+// ---------------------------------------------------------------------------
+// 多协议适配层 —— 不同视觉模型请求/响应格式不同
+// ---------------------------------------------------------------------------
+
+const ADAPTERS = {
+  // OpenAI Chat Completions 兼容（Groq / Gemini OpenAI 端点 / OpenRouter / GPT-4o）
+  openai: {
+    endpoint: (base) => `${base}/chat/completions`,
+    headers: () => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${CONFIG.apiKey}`,
+    }),
+    buildBody: (images, prompt) => ({
+      model: CONFIG.model,
+      max_tokens: CONFIG.maxTokens,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            ...images.map((img) => ({ type: "image_url", image_url: { url: img.url } })),
+          ],
+        },
+      ],
+    }),
+    parseText: (json) => json?.choices?.[0]?.message?.content ?? "",
+  },
+
+  // Anthropic Messages（Claude 系）—— 图片必须 base64 + 显式 media_type
+  anthropic: {
+    endpoint: (base) => `${base}/v1/messages`,
+    headers: () => ({
+      "Content-Type": "application/json",
+      "x-api-key": CONFIG.apiKey,
+      "anthropic-version": "2023-06-01",
+    }),
+    buildBody: (images, prompt) => ({
+      model: CONFIG.model,
+      max_tokens: CONFIG.maxTokens,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            ...images.map((img) => {
+              if (!img.base64) {
+                throw new Error("Anthropic 协议需要图片的 base64，请传本地文件或 data URI，而非远程 URL");
+              }
+              return {
+                type: "image",
+                source: { type: "base64", media_type: img.mimeType || "image/png", data: img.base64 },
+              };
+            }),
+          ],
+        },
+      ],
+    }),
+    parseText: (json) =>
+      (json?.content ?? [])
+        .filter((b) => b?.type === "text")
+        .map((b) => b.text)
+        .join("\n"),
+  },
+
+  // DashScope 原生（Qwen-VL 阿里云原生端点）
+  dashscope: {
+    endpoint: (base) => `${base}/services/aigc/multimodal-generation/generation`,
+    headers: () => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${CONFIG.apiKey}`,
+    }),
+    buildBody: (images, prompt) => ({
+      model: CONFIG.model,
+      input: {
+        messages: [
+          {
+            role: "user",
+            content: [...images.map((img) => ({ image: img.url })), { text: prompt }],
+          },
+        ],
+      },
+    }),
+    parseText: (json) =>
+      json?.output?.choices?.[0]?.message?.content?.[0]?.text ?? json?.output?.text ?? "",
+  },
+};
+
+function getAdapter() {
+  return ADAPTERS[CONFIG.protocol] || ADAPTERS.openai;
+}
+
+// ---------------------------------------------------------------------------
+// 调用云端视觉模型
+// ---------------------------------------------------------------------------
+
+async function describeImages(images, question) {
+  if (!CONFIG.apiKey) {
+    throw new Error(
+      "未配置视觉模型 API Key。请在该 tweak 的 MCP 配置（~/.codex/config.toml 的 [mcp_servers.*] env）里设置 VISION_API_KEY。",
+    );
+  }
+  const adapter = getAdapter();
+  const prompt = buildVisionPrompt(question);
+  const body = adapter.buildBody(images, prompt);
+  const url = adapter.endpoint(CONFIG.baseUrl);
+
+  log(`调用视觉模型 ${CONFIG.model} @ ${url}（${images.length} 张图，协议 ${CONFIG.protocol}）`);
+
+  const rawText = await new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const headers = adapter.headers();
+    const args = ["-s", "-X", "POST", url];
+    for (const [k, v] of Object.entries(headers)) {
+      args.push("-H", `${k}: ${v}`);
+    }
+    args.push("-d", "@-");
+    const curl = spawn("curl", args, { stdio: ["pipe", "pipe", "inherit"] });
+    let chunks = [];
+    curl.stdout.on("data", (c) => chunks.push(c));
+    curl.on("close", (code) => {
+      const text = Buffer.concat(chunks).toString("utf8");
+      if (code !== 0) {
+        reject(new Error(`curl 退出 ${code}：${text.slice(0, 200)}`));
+      } else {
+        // 尝试解析 JSON 判断 HTTP 错误(curl -s 不暴露状态码,需要从 body 推)
+        try {
+          const j = JSON.parse(text);
+          if (j.error) {
+            reject(new Error(`视觉模型报错：${JSON.stringify(j.error).slice(0, 300)}`));
+          } else {
+            resolve(text);
+          }
+        } catch {
+          // 不是 JSON,当成功的纯文本
+          resolve(text);
+        }
+      }
+    });
+    curl.on("error", (err) => reject(new Error(`spawn curl 失败：${err.message}`)));
+    curl.stdin.write(payload);
+    curl.stdin.end();
+  });
+
+  let json;
+  try {
+    json = JSON.parse(rawText);
+  } catch {
+    throw new Error(`视觉模型返回非 JSON：${rawText.slice(0, 500)}`);
+  }
+
+  const text = stripThinkBlocks(adapter.parseText(json));
+  if (!text || !text.trim()) {
+    throw new Error(`视觉模型未返回可用文本。原始响应：${rawText.slice(0, 500)}`);
+  }
+  return text.trim();
+}
+
+/**
+ * 剥离推理模型（qwen3、deepseek-r 系）输出里的 <think>...</think> 推理块：
+ * 这段是视觉模型的内心独白，塞给调用方的文本模型纯属浪费 token。
+ * 若剥离后为空（个别模型把答案也写在 think 里），保留原文兜底。
+ */
+function stripThinkBlocks(text) {
+  if (typeof text !== "string") return text;
+  const stripped = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  return stripped || text;
+}
+
+// ---------------------------------------------------------------------------
+// 工具实现：vision_glance
+// ---------------------------------------------------------------------------
+
+async function runVisionGlance(args) {
+  const rawImages = args && args.image !== undefined ? args.image : args && args.images;
+  const list = Array.isArray(rawImages) ? rawImages : rawImages != null ? [rawImages] : [];
+  if (list.length === 0) {
+    throw new Error("必须提供 image 参数（图片文件路径 / URL / data URI，或它们的数组）");
+  }
+  if (list.length > MAX_IMAGES) {
+    throw new Error(`一次最多处理 ${MAX_IMAGES} 张图片，收到 ${list.length} 张`);
+  }
+
+  const images = [];
+  for (const item of list) {
+    images.push(await normalizeImage(item));
+  }
+
+  // 累计体积校验（针对 base64 图；远程 URL 不计入）
+  const totalBytes = images.reduce((sum, img) => sum + (img.bytes || 0), 0);
+  if (totalBytes > MAX_IMAGE_BYTES) {
+    throw new Error(
+      `图片总体积 ${(totalBytes / 1024 / 1024).toFixed(1)}MB 超过 ${MAX_IMAGE_BYTES / 1024 / 1024}MB 限制`,
+    );
+  }
+
+  const question = typeof args.question === "string" ? args.question : "";
+  const text = await describeImages(images, question);
+  return text;
+}
+
+const TOOLS = [
+  {
+    name: "vision_glance",
+    description:
+      "【仅供纯文本模型使用】让不支持原生视觉的文本模型（如 DeepSeek、Qwen-Plus、Yi）「看」图片：看图问答、OCR 文字识别、UI/截图理解、内容描述。" +
+      "如果你本身支持视觉输入（GPT-4V / Claude 3.5 / Gemini / GPT-4o 等），请直接处理用户上传的图片，不要调用此工具。" +
+      "\n\n传入图片（本地文件路径、http(s) URL 或 data URI），可选传入 question 说明你想了解什么" +
+      "（作为 focus hint，会让识别结果更聚焦、更省 token）。返回图片内容的文字描述/答案，" +
+      "供模型据此继续推理。适用于：读截图里的报错、还原设计稿、识别图表数据、提取图片中的文字等。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: {
+          description:
+            "图片来源：本地文件绝对路径、http(s) URL 或 data URI。也可传字符串数组一次看多张图（最多 5 张）。",
+          anyOf: [
+            { type: "string" },
+            { type: "array", items: { type: "string" } },
+          ],
+        },
+        question: {
+          type: "string",
+          description:
+            "（可选）你想从图片里了解什么。例如「这个报错是什么原因」「把图中的表格转成 markdown」「登录按钮在什么坐标」。不填则返回全面描述。",
+        },
+      },
+      required: ["image"],
+    },
+  },
+];
+
+async function dispatchTool(name, args) {
+  switch (name) {
+    case "vision_glance":
+      return runVisionGlance(args || {});
+    default:
+      throw new Error(`未知工具：${name}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MCP JSON-RPC over stdio
+// ---------------------------------------------------------------------------
+
+function send(msg) {
+  process.stdout.write(`${JSON.stringify(msg)}\n`);
+}
+
+function sendResult(id, result) {
+  send({ jsonrpc: "2.0", id, result });
+}
+
+function sendError(id, code, message) {
+  send({ jsonrpc: "2.0", id, error: { code, message } });
+}
+
+async function handleMessage(msg) {
+  const { id, method, params } = msg;
+
+  // 通知（无 id）：initialized、cancelled 等，忽略即可
+  if (id === undefined || id === null) {
+    return;
+  }
+
+  try {
+    switch (method) {
+      case "initialize":
+        sendResult(id, {
+          protocolVersion: PROTOCOL_VERSION,
+          serverInfo: SERVER_INFO,
+          capabilities: { tools: {} },
+        });
+        return;
+
+      case "ping":
+        sendResult(id, {});
+        return;
+
+      case "tools/list":
+        sendResult(id, { tools: TOOLS });
+        return;
+
+      case "tools/call": {
+        const toolName = params && params.name;
+        const toolArgs = (params && params.arguments) || {};
+
+        // DEBUG：dump 完整 params，看 Codex 是否传了模型信息
+        log(`[DEBUG] tools/call params: ${JSON.stringify(params).slice(0, 500)}`);
+
+        // 提取模型名（尝试几种可能的字段）
+        const callerModel = params?._meta?.model || params?._model || params?.model || toolArgs?._model || "";
+
+        // 白名单检查（如果配置了 VISION_ENABLED_MODELS）
+        if (CONFIG.enabledModels.length > 0) {
+          if (!callerModel) {
+            log(`警告：未检测到调用模型信息，无法验证白名单。建议在工具描述里说明适用范围。`);
+          } else if (!isModelEnabled(callerModel)) {
+            const errMsg = `此工具仅供纯文本模型使用（已配置白名单：${CONFIG.enabledModels.join(", ")}）。当前模型「${callerModel}」原生支持视觉，请直接处理图片，勿调用此工具。`;
+            log(`拒绝调用：${errMsg}`);
+            sendResult(id, {
+              content: [{ type: "text", text: errMsg }],
+              isError: true,
+            });
+            return;
+          } else {
+            log(`白名单验证通过：${callerModel}`);
+          }
+        }
+
+        try {
+          const text = await dispatchTool(toolName, toolArgs);
+          sendResult(id, {
+            content: [{ type: "text", text }],
+            isError: false,
+          });
+        } catch (toolErr) {
+          // 工具级错误：按 MCP 约定用 isError 返回，让模型能看到并自行处理
+          const message = toolErr && toolErr.message ? toolErr.message : String(toolErr);
+          log(`工具执行出错：${message}`);
+          sendResult(id, {
+            content: [{ type: "text", text: `视觉工具执行失败：${message}` }],
+            isError: true,
+          });
+        }
+        return;
+      }
+
+      default:
+        // 未实现的方法
+        sendError(id, -32601, `Method not found: ${method}`);
+        return;
+    }
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    sendError(id, -32603, `Internal error: ${message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 按行读取 stdin，逐条解析 JSON-RPC 消息
+// ---------------------------------------------------------------------------
+
+function main() {
+  log(`启动：model=${CONFIG.model} protocol=${CONFIG.protocol} baseUrl=${CONFIG.baseUrl} key=${CONFIG.apiKey ? "已配置" : "未配置"}`);
+
+  let buffer = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    let index;
+    while ((index = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, index).trim();
+      buffer = buffer.slice(index + 1);
+      if (!line) continue;
+      let msg;
+      try {
+        msg = JSON.parse(line);
+      } catch {
+        log(`收到无法解析的行：${line.slice(0, 200)}`);
+        continue;
+      }
+      // 不 await：允许并发处理多个请求
+      handleMessage(msg).catch((err) => {
+        log(`handleMessage 异常：${err && err.message ? err.message : String(err)}`);
+      });
+    }
+  });
+  process.stdin.on("end", () => {
+    log("stdin 关闭，退出");
+    process.exit(0);
+  });
+}
+
+main();
