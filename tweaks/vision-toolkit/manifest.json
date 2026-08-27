@@ -8,7 +8,7 @@
   "scope": "main",
   "mcp": {
     "command": "node",
-    "args": ["mcp-server.js"],
+    "args": ["--max-old-space-size=128", "mcp-server.js"],
     "env": {
       "VISION_BASE_URL": "https://api.groq.com/openai/v1",
       "VISION_MODEL": "qwen/qwen3.6-27b",
@@ -16,6 +16,7 @@
       "VISION_API_KEY": "YOUR_VISION_API_KEY",
       "VISION_LANG": "zh",
       "VISION_MAX_TOKENS": "1024",
+      "VISION_IDLE_EXIT_MINUTES": "30",
       "VISION_ENABLED_MODELS": "deepseek-v4-flash,deepseek-v4-pro,glm-5.2,glm-5.3,qwen3.7-max"
     }
   },

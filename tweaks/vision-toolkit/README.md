@@ -55,7 +55,10 @@ env = { VISION_BASE_URL = "https://api.groq.com/openai/v1", VISION_MODEL = "qwen
 | `VISION_PROTOCOL` | `openai` | 协议格式: `openai` / `anthropic` / `dashscope` |
 | `VISION_LANG` | `zh` | 描述语言: `zh`(中文) / `en`(英文) |
 | `VISION_MAX_TOKENS` | `1024` | 单次描述最大 token 数 |
+| `VISION_IDLE_EXIT_MINUTES` | `30` | 空闲自退出阈值(分钟)；0 禁用 |
 | `VISION_ENABLED_MODELS` | *(见下)* | **白名单**：哪些模型可用此工具(逗号分隔,支持通配符) |
+
+**资源保护**：MCP server 启动参数 `--max-old-space-size=128` 限制单进程最大堆内存 128MB，配合空闲自退出(默认 30 分钟无调用自动释放)防止多会话长期开启时内存线性堆积。
 
 ### 模型白名单 (重要)
 

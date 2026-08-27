@@ -35,6 +35,10 @@ const CONFIG = {
   lang: (process.env.VISION_LANG || "zh").toLowerCase(),
   maxTokens: Number.parseInt(process.env.VISION_MAX_TOKENS || "1024", 10) || 1024,
   enabledModels: (process.env.VISION_ENABLED_MODELS || "").split(",").map((s) => s.trim()).filter(Boolean),
+  // 空闲多少分钟后自动退出（0 = 永不退出）。Codex 会给每个加载中的会话拉起
+  // 一个本进程且长期不回收，多会话并发时进程线性堆积；空闲自退能把闲置
+  // 会话占用的进程释放掉。
+  idleExitMinutes: Number.parseFloat(process.env.VISION_IDLE_EXIT_MINUTES || "30") || 0,
 };
 
 // Groq 限制：单请求图片 ≤ 20MB、最多 5 张。留一点余量给 base64 膨胀（约 4/3）。
@@ -420,6 +424,26 @@ async function dispatchTool(name, args) {
 // MCP JSON-RPC over stdio
 // ---------------------------------------------------------------------------
 
+// 空闲自退出：任何 stdin 消息（含 ping）都会重置计时；有视觉调用在途时顺延。
+// 注意：进程退出后，宿主对该会话再调 vision_glance 会得到一次错误，需要
+// 宿主重新拉起 server——这是「闲置会话不占内存」换来的代价，阈值可调。
+let idleTimer = null;
+let inFlightCalls = 0;
+
+function armIdleExit() {
+  const minutes = CONFIG.idleExitMinutes;
+  if (!(minutes > 0)) return;
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (inFlightCalls > 0) {
+      armIdleExit();
+      return;
+    }
+    log(`空闲超过 ${minutes} 分钟，自动退出释放资源`);
+    process.exit(0);
+  }, minutes * 60 * 1000);
+}
+
 function send(msg) {
   process.stdout.write(`${JSON.stringify(msg)}\n`);
 }
@@ -485,6 +509,7 @@ async function handleMessage(msg) {
           }
         }
 
+        inFlightCalls += 1;
         try {
           const text = await dispatchTool(toolName, toolArgs);
           sendResult(id, {
@@ -499,6 +524,9 @@ async function handleMessage(msg) {
             content: [{ type: "text", text: `视觉工具执行失败：${message}` }],
             isError: true,
           });
+        } finally {
+          inFlightCalls -= 1;
+          armIdleExit();
         }
         return;
       }
@@ -521,9 +549,12 @@ async function handleMessage(msg) {
 function main() {
   log(`启动：model=${CONFIG.model} protocol=${CONFIG.protocol} baseUrl=${CONFIG.baseUrl} key=${CONFIG.apiKey ? "已配置" : "未配置"}`);
 
+  armIdleExit();
+
   let buffer = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => {
+    armIdleExit();
     buffer += chunk;
     let index;
     while ((index = buffer.indexOf("\n")) >= 0) {
