@@ -16,7 +16,7 @@
  *   VISION_LANG       zh | en（描述语言，默认 zh）
  *   VISION_MAX_TOKENS 描述长度上限（默认 1024）
  *
- * 依赖：仅 Node 内置模块 + 全局 fetch（Node 18+）。不引任何第三方包。
+ * 依赖：仅 Node 内置模块（spawn curl 发 HTTP 请求）。不引任何第三方包。
  */
 
 import fs from "node:fs";
