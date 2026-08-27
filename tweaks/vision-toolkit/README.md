@@ -27,7 +27,7 @@ npm run build
 ```toml
 [mcp_servers.com-chatgpt-plusplus-vision-toolkit]
 command = "node"
-args = ["/path/to/codex-plusplus/tweaks/vision-toolkit/mcp-server.js"]
+args = ["/path/to/codex-plusplus/tweaks/vision-toolkit/mcp-server.mjs"]
 env = { VISION_BASE_URL = "https://api.groq.com/openai/v1", VISION_MODEL = "qwen/qwen3.6-27b", ... }
 ```
 
@@ -45,7 +45,9 @@ env = { VISION_BASE_URL = "https://api.groq.com/openai/v1", VISION_MODEL = "qwen
 
 ## 配置
 
-所有配置通过 `manifest.json` 的 `mcp.env` 字段设置(同步到 `~/.codex/config.toml`):
+优先在 ChatGPT++ 侧边栏打开 **视觉工具箱** 填写 API Key。保存后写入本机 `tweak-data/config.json`（升级不覆盖），重启后 MCP 会读到新配置。
+
+仍可通过 `manifest.json` 的 `mcp.env` 作为默认值（同步到 `~/.codex/config.toml`）。设置页覆盖优先于环境变量：
 
 | 环境变量 | 默认值 | 说明 |
 |---------|--------|------|

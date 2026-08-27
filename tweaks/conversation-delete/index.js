@@ -12,7 +12,7 @@ const state = {
   processedItems: new WeakSet(),
 };
 
-export default {
+module.exports = {
   async start(api) {
     api.log.info('会话删除 tweak 已启动');
 

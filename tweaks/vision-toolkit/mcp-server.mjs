@@ -20,26 +20,62 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-// ---------------------------------------------------------------------------
-// 配置（从环境变量读取）
-// ---------------------------------------------------------------------------
+const TWEAK_ID = "com.chatgpt-plusplus.vision-toolkit";
 
-const CONFIG = {
-  baseUrl: (process.env.VISION_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
-  model: process.env.VISION_MODEL || "qwen/qwen3.6-27b",
-  apiKey: process.env.VISION_API_KEY || "",
-  protocol: (process.env.VISION_PROTOCOL || "openai").toLowerCase(),
-  lang: (process.env.VISION_LANG || "zh").toLowerCase(),
-  maxTokens: Number.parseInt(process.env.VISION_MAX_TOKENS || "1024", 10) || 1024,
-  enabledModels: (process.env.VISION_ENABLED_MODELS || "").split(",").map((s) => s.trim()).filter(Boolean),
-  // 空闲多少分钟后自动退出（0 = 永不退出）。Codex 会给每个加载中的会话拉起
-  // 一个本进程且长期不回收，多会话并发时进程线性堆积；空闲自退能把闲置
-  // 会话占用的进程释放掉。
-  idleExitMinutes: Number.parseFloat(process.env.VISION_IDLE_EXIT_MINUTES || "30") || 0,
-};
+function userRoot() {
+  if (process.env.CHATGPT_PLUSPLUS_HOME) return process.env.CHATGPT_PLUSPLUS_HOME;
+  if (process.env.CODEX_PLUSPLUS_HOME) return process.env.CODEX_PLUSPLUS_HOME;
+  const home = os.homedir();
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "chatgpt-plusplus");
+  }
+  if (process.platform === "darwin") {
+    return path.join(home, "Library", "Application Support", "chatgpt-plusplus");
+  }
+  return path.join(process.env.XDG_DATA_HOME || path.join(home, ".local", "share"), "chatgpt-plusplus");
+}
+
+function loadOverlay() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(userRoot(), "tweak-data", TWEAK_ID, "config.json"), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function pick(overlay, env, overlayKey, envKey, fallback) {
+  const o = overlay?.[overlayKey];
+  if (o != null && String(o).trim() !== "") return String(o);
+  let e = env[envKey];
+  if (e === "YOUR_VISION_API_KEY") e = "";
+  if (e != null && String(e).trim() !== "") return String(e);
+  return fallback;
+}
+
+function resolveConfig(env, overlay) {
+  return {
+    baseUrl: pick(overlay, env, "baseUrl", "VISION_BASE_URL", "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
+    model: pick(overlay, env, "model", "VISION_MODEL", "qwen/qwen3.6-27b"),
+    apiKey: pick(overlay, env, "apiKey", "VISION_API_KEY", ""),
+    protocol: pick(overlay, env, "protocol", "VISION_PROTOCOL", "openai").toLowerCase(),
+    lang: pick(overlay, env, "lang", "VISION_LANG", "zh").toLowerCase(),
+    maxTokens: Number.parseInt(pick(overlay, env, "maxTokens", "VISION_MAX_TOKENS", "1024"), 10) || 1024,
+    enabledModels: pick(overlay, env, "enabledModels", "VISION_ENABLED_MODELS", "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+    // 空闲多少分钟后自动退出（0 = 永不退出）。Codex 会给每个加载中的会话拉起
+    // 一个本进程且长期不回收，多会话并发时进程线性堆积；空闲自退能把闲置
+    // 会话占用的进程释放掉。
+    idleExitMinutes: Number.parseFloat(pick(overlay, env, "idleExitMinutes", "VISION_IDLE_EXIT_MINUTES", "30")) || 0,
+  };
+}
+
+const CONFIG = resolveConfig(process.env, loadOverlay());
 
 // Groq 限制：单请求图片 ≤ 20MB、最多 5 张。留一点余量给 base64 膨胀（约 4/3）。
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -578,6 +614,20 @@ function main() {
     log("stdin 关闭，退出");
     process.exit(0);
   });
+}
+
+if (process.argv.includes("--self-check")) {
+  const c = resolveConfig(
+    { VISION_MODEL: "from-env", VISION_API_KEY: "YOUR_VISION_API_KEY", VISION_BASE_URL: "https://env.example" },
+    { apiKey: "overlay-key", model: "", baseUrl: "https://overlay.example/" },
+  );
+  if (c.apiKey !== "overlay-key") throw new Error("overlay apiKey 应覆盖占位 env");
+  if (c.model !== "from-env") throw new Error("空 overlay 应回退 env");
+  if (c.baseUrl !== "https://overlay.example") throw new Error("overlay baseUrl 应去掉尾斜杠");
+  const d = resolveConfig({ VISION_API_KEY: "YOUR_VISION_API_KEY" }, {});
+  if (d.apiKey !== "") throw new Error("占位 key 应视为未配置");
+  process.stderr.write("self-check ok\n");
+  process.exit(0);
 }
 
 main();

@@ -7,6 +7,20 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.2
+
+视觉工具箱 + 侧边栏中文入口。
+
+### Added
+
+- **视觉工具箱 (vision-toolkit)**：为纯文本模型接入云端视觉（MCP `vision_glance`）。侧边栏可配置 API；配置写在本机 tweak-data，升级不覆盖。
+- 侧边栏入口中文化：配置 / 插件 / 插件商店。
+
+### Fixed
+
+- renderer tweak 入口改为 CommonJS：`export default` 在 preload 的 `new Function` 里是语法错误，会话删除 / 导入导出 / 视觉工具箱此前无法加载。
+- 去掉会话导入导出里一段顶层重复代码（含顶层 `await`，同样无法加载）。
+
 ## 1.0.27
 
 性能优化版：残留问题修复 + 依赖更新。

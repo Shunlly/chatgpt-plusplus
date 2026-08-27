@@ -22,7 +22,7 @@ chatgpt-plusplus 的 runtime 会把 tweak `manifest.json` 里声明的 `mcp` 字
 │  用户: "看看 /tmp/error.png 这个报错是什么原因"               │
 │    │                                                       │
 │    ▼                                                       │
-│  模型调用 MCP 工具 vision_glance(image, question)  ─────────┼──► mcp-server.js
+│  模型调用 MCP 工具 vision_glance(image, question)  ─────────┼──► mcp-server.mjs
 │    │                                              (stdio)  │    │
 │    │                                                       │    ├─ 归一化图片(路径/URL/dataURI → base64)
 │    │                                                       │    ├─ focus hint: question 一起发给视觉模型

@@ -492,9 +492,9 @@ function tryInject(): void {
   refreshSidebarChatgptPlusPlusUpdateButton();
 
   // ── Sidebar items ────────────────────────────────────────────────────
-  const configBtn = makeSidebarItem("Config", configIconSvg());
-  const tweaksBtn = makeSidebarItem("Tweaks", tweaksIconSvg());
-  const storeBtn = makeSidebarItem("Tweak Store", storeIconSvg());
+  const configBtn = makeSidebarItem("配置", configIconSvg());
+  const tweaksBtn = makeSidebarItem("插件", tweaksIconSvg());
+  const storeBtn = makeSidebarItem("插件商店", storeIconSvg());
   appendSidebarStoreUpdateBadge(storeBtn);
 
   configBtn.addEventListener("click", (e) => {

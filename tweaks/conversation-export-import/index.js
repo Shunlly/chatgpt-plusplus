@@ -7,7 +7,7 @@
 // 内联简化版 JSZip 功能（使用原生 API）
 let JSZipLoaded = false;
 
-export default {
+module.exports = {
   async start(api) {
     api.log.info('会话导入导出 tweak 已启动');
 
@@ -727,138 +727,6 @@ async function exportAllConversations(format, api, root, options = {}) {
               break;
             case 'html':
               content = convertToHTML(fullConv, options);
-              filename = `${sanitizeFilename(conv.title || conv.id)}.html`;
-              mimeType = 'text/html';
-              break;
-          }
-
-          downloadFile(content, filename, mimeType);
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error) {
-          api.log.warn(`跳过会话 ${conv.id}:`, error);
-        }
-      }
-
-      if (total > 10) {
-        alert(`已导出前 10 个会话。总共 ${total} 个会话。\n建议刷新页面以加载 JSZip 库，以支持完整 ZIP 导出。`);
-      }
-
-      statusDiv.textContent = `导出完成！共 ${Math.min(10, total)} 个会话`;
-      api.log.info(`批量导出完成: ${Math.min(10, total)} 个会话 (逐个文件)`);
-    }
-
-    setTimeout(() => {
-      progressDiv.style.display = 'none';
-      progressBar.style.width = '0%';
-    }, 2000);
-
-  } catch (error) {
-    api.log.error('批量导出失败:', error);
-    alert('批量导出失败: ' + error.message);
-    progressDiv.style.display = 'none';
-  }
-}
-  const progressDiv = root.querySelector('#export-all-progress');
-  const progressBar = root.querySelector('#export-all-progress-bar');
-  const statusDiv = root.querySelector('#export-all-status');
-
-  try {
-    progressDiv.style.display = 'block';
-    statusDiv.textContent = '正在获取会话列表...';
-
-    const conversations = await fetchAllConversations(api);
-    const total = conversations.length;
-
-    if (total === 0) {
-      alert('没有找到任何会话');
-      progressDiv.style.display = 'none';
-      return;
-    }
-
-    // 检查是否支持 ZIP
-    const useZip = window.JSZip && JSZipLoaded;
-
-    if (useZip) {
-      statusDiv.textContent = '正在创建 ZIP 文件...';
-      const zip = new JSZip();
-      const folder = zip.folder('conversations');
-
-      for (let i = 0; i < total; i++) {
-        const conv = conversations[i];
-        statusDiv.textContent = `正在导出 ${i + 1}/${total}: ${conv.title || conv.id}`;
-        progressBar.style.width = `${((i + 1) / total) * 100}%`;
-
-        try {
-          const fullConv = await fetchConversation(conv.id, api);
-          let content, extension;
-
-          switch (format) {
-            case 'markdown':
-              content = convertToMarkdown(fullConv);
-              extension = 'md';
-              break;
-            case 'json':
-              content = JSON.stringify(fullConv, null, 2);
-              extension = 'json';
-              break;
-            case 'html':
-              content = convertToHTML(fullConv);
-              extension = 'html';
-              break;
-          }
-
-          const filename = `${sanitizeFilename(conv.title || conv.id)}.${extension}`;
-          folder.file(filename, content);
-        } catch (error) {
-          api.log.warn(`跳过会话 ${conv.id}:`, error);
-        }
-
-        // 避免请求过快
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      statusDiv.textContent = '正在生成 ZIP 文件...';
-      progressBar.style.width = '95%';
-
-      const blob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      });
-
-      progressBar.style.width = '100%';
-      statusDiv.textContent = `导出完成！共 ${total} 个会话`;
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      downloadBlob(blob, `conversations-${timestamp}.zip`, 'application/zip');
-
-      api.log.info(`批量导出完成: ${total} 个会话 (ZIP)`);
-    } else {
-      // 降级方案：逐个下载
-      statusDiv.textContent = '正在导出（逐个文件模式）...';
-
-      for (let i = 0; i < Math.min(10, total); i++) {
-        const conv = conversations[i];
-        statusDiv.textContent = `正在导出 ${i + 1}/${Math.min(10, total)}: ${conv.title || conv.id}`;
-        progressBar.style.width = `${((i + 1) / Math.min(10, total)) * 100}%`;
-
-        try {
-          const fullConv = await fetchConversation(conv.id, api);
-          let content, filename, mimeType;
-
-          switch (format) {
-            case 'markdown':
-              content = convertToMarkdown(fullConv);
-              filename = `${sanitizeFilename(conv.title || conv.id)}.md`;
-              mimeType = 'text/markdown';
-              break;
-            case 'json':
-              content = JSON.stringify(fullConv, null, 2);
-              filename = `${sanitizeFilename(conv.title || conv.id)}.json`;
-              mimeType = 'application/json';
-              break;
-            case 'html':
-              content = convertToHTML(fullConv);
               filename = `${sanitizeFilename(conv.title || conv.id)}.html`;
               mimeType = 'text/html';
               break;

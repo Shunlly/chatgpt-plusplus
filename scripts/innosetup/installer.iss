@@ -4,7 +4,7 @@
 ; 注意：本文件必须保持 UTF-8 with BOM，Inno Setup 6 才能正确解析中文。
 
 #ifndef VERSION
-  #define VERSION "1.1.1"
+  #define VERSION "1.1.2"
 #endif
 #ifndef STAGEDIR
   #define STAGEDIR "dist\installers\innosetup"
