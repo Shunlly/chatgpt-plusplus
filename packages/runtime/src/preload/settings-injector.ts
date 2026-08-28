@@ -248,8 +248,17 @@ function safeStringify(v: unknown): string {
 
 import { mutationsTouchSidebar } from "./sidebar-scan-filter";
 
+let injectorStopped = false;
+
+export function stopSettingsInjector(): void {
+  injectorStopped = true;
+  state.observer?.disconnect();
+  state.observer = null;
+}
+
 export function startSettingsInjector(): void {
   if (state.observer) return;
+  injectorStopped = false;
 
   const obs = new MutationObserver((records) => {
     if (document.hidden) return;
@@ -397,6 +406,7 @@ export function setListedTweaks(list: ListedTweak[]): void {
 // ───────────────────────────────────────────────────────────── injection ──
 
 function tryInject(): void {
+  if (injectorStopped) return;
   removeMisplacedSettingsGroups();
 
   const itemsGroup = findSidebarItemsGroup();
@@ -847,7 +857,7 @@ function makeSidebarItem(label: string, iconSvg: string): HTMLButtonElement {
   const inner = document.createElement("div");
   inner.className =
     "flex min-w-0 items-center text-base gap-2 flex-1 text-token-foreground";
-  inner.innerHTML = `${iconSvg}<span class="truncate">${label}</span>`;
+  inner.innerHTML = `<span class="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">${iconSvg}</span><span class="truncate">${label}</span>`;
   btn.appendChild(inner);
   return btn;
 }
@@ -2557,12 +2567,31 @@ function tweakRow(
       : `Open ${pages.map((p) => p.page.title).join(", ")}`;
     right.appendChild(configureBtn);
   }
-  if (t.update?.updateAvailable && t.update.releaseUrl) {
-    right.appendChild(
-      compactButton("Review Release", () => {
-        void ipcRenderer.invoke("codexpp:open-external", t.update!.releaseUrl);
-      }),
-    );
+  if (m.githubRepo) {
+    const updateBtn = compactButton("更新", () => {
+      updateBtn.disabled = true;
+      updateBtn.textContent = "更新中…";
+      void ipcRenderer
+        .invoke("codexpp:update-tweak-from-github", m.id)
+        .then(() => {
+          showStoreToast(`已更新 ${m.name}`);
+          location.reload();
+        })
+        .catch((e) => {
+          updateBtn.disabled = false;
+          updateBtn.textContent = "更新";
+          showStoreToast(e instanceof Error ? e.message : String(e));
+        });
+    });
+    updateBtn.title = "从 GitHub 拉取最新版本";
+    right.appendChild(updateBtn);
+    if (t.update?.updateAvailable && t.update.releaseUrl) {
+      right.appendChild(
+        compactButton("发行说明", () => {
+          void ipcRenderer.invoke("codexpp:open-external", t.update!.releaseUrl);
+        }),
+      );
+    }
   }
   right.appendChild(
     switchControl(t.enabled, async (next) => {

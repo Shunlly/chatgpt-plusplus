@@ -945,24 +945,30 @@ function tweakManifestVersion(dir: string): string {
 }
 
 export function stageAssets(runtimeDir: string): void {
-  mkdirSync(runtimeDir, { recursive: true });
   const src = join(resolveAssetsDir(), "runtime");
-  if (existsSync(src)) {
-    cpSync(src, runtimeDir, { recursive: true });
-    chownForTargetUser(runtimeDir, { recursive: true });
-    return;
-  }
-  // Dev fallback: copy from the in-tree built runtime.
   const devSrc = resolve(here, "..", "..", "..", "..", "runtime", "dist");
-  if (existsSync(devSrc)) {
-    cpSync(devSrc, runtimeDir, { recursive: true });
-    chownForTargetUser(runtimeDir, { recursive: true });
-    return;
+  const from = existsSync(src) ? src : existsSync(devSrc) ? devSrc : null;
+  if (!from) {
+    throw new Error(
+      `Runtime assets not found. Expected at ${src} (built package) or ${devSrc} (dev).\n` +
+        `Run \`npm run build\` from the workspace root.`,
+    );
   }
-  throw new Error(
-    `Runtime assets not found. Expected at ${src} (built package) or ${devSrc} (dev).\n` +
-      `Run \`npm run build\` from the workspace root.`,
-  );
+  // 整目录替换，且只拷宿主实际加载的 bundle，丢掉旧版 tsc 碎文件 / sourcemap。
+  rmSync(runtimeDir, { recursive: true, force: true });
+  mkdirSync(runtimeDir, { recursive: true });
+  for (const name of ["main.js", "preload.js"]) {
+    const file = join(from, name);
+    if (!existsSync(file)) {
+      throw new Error(`Runtime bundle missing ${file}`);
+    }
+    cpSync(file, join(runtimeDir, name));
+  }
+  const nativeSrc = join(from, "native");
+  if (existsSync(nativeSrc)) {
+    cpSync(nativeSrc, join(runtimeDir, "native"), { recursive: true });
+  }
+  chownForTargetUser(runtimeDir, { recursive: true });
 }
 
 interface Stepper {

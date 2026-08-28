@@ -628,8 +628,7 @@
 
     if (!shellMain || !document.body) return;
     if (observedShellMain !== shellMain) {
-      resizeObserver?.disconnect();
-      resizeObserver?.observe(shellMain);
+      // 不 observe(shellMain)：目标长跑时正文变高会持续 ResizeObserver → getBoundingClientRect 写 chrome 尺寸，主线程卡死。
       observedShellMain = shellMain;
       layout = true;
     }
@@ -752,7 +751,22 @@
     // 避免每帧（约 16ms）跑整套 DOM 查询/写入把主线程占满导致打字卡顿。
     scheduler.timeout = setTimeout(flushScheduledEnsure, 200);
   };
-  const observer = new MutationObserver(() => scheduleEnsure({ route: true }));
+  const mutationTouchesShell = (records) => {
+    for (const r of records) {
+      const node = r.target;
+      const el = node && node.nodeType === 1 ? node : node && node.parentElement;
+      if (!el || typeof el.closest !== "function") return true;
+      if (el.id === CHROME_ID || (el.closest && el.closest("#" + CHROME_ID))) continue;
+      const main = el.closest("main");
+      if (main && el !== main) continue;
+      return true;
+    }
+    return false;
+  };
+  const observer = new MutationObserver((records) => {
+    if (!mutationTouchesShell(records)) return;
+    scheduleEnsure({ route: true });
+  });
   rootObserver = new MutationObserver(() => {
     if (samplingNativeShell) return;
     scheduleEnsure({ root: true, route: true });

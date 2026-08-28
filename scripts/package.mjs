@@ -300,7 +300,7 @@ function electronTemplate() {
 function stageGuiResources(appOrDir, binary, ver) {
   const resourcesDir =
     process.platform === "darwin" ? join(appOrDir, "Contents", "Resources") : join(appOrDir, "resources");
-  // GUI 代码（main.js/preload.js/renderer.html）
+  // GUI 代码（main.js/preload.js/renderer.js/renderer.html）
   const appDir = join(resourcesDir, "app");
   cpSync(join(ROOT, "packages", "gui", "dist"), appDir, { recursive: true });
   writeFileSync(join(appDir, "package.json"), JSON.stringify({
@@ -357,21 +357,7 @@ function installNotes(version) {
 
 // 编译独立 GUI（Electron）：main + preload + 页面。
 async function buildGuiAssets() {
-  const gui = join(ROOT, "packages", "gui");
-  const outDir = join(gui, "dist");
-  rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(outDir, { recursive: true });
-  await build({
-    entryPoints: [join(gui, "src", "main.ts"), join(gui, "src", "preload.ts")],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    target: "node20",
-    external: ["electron"],
-    outdir: outDir,
-  });
-  cpSync(join(gui, "src", "renderer.html"), join(outDir, "renderer.html"));
-  console.log("✅ GUI 已编译：", outDir);
+  run("node", ["scripts/build.mjs"], join(ROOT, "packages", "gui"));
 }
 
 function findIscc() {

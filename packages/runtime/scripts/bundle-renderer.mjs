@@ -5,7 +5,7 @@
  * stay external because they're provided by the host.
  */
 import { build } from "esbuild";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,15 +15,19 @@ const root = resolve(here, "..");
 const repoRoot = resolve(here, "..", "..", "..");
 const CHATGPT_PLUSPLUS_VERSION = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")).version;
 
+const dist = resolve(root, "dist");
+rmSync(dist, { recursive: true, force: true });
+mkdirSync(dist, { recursive: true });
+
 await build({
   entryPoints: [resolve(root, "src/preload/index.ts")],
   bundle: true,
-  outfile: resolve(root, "dist/preload.js"),
+  outfile: resolve(dist, "preload.js"),
   platform: "browser",
   target: "es2022",
   format: "cjs",
   external: ["electron"],
-  sourcemap: "inline",
+  sourcemap: false,
   minify: false,
   logLevel: "info",
 });
@@ -32,12 +36,12 @@ await build({
   entryPoints: [resolve(root, "src/main.ts")],
   define: { __CHATGPT_PLUSPLUS_VERSION__: JSON.stringify(CHATGPT_PLUSPLUS_VERSION) },
   bundle: true,
-  outfile: resolve(root, "dist/main.js"),
+  outfile: resolve(dist, "main.js"),
   platform: "node",
   target: "node20",
   format: "cjs",
   external: ["electron"],
-  sourcemap: "inline",
+  sourcemap: false,
   minify: false,
   logLevel: "info",
   // chokidar uses dynamic native fsevents on macOS via optional dep; let

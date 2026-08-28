@@ -10,10 +10,18 @@ const state = {
   contextMenuListener: null,
   animationTheme: 'slide', // 默认动画主题: slide, fade, scale, flip
   processedItems: new WeakSet(),
+  observeTimer: null,
+  observedRoot: null,
+  visibilityListener: null,
 };
 
 module.exports = {
   async start(api) {
+    if (document.documentElement?.classList.contains("compact-window") ||
+        document.body?.classList.contains("compact-window")) {
+      api.log.info("会话删除：宠物/迷你窗口跳过");
+      return;
+    }
     api.log.info('会话删除 tweak 已启动');
 
     // 加载用户设置
@@ -31,9 +39,6 @@ module.exports = {
       }
     });
 
-    // 等待一下让页面完全加载
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     // 使用 IntersectionObserver 实现性能优化
     state.intersectionObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
@@ -47,20 +52,20 @@ module.exports = {
       threshold: 0.1,
     });
 
-    // 监听 DOM 变化
-    state.observer = new MutationObserver((mutations) => {
-      observeNewConversationItems(api);
+    // 只盯侧边栏。盯 document.body 会让聊天区打字的 childList 每次都全页 querySelectorAll，Windows 上整窗卡死。
+    state.observer = new MutationObserver(() => {
+      ensureSidebarObserver();
+      scheduleObserve(api);
     });
-
-    // 开始观察整个文档
-    state.observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    ensureSidebarObserver();
 
     // 添加右键菜单监听
     state.contextMenuListener = (e) => handleContextMenu(e, api);
     document.addEventListener('contextmenu', state.contextMenuListener);
+    state.visibilityListener = () => {
+      if (!document.hidden) scheduleObserve(api);
+    };
+    document.addEventListener("visibilitychange", state.visibilityListener);
 
     // 初始处理
     observeNewConversationItems(api);
@@ -98,10 +103,19 @@ module.exports = {
 
     // 返回清理函数
     return () => {
+      if (state.observeTimer) {
+        clearTimeout(state.observeTimer);
+        state.observeTimer = null;
+      }
       if (state.observer) state.observer.disconnect();
+      state.observedRoot = null;
       if (state.intersectionObserver) state.intersectionObserver.disconnect();
       if (state.contextMenuListener) {
         document.removeEventListener('contextmenu', state.contextMenuListener);
+      }
+      if (state.visibilityListener) {
+        document.removeEventListener("visibilitychange", state.visibilityListener);
+        state.visibilityListener = null;
       }
       document.querySelectorAll('[data-conversation-delete-btn]').forEach(btn => btn.remove());
       document.querySelectorAll('[data-conversation-delete-modal]').forEach(modal => modal.remove());
@@ -470,6 +484,24 @@ function injectStyles() {
 /**
  * 观察新的会话列表项（性能优化版）
  */
+function ensureSidebarObserver() {
+  if (!state.observer) return;
+  const root = document.querySelector("nav") || document.body;
+  if (!root || state.observedRoot === root) return;
+  state.observer.disconnect();
+  state.observedRoot = root;
+  state.observer.observe(root, { childList: true, subtree: true });
+}
+
+function scheduleObserve(api) {
+  if (document.hidden) return;
+  if (state.observeTimer) return;
+  state.observeTimer = setTimeout(() => {
+    state.observeTimer = null;
+    observeNewConversationItems(api);
+  }, 200);
+}
+
 function observeNewConversationItems(api) {
   const conversationItems = findConversationItems();
 
@@ -715,6 +747,7 @@ function addDeleteButton(item, api) {
     padding: 4px;
     border-radius: 4px;
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.2s, background-color 0.2s;
     color: currentColor;
     display: flex;
@@ -752,10 +785,12 @@ function addDeleteButton(item, api) {
 
   item.addEventListener('mouseenter', () => {
     deleteBtn.style.opacity = '1';
+    deleteBtn.style.pointerEvents = 'auto';
   });
 
   item.addEventListener('mouseleave', () => {
     deleteBtn.style.opacity = '0';
+    deleteBtn.style.pointerEvents = 'none';
   });
 
   item.appendChild(deleteBtn);

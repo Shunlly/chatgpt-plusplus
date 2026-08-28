@@ -3,7 +3,7 @@
 import sade from "sade";
 import kleur from "kleur";
 import { CHATGPT_PLUSPLUS_VERSION } from "./version.js";
-import { buildCliFailureIssueUrl } from "./alerts.js";
+import { buildCliFailureIssueUrl } from "./issue-url.js";
 import { appendInstallerError, capKnownLogFiles } from "./logging.js";
 
 interface InstallCliOpts {

@@ -260,6 +260,15 @@ async function loadPresetTheme(api, presetId) {
   return JSON.parse(decodeDataUrl(dataUrl));
 }
 
+function isCanvasTheme(theme) {
+  return !!(theme && theme.schemaVersion === 2 && theme.type === "canvas");
+}
+
+async function loadPresetArt(api, presetId, theme) {
+  if (isCanvasTheme(theme)) return "";
+  return api.fs.asset(`presets/${presetId}/${theme.image || "background.jpg"}`);
+}
+
 // ── 自定义主题（上传图片新建）持久化 ──────────────────────────────
 // api.fs 只提供文本读写且无目录列举，所以用 custom/index.json 存列表，
 // 每个主题一个 custom/<id>.json（含 name、artUrl、theme）。
@@ -363,7 +372,7 @@ async function applySaved(api) {
       return;
     }
     const theme = await loadPresetTheme(api, sel.id);
-    const artUrl = await api.fs.asset(`presets/${sel.id}/background.jpg`);
+    const artUrl = await loadPresetArt(api, sel.id, theme);
     await applyTheme(api, theme, artUrl);
     api.log.info("theme applied:", sel.id);
   } catch (e) {
@@ -537,7 +546,7 @@ function renderPage(api, root) {
       try {
         api.storage.set("selection", { type: "preset", id: presetId });
         const theme = await loadPresetTheme(api, presetId);
-        const artUrl = await api.fs.asset(`presets/${presetId}/background.jpg`);
+        const artUrl = await loadPresetArt(api, presetId, theme);
         await applyTheme(api, theme, artUrl);
         updateStatus();
       } catch (e) {
@@ -547,23 +556,25 @@ function renderPage(api, root) {
     };
     grid.append(item);
 
-    // 使用懒加载或立即加载
-    if (lazyObserver) {
-      lazyObserver.observe(img);
-    } else {
-      // 降级：浏览器不支持 IntersectionObserver 时立即加载
-      api.fs
-        .asset(`presets/${presetId}/background.jpg`)
-        .then((dataUrl) => {
-          img.src = dataUrlToObjectUrl(dataUrl);
-        })
-        .catch((e) => api.log.warn("preset thumb failed", presetId, String(e)));
-    }
-
     img.onerror = () => api.log.warn("preset thumb render failed", presetId);
     loadPresetTheme(api, presetId)
       .then((theme) => {
         name.textContent = theme.name || presetId;
+        if (isCanvasTheme(theme)) {
+          img.remove();
+          thumb.style.background = theme.backgroundColor || "transparent";
+          return;
+        }
+        if (lazyObserver) {
+          lazyObserver.observe(img);
+          return;
+        }
+        api.fs
+          .asset(`presets/${presetId}/${theme.image || "background.jpg"}`)
+          .then((dataUrl) => {
+            img.src = dataUrlToObjectUrl(dataUrl);
+          })
+          .catch((e) => api.log.warn("preset thumb failed", presetId, String(e)));
       })
       .catch(() => {});
   }
@@ -712,6 +723,7 @@ function renderPage(api, root) {
 // 主界面 main（_MainContentSurface）即内容区；Codex 导航时 React 复用内容 DIV 而不移除
 // 我们的 host，因此点击其它官方侧边栏按钮时必须主动恢复官方视图。
 let mainNavObserver = null;
+let mainNavObservedRoot = null;
 // 观察器高频触发时合并到 200ms 内执行一次，避免聊天/流式输出时每次 DOM 变化都全量扫侧边栏。
 let mainNavTimer = null;
 let mainThemeBtn = null;
@@ -1055,8 +1067,18 @@ function startMainNav(api) {
   cleanupMainNavResidue();
   lang = resolveLang(api);
   syncMainNav(api);
-  mainNavObserver = new MutationObserver(() => scheduleMainNav(api));
-  mainNavObserver.observe(document.documentElement, { childList: true, subtree: true });
+  mainNavObserver = new MutationObserver((records) => {
+    const nav = document.querySelector("nav") || document.querySelector("aside");
+    if (nav && mainNavObservedRoot !== nav) {
+      mainNavObserver.disconnect();
+      mainNavObservedRoot = nav;
+      mainNavObserver.observe(nav, { childList: true, subtree: true });
+    }
+    if (nav && !records.some((r) => r.target === nav || nav.contains(r.target))) return;
+    scheduleMainNav(api);
+  });
+  mainNavObservedRoot = document.querySelector("nav") || document.querySelector("aside") || document.documentElement;
+  mainNavObserver.observe(mainNavObservedRoot, { childList: true, subtree: true });
   // 优化方案 4.2：语言切换检测从 2 秒提升到 5 秒，降低 CPU 占用
   if (!langTimer) langTimer = setInterval(() => translateSidebar(), 5000);
   api.log.info("main nav ready", JSON.stringify({ href: location.href, plug: !!findMainPluginBtn() }));
@@ -1066,6 +1088,7 @@ function stopMainNav() {
   if (mainNavObserver) {
     mainNavObserver.disconnect();
     mainNavObserver = null;
+    mainNavObservedRoot = null;
   }
   if (mainNavTimer) {
     clearTimeout(mainNavTimer);

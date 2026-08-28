@@ -1,0 +1,15 @@
+/** 宠物/迷你窗（compact-window）克隆主界面，不能跑 tweak，否则点击会话无法跳转。 */
+export function isCompactPetWindow(
+  locationLike: { href: string; search: string } = location,
+  root: { classList: { contains(name: string): boolean } } | null = document.documentElement,
+  body: { classList: { contains(name: string): boolean } } | null = document.body,
+): boolean {
+  if (root?.classList.contains("compact-window")) return true;
+  if (body?.classList.contains("compact-window")) return true;
+  // 主窗口也可能短暂 about:blank，不能当宠物窗；浮层带 initialRoute。
+  try {
+    return new URLSearchParams(locationLike.search || "").has("initialRoute");
+  } catch {
+    return false;
+  }
+}

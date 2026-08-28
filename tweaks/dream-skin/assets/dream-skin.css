@@ -271,14 +271,19 @@ html.codex-dream-skin:not(.compact-window) aside.app-shell-left-panel [aria-curr
 
 html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface] {
   position: relative !important;
-  isolation: isolate;
-  overflow: hidden !important;
   background: var(--ds-bg) !important;
   border: 1px solid var(--ds-line) !important;
   border-right: 0 !important;
   border-bottom: 0 !important;
   border-radius: 16px 0 0 0 !important;
   box-shadow: -8px 0 28px rgb(var(--ds-bg-rgb) / .18) !important;
+}
+
+/* isolation + overflow:hidden 只给首页。会话页 composer 是 position:fixed，
+   写在 main 上会变成相对 main 定位并被裁切，从宠物点进会话后无法输入。 */
+html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface].dream-skin-home-shell {
+  isolation: isolate;
+  overflow: hidden !important;
 }
 
 html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface]:not(.dream-skin-home-shell)::before {
@@ -445,10 +450,13 @@ html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface] > h
 
 #codex-dream-skin-chrome {
   position: fixed;
-  z-index: 31;
+  z-index: 1;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: none !important;
   border-radius: 16px 0 0 0;
+}
+#codex-dream-skin-chrome * {
+  pointer-events: none !important;
 }
 
 .dream-skin-brand {
@@ -761,6 +769,9 @@ html.codex-dream-skin:not(.compact-window):is([data-dream-art-safe="center"], [d
 .dream-skin-home .group\/home-suggestions button > span:last-child { align-items: center !important; text-align: center !important; }
 
 html.codex-dream-skin:not(.compact-window) .composer-surface-chrome {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 40;
   overflow: visible !important;
   border: 1px solid rgb(var(--ds-muted-rgb) / .18) !important;
   border-radius: 22px !important;
@@ -1092,6 +1103,9 @@ html.codex-dream-skin:not(.compact-window) [class*="h-[0.5px]"][class*="bg-token
 /* Codex 新版 composer 改用 ComposerLayoutRoot 结构，官方近白不透明背景在换肤壁纸上
    会形成一块白色粗框；这里与旧版 composer-surface-chrome 保持同一套换肤表面 */
 html.codex-dream-skin:not(.compact-window) [class*="ComposerLayoutRoot"] {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 40;
   background: rgb(var(--ds-panel-rgb) / .94) !important;
   border: 1px solid rgb(var(--ds-muted-rgb) / .18) !important;
   box-shadow: 0 10px 28px rgb(var(--ds-bg-rgb) / .24) !important;

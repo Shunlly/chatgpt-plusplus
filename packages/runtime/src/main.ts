@@ -15,8 +15,11 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import chokidar from "chokidar";
 import { discoverTweaks, type DiscoveredTweak } from "./tweak-discovery";
+import { shouldIgnoreTweakWatchPath, TWEAK_RELOAD_DEBOUNCE_MS } from "./tweak-watch-ignore";
 import { createDiskStorage, type DiskStorage } from "./storage";
 import { syncManagedMcpServers } from "./mcp-sync";
+import { installAppServerConfigGate } from "./app-server-config-gate";
+import { findTweakRootById, githubTweakArchiveUrl, githubTweakUpdateRef } from "./tweak-github-update";
 import { getWatcherHealth } from "./watcher-health";
 import {
   isMainProcessTweakScope,
@@ -603,6 +606,12 @@ if (isChatgptPlusPlusSafeModeEnabled()) {
 // 2. Initial tweak discovery + main-scope load.
 migrateLegacyDreamSkinCustomThemes();
 loadAllMainTweaks();
+// Codex 后端会在读完 config.toml 后启动。Windows 上 catalog 常比 app-server 晚写入，
+// 这里拦住 spawn，并在 model_catalog_json 变化后重启后端让它重读。
+installAppServerConfigGate({
+  configPath: CODEX_CONFIG_FILE,
+  log: (msg) => log("info", msg),
+});
 
 app.on("will-quit", () => {
   stopAllMainTweaks();
@@ -735,6 +744,12 @@ ipcMain.handle("codexpp:install-store-tweak", async (_e, id: string) => {
   await installStoreTweak(entry);
   reloadTweaks("store-install", tweakLifecycleDeps);
   return { installed: entry.id };
+});
+
+ipcMain.handle("codexpp:update-tweak-from-github", async (_e, id: string) => {
+  await updateTweakFromGithub(String(id ?? ""));
+  reloadTweaks("github-tweak-update", tweakLifecycleDeps);
+  return { ok: true };
 });
 
 ipcMain.handle("codexpp:prepare-tweak-store-submission", async (_e, repoInput: string) => {
@@ -948,24 +963,24 @@ ipcMain.handle("codexpp:reload-tweaks", () => {
 //    we stop main-side tweaks, clear their cached modules, re-discover, then
 //    restart and broadcast `codexpp:tweaks-changed` to every renderer so it
 //    can re-init its host.
-const RELOAD_DEBOUNCE_MS = 250;
 let reloadTimer: NodeJS.Timeout | null = null;
 function scheduleReload(reason: string): void {
   if (reloadTimer) clearTimeout(reloadTimer);
   reloadTimer = setTimeout(() => {
     reloadTimer = null;
     reloadTweaks(reason, tweakLifecycleDeps);
-  }, RELOAD_DEBOUNCE_MS);
+  }, TWEAK_RELOAD_DEBOUNCE_MS);
 }
 
 try {
   const watcher = chokidar.watch(TWEAKS_DIR, {
     ignoreInitial: true,
-    // Wait for files to settle before triggering — guards against partially
-    // written tweak files during editor saves / git checkouts.
-    awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 },
-    // Avoid eating CPU on huge node_modules trees inside tweak folders.
-    ignored: (p) => p.includes(`${TWEAKS_DIR}/`) && /\/node_modules\//.test(p),
+    ignorePermissionErrors: true,
+    // Windows 上 50ms 轮询 + 杀毒扫描会把读图当成写入，热重载把整个 UI 打卡死。
+    awaitWriteFinish: process.platform === "win32"
+      ? { stabilityThreshold: 500, pollInterval: 250 }
+      : { stabilityThreshold: 150, pollInterval: 50 },
+    ignored: shouldIgnoreTweakWatchPath,
   });
   watcher.on("all", (event, path) => scheduleReload(`${event} ${path}`));
   watcher.on("error", (e) => log("warn", "watcher error:", e));
@@ -1381,6 +1396,43 @@ async function fetchTweakStoreRegistry(): Promise<TweakStoreFetchResult> {
   }
 }
 
+async function updateTweakFromGithub(id: string): Promise<void> {
+  const tweak = tweakState.discovered.find((item) => item.manifest.id === id);
+  if (!tweak) throw new Error(`tweak not found: ${id}`);
+  const repo = tweak.manifest.githubRepo;
+  if (!repo) throw new Error("manifest 未声明 githubRepo");
+  if (!isPathInside(TWEAKS_DIR, tweak.dir)) throw new Error("tweak path outside tweaks dir");
+
+  const cached = readState().tweakUpdateChecks?.[id];
+  const ref = githubTweakUpdateRef(repo, cached?.latestTag ?? null, CHATGPT_PLUSPLUS_REPO);
+  const work = mkdtempSync(join(tmpdir(), "codexpp-tweak-gh-"));
+  const archive = join(work, "source.tar.gz");
+  const extractDir = join(work, "extract");
+  try {
+    log("info", `updating tweak ${id} from github ${repo}@${ref}`);
+    const res = await fetch(githubTweakArchiveUrl(repo, ref), {
+      headers: { "User-Agent": `chatgpt-plusplus/${CHATGPT_PLUSPLUS_VERSION}` },
+      redirect: "follow",
+    });
+    if (!res.ok) throw new Error(`download failed: ${res.status}`);
+    writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+    mkdirSync(extractDir, { recursive: true });
+    extractTarArchive(archive, extractDir);
+    const source = findTweakRootById(extractDir, id);
+    if (!source) throw new Error(`archive 里没有 id=${id} 的 tweak`);
+    const staged = join(work, "staged");
+    copyTweakSource(source, staged);
+    rmSync(tweak.dir, { recursive: true, force: true });
+    mkdirSync(dirname(tweak.dir), { recursive: true });
+    cpSync(staged, tweak.dir, { recursive: true });
+    const state = readState();
+    if (state.tweakUpdateChecks) delete state.tweakUpdateChecks[id];
+    writeState(state);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
 async function installStoreTweak(entry: TweakStoreEntry): Promise<void> {
   const url = storeArchiveUrl(entry);
   const work = mkdtempSync(join(tmpdir(), "codexpp-store-tweak-"));
@@ -1789,6 +1841,7 @@ function makeMainIpc(id: string) {
       throw new Error("ipc.invoke is renderer→main; main side uses handle");
     },
     handle: (c: string, handler: (...args: unknown[]) => unknown) => {
+      ipcMain.removeHandler(ch(c));
       ipcMain.handle(ch(c), (_e: unknown, ...args: unknown[]) => handler(...args));
     },
   };

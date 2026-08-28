@@ -7,6 +7,23 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.3
+
+稳定性修复 + 视觉工具箱配置体验。
+
+### Added
+
+- **视觉工具箱**：配置入口挂在插件卡片上（不再注册巨大侧栏页）；支持中英界面、测试连接。
+- 已安装插件可从 GitHub 更新（卡片「更新」按钮）。
+
+### Fixed
+
+- Windows 上 Codex 后端早于 `model_catalog_json` 写入启动时，模型列表为空：配置落地后重读 app-server。
+- 宠物/迷你窗不再跑 tweak，避免整应用卡死。
+- 会话页输入框被 `overflow:hidden` 裁切，点击宠物会话后无法输入。
+- GUI 启动去掉 `execSync --version`，减少启动卡顿。
+- runtime 只打包 `main.js`/`preload.js`，去掉 sourcemap 与 tsc 碎文件。
+
 ## 1.1.2
 
 视觉工具箱 + 侧边栏中文入口。

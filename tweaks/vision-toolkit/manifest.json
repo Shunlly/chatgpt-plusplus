@@ -5,7 +5,7 @@
   "description": "为纯文本模型接入云端视觉能力：看图问答、OCR、识别（通过 MCP 工具 vision_glance）",
   "githubRepo": "Shunlly/chatgpt-plusplus",
   "author": "ChatGPT++ Team",
-  "scope": "renderer",
+  "scope": "both",
   "main": "index.js",
   "mcp": {
     "command": "node",

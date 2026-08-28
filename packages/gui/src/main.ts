@@ -1,8 +1,8 @@
 // ChatGPT++ 独立 GUI 主进程：安装状态、安装/修复/卸载、打开 ChatGPT、主题管理。
 // CLI 二进制随包放在 Resources/cli/（standalone.json 在同级 Resources，CLI 可自发现资源）。
 import { app, BrowserWindow, ipcMain, shell } from "electron";
-import { spawn, type ChildProcess, execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync, chmodSync } from "node:fs";
+import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -20,69 +20,6 @@ const tweakDataDir = () => join(userRoot(), "tweak-data", TWEAK_ID);
 
 function cliPath(): string {
   return join(process.resourcesPath, "cli", process.platform === "win32" ? "chatgpt-plusplus.exe" : "chatgpt-plusplus");
-}
-
-// 自动更新系统 CLI 工具：检测 GUI 内置 CLI 与系统安装的 CLI 版本是否一致，不一致则静默更新。
-async function autoUpdateCli(): Promise<void> {
-  try {
-    const appCli = cliPath();
-    if (!existsSync(appCli)) return;
-
-    // 获取 GUI 内置 CLI 版本
-    let appVersion: string;
-    try {
-      appVersion = execSync(`"${appCli}" --version`, { encoding: "utf8" }).trim();
-    } catch {
-      return; // 内置 CLI 无法运行，跳过
-    }
-
-    // 系统 CLI 安装路径（按优先级）
-    const home = homedir();
-    const systemCliPaths = process.platform === "win32"
-      ? [
-          join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), "Programs", "ChatGPT++", "chatgpt-plusplus.exe"),
-          join(home, ".local", "bin", "chatgpt-plusplus.exe"),
-        ]
-      : [
-          join(home, ".local", "bin", "chatgpt-plusplus"),
-          "/usr/local/bin/chatgpt-plusplus",
-        ];
-
-    for (const systemCli of systemCliPaths) {
-      if (!existsSync(systemCli)) continue;
-
-      // 获取系统 CLI 版本
-      let systemVersion: string;
-      try {
-        systemVersion = execSync(`"${systemCli}" --version`, { encoding: "utf8" }).trim();
-      } catch {
-        continue; // 系统 CLI 损坏，跳过
-      }
-
-      // 版本一致，无需更新
-      if (appVersion === systemVersion) continue;
-
-      // 版本不一致，静默更新
-      try {
-        const dir = join(systemCli, "..");
-        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-        copyFileSync(appCli, systemCli);
-        if (process.platform !== "win32") {
-          chmodSync(systemCli, 0o755);
-        }
-
-        console.log(`[autoUpdateCli] Updated ${systemCli}: ${systemVersion} → ${appVersion}`);
-        break; // 成功更新第一个找到的系统 CLI，停止
-      } catch (err) {
-        console.warn(`[autoUpdateCli] Failed to update ${systemCli}:`, err);
-        // 写入失败（权限问题）不阻塞启动，继续尝试下一个路径
-      }
-    }
-  } catch (err) {
-    // 自动更新失败不影响 GUI 启动
-    console.warn("[autoUpdateCli] Error:", err);
-  }
 }
 
 function tryReadJson(file: string): unknown | null {
@@ -109,6 +46,7 @@ async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> 
       if (exe) candidates.push(join(root, exe));
     }
   } else {
+    if (state?.appRoot && existsSync(state.appRoot)) candidates.push(state.appRoot);
     candidates.push("/Applications/ChatGPT.app", "/Applications/Codex.app");
   }
   for (const appPath of candidates) {
@@ -317,34 +255,14 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
   });
 }
 
-function createSplashWindow(): BrowserWindow {
-  const splash = new BrowserWindow({
-    width: 400,
-    height: 500,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    center: true,
-    resizable: false,
-    skipTaskbar: true,
-    backgroundColor: "#00000000",
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
-  splash.loadFile(join(__dirname, "splash.html"));
-  return splash;
-}
-
-function createWindow(splash?: BrowserWindow) {
+function createWindow() {
   const win = new BrowserWindow({
     width: 460,
     height: 700,
     title: "ChatGPT++",
     backgroundColor: "#10131a",
     autoHideMenuBar: true,
-    show: false, // 优化：先隐藏，准备好后再显示
+    show: false,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -353,14 +271,7 @@ function createWindow(splash?: BrowserWindow) {
   });
 
   win.loadFile(join(__dirname, "renderer.html"));
-
-  // 优化：窗口准备好后关闭启动画面并显示主窗口
-  win.once("ready-to-show", () => {
-    if (splash && !splash.isDestroyed()) {
-      splash.close();
-    }
-    win.show();
-  });
+  win.once("ready-to-show", () => win.show());
 
   win.on("closed", () => {
     if (logWindow === win) logWindow = null;
@@ -370,26 +281,18 @@ function createWindow(splash?: BrowserWindow) {
 }
 
 app.whenReady().then(async () => {
-  // 优化：先显示启动画面，改善用户感知
-  const splash = createSplashWindow();
-
-  // 自动更新系统 CLI 工具（如果版本不一致）
-  await autoUpdateCli();
-
-  // 已安装：ChatGPT++ 的入口就是补丁后的官方应用主界面，直接打开并退出自身；
-  // 未安装（首次使用）：显示引导面板执行安装。
-  // --panel：显式打开修复/卸载面板（开始菜单"ChatGPT++ 修复工具"）。
+  // 已安装：直接打开补丁后的官方应用并退出。
+  // 未安装：显示引导面板。--panel 打开修复/卸载面板。
   const panelOnly = process.argv.includes("--panel");
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string } | null;
   if (!panelOnly && state) {
     const opened = await openPatchedApp();
     if (opened.ok) {
-      if (splash && !splash.isDestroyed()) splash.close();
       app.quit();
       return;
     }
   }
-  const win = createWindow(splash);
+  const win = createWindow();
   logWindow = win;
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

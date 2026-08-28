@@ -15,9 +15,10 @@ import {
   startStatsigModelVisibilityMaintenance,
 } from "./statsig-patch";
 import { installReactHook } from "./react-hook";
-import { startSettingsInjector } from "./settings-injector";
+import { startSettingsInjector, stopSettingsInjector } from "./settings-injector";
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
 import { mountManager } from "./manager";
+import { isCompactPetWindow } from "./compact-window";
 
 const BROWSER_UI_CONNECT_PORT = "codexpp:browser-ui-connect-app-host";
 const BROWSER_UI_BRIDGE_REQUEST = "codexpp:browser-ui-bridge-request";
@@ -110,34 +111,52 @@ queueMicrotask(() => {
   }
 });
 
+function disarmPetWindow(): void {
+  teardownTweakHost();
+  stopSettingsInjector();
+}
+
+function watchPetWindow(): void {
+  if (isCompactPetWindow()) {
+    fileLog("skip tweaks: compact/pet window");
+    disarmPetWindow();
+    return;
+  }
+  const obs = new MutationObserver(() => {
+    if (!isCompactPetWindow()) return;
+    obs.disconnect();
+    fileLog("compact-window appeared; teardown tweaks");
+    disarmPetWindow();
+  });
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  if (document.body) {
+    obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  }
+}
+
 async function boot() {
   fileLog("boot start", { readyState: document.readyState });
   try {
+    if (isCompactPetWindow()) {
+      fileLog("skip tweaks: compact/pet window");
+      return;
+    }
     // 立即执行关键注入器，确保设置生效
     startSettingsInjector();
     fileLog("settings injector started");
 
-    // 延迟加载 tweaks，不阻塞窗口显示（优化首屏性能）
-    // 使用 requestIdleCallback 在浏览器空闲时加载
-    const loadTweaks = async () => {
-      try {
-        await startTweakHost();
-        fileLog("tweak host started");
-        await mountManager();
-        fileLog("manager mounted");
-        subscribeReload();
-        fileLog("boot complete");
-      } catch (e) {
-        fileLog("tweaks load FAILED", String((e as Error)?.stack ?? e));
-        console.error("[chatgpt-plusplus] tweaks load failed:", e);
-      }
-    };
-
-    // 优先使用 requestIdleCallback，降级到 setTimeout
-    if (typeof requestIdleCallback !== "undefined") {
-      requestIdleCallback(() => loadTweaks(), { timeout: 1000 });
-    } else {
-      setTimeout(() => loadTweaks(), 100);
+    // 立刻加载 tweaks。Dream Skin / 侧栏改动晚于首屏会闪原皮，idle 延迟不值得。
+    try {
+      await startTweakHost();
+      fileLog("tweak host started");
+      await mountManager();
+      fileLog("manager mounted");
+      subscribeReload();
+      watchPetWindow();
+      fileLog("boot complete");
+    } catch (e) {
+      fileLog("tweaks load FAILED", String((e as Error)?.stack ?? e));
+      console.error("[chatgpt-plusplus] tweaks load failed:", e);
     }
   } catch (e) {
     fileLog("boot FAILED", String((e as Error)?.stack ?? e));
@@ -151,6 +170,7 @@ let reloading: Promise<void> | null = null;
 function subscribeReload(): void {
   ipcRenderer.on("codexpp:tweaks-changed", () => {
     if (reloading) return;
+    if (isCompactPetWindow()) return;
     reloading = (async () => {
       try {
         console.info("[chatgpt-plusplus] hot-reloading tweaks");

@@ -4,7 +4,7 @@
  * 支持 ZIP 批量导出
  */
 
-// 内联简化版 JSZip 功能（使用原生 API）
+// ZIP 仅在用户点击批量导出时按需加载。
 let JSZipLoaded = false;
 
 module.exports = {
@@ -19,11 +19,6 @@ module.exports = {
         resolve();
       }
     });
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 加载 JSZip 库
-    await loadJSZip(api);
 
     // 注入样式
     injectStyles();
@@ -57,7 +52,7 @@ module.exports = {
 async function loadJSZip(api) {
   if (JSZipLoaded || window.JSZip) {
     JSZipLoaded = true;
-    return;
+    return true;
   }
 
   try {
@@ -72,9 +67,10 @@ async function loadJSZip(api) {
 
     JSZipLoaded = true;
     api.log.info('JSZip 库加载成功');
+    return true;
   } catch (error) {
     api.log.error('JSZip 库加载失败:', error);
-    // 降级到不使用 ZIP 的版本
+    return false;
   }
 }
 
@@ -439,13 +435,13 @@ function registerSettingsPage(api) {
           <!-- 批量导出部分 -->
           <div class="export-import-section">
             <h3>📦 批量导出</h3>
-            <p>导出所有会话为一个压缩包 ${window.JSZip && JSZipLoaded ? '<span style="color: #10a37f;">✓ ZIP 支持已启用</span>' : '<span style="color: #ff9800;">⚠️ ZIP 库加载中...</span>'}</p>
+            <p>导出所有会话为一个压缩包（ZIP 在点击导出时加载）</p>
             <div class="export-import-buttons">
               <button class="export-import-btn export-import-btn-secondary" id="export-all-btn">
                 <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M14 10V12.6667C14 13.0203 13.8595 13.3594 13.6095 13.6095C13.3594 13.8595 13.0203 14 12.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V10M11.3333 5.33333L8 2M8 2L4.66667 5.33333M8 2V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                ${window.JSZip && JSZipLoaded ? '导出全部为 ZIP' : '导出全部会话（逐个文件）'}
+                导出全部为 ZIP
               </button>
             </div>
             <div id="export-all-progress" style="display: none;" class="export-import-progress">
@@ -644,7 +640,7 @@ async function exportAllConversations(format, api, root, options = {}) {
     }
 
     // 检查是否支持 ZIP
-    const useZip = window.JSZip && JSZipLoaded;
+    const useZip = await loadJSZip(api);
 
     if (useZip) {
       statusDiv.textContent = '正在创建 ZIP 文件...';

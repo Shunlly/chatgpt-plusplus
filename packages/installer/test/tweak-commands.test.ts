@@ -347,6 +347,12 @@ test("Codex main candidates include nested recovered Vite bundle files", () => {
   });
 });
 
+test("cli 入口不静态导入 alerts", () => {
+  const src = readFileSync(new URL("../src/cli.ts", import.meta.url), "utf8");
+  assert.match(src, /from "\.\/issue-url\.js"/);
+  assert.doesNotMatch(src, /^import .* from "\.\/alerts\.js";/m);
+});
+
 test("patch failure report URL includes a prefilled GitHub issue", () => {
   const url = new URL(buildPatchFailureIssueUrl("Codex window services hook point not found"));
 

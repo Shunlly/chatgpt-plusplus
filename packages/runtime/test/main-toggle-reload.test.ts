@@ -10,7 +10,7 @@ const lifecycleSource = readFileSync(
   "utf8",
 );
 const bundledRuntime = readFileSync(
-  resolve(repoRoot, "packages/installer/assets/runtime/main.js"),
+  resolve(repoRoot, "packages/runtime/dist/main.js"),
   "utf8",
 );
 
@@ -20,6 +20,12 @@ const fullReloadSequence = [
   "loadAllMainTweaks",
   "broadcastReload",
 ];
+
+test("bundled runtime 不含 inline sourcemap", () => {
+  assert.equal(bundledRuntime.includes("sourceMappingURL"), false);
+  const preload = readFileSync(resolve(repoRoot, "packages/runtime/dist/preload.js"), "utf8");
+  assert.equal(preload.includes("sourceMappingURL"), false);
+});
 
 test("source toggle handler delegates enable changes to lifecycle helper", () => {
   const body = extractHandlerBody(runtimeSource, "codexpp:set-tweak-enabled");

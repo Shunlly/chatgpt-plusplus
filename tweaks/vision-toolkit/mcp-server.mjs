@@ -75,7 +75,7 @@ function resolveConfig(env, overlay) {
   };
 }
 
-const CONFIG = resolveConfig(process.env, loadOverlay());
+const CONFIG = resolveConfig(process.env, process.argv.includes("--ping") ? {} : loadOverlay());
 
 // Groq 限制：单请求图片 ≤ 20MB、最多 5 张。留一点余量给 base64 膨胀（约 4/3）。
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -616,6 +616,19 @@ function main() {
   });
 }
 
+const PING_PIXEL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+async function ping() {
+  if (!CONFIG.apiKey) {
+    throw new Error(CONFIG.lang === "en" ? "API key is not set" : "未配置 API Key");
+  }
+  const images = [await normalizeImage(PING_PIXEL)];
+  const question = CONFIG.lang === "en" ? "Reply with the single word ok." : "只回复一个词：ok";
+  const text = await describeImages(images, question);
+  process.stdout.write(JSON.stringify({ ok: true, model: CONFIG.model, text: text.slice(0, 240) }) + "\n");
+}
+
 if (process.argv.includes("--self-check")) {
   const c = resolveConfig(
     { VISION_MODEL: "from-env", VISION_API_KEY: "YOUR_VISION_API_KEY", VISION_BASE_URL: "https://env.example" },
@@ -630,4 +643,12 @@ if (process.argv.includes("--self-check")) {
   process.exit(0);
 }
 
-main();
+if (process.argv.includes("--ping")) {
+  ping().then(() => process.exit(0)).catch((e) => {
+    const error = e instanceof Error ? e.message : String(e);
+    process.stdout.write(JSON.stringify({ ok: false, error: error.slice(0, 300) }) + "\n");
+    process.exit(1);
+  });
+} else {
+  main();
+}

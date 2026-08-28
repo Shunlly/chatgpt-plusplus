@@ -2,7 +2,7 @@
 // payload 组装后能被 JS 解析（防止占位符替换遗漏导致运行期语法错误）。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -48,11 +48,29 @@ test("dream-skin 随包资源完整且图片不超 1 MiB 资源上限", () => {
   for (const dir of presetDirs) {
     const themePath = join(tweakRoot, "presets", dir, "theme.json");
     const theme = JSON.parse(readFileSync(themePath, "utf8"));
-    assert.equal(theme.id, dir);
+    assert.equal(typeof theme.id, "string");
+    assert.ok(theme.id.length > 0, `${dir} 缺少 theme.id`);
+    const canvas = theme.schemaVersion === 2 && theme.type === "canvas";
     const imagePath = join(tweakRoot, "presets", dir, theme.image || "background.jpg");
+    if (canvas) {
+      assert.equal(existsSync(imagePath), false, `${dir} 画布主题不应再带静图`);
+      continue;
+    }
     const size = statSync(imagePath).size;
     assert.ok(size > 0 && size <= 1024 * 1024, `${dir} 图片 ${size} 超出 1 MiB 资源上限`);
   }
+});
+
+test("会话页 main 不裁切 composer，装饰层不抢输入", () => {
+  const css = readFileSync(join(tweakRoot, "assets/dream-skin.css"), "utf8");
+  assert.match(css, /main\[data-app-shell-main-surface\]\.dream-skin-home-shell \{\s*isolation: isolate;/);
+  assert.match(css, /#codex-dream-skin-chrome \* \{\s*pointer-events: none !important;/);
+  assert.match(css, /\[class\*="ComposerLayoutRoot"\] \{[\s\S]*?pointer-events: auto !important;/);
+  const start = css.indexOf("html.codex-dream-skin:not(.compact-window) main[data-app-shell-main-surface] {");
+  const end = css.indexOf("}", start);
+  const mainRule = css.slice(start, end + 1);
+  assert.equal(/overflow:\s*hidden/.test(mainRule), false);
+  assert.equal(/isolation:\s*isolate/.test(mainRule), false);
 });
 
 test("dream-skin 新版首页识别会清除欢迎区白色面板", () => {
@@ -77,15 +95,31 @@ test("dream-skin 侧边栏观察器隐藏不扫描且 200ms 合并", () => {
   const src = readFileSync(join(tweakRoot, "index.js"), "utf8");
   assert.match(src, /function scheduleMainNav\(api\) \{\n  if \(document\.hidden\) return;/);
   assert.match(src, /mainNavTimer = setTimeout\(\(\) => \{\n    mainNavTimer = null;\n    syncMainNav\(api\);\n  \}, 200\);/);
-  assert.match(src, /new MutationObserver\(\(\) => scheduleMainNav\(api\)\)/);
+  assert.match(src, /observe\(mainNavObservedRoot/);
+  assert.match(src, /querySelector\("nav"\) \|\| document\.querySelector\("aside"\)/);
+});
+
+test("dream-skin 注入脚本忽略会话正文突变，且不观察 main 尺寸", () => {
+  const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
+  assert.match(template, /const mutationTouchesShell = \(records\) =>/);
+  assert.match(template, /el\.closest\("main"\)/);
+  assert.equal(template.includes("resizeObserver?.observe(shellMain)"), false);
+});
+
+test("canvas 预设不先拉 background.jpg", () => {
+  const src = readFileSync(join(tweakRoot, "index.js"), "utf8");
+  assert.match(src, /function isCanvasTheme\(theme\)/);
+  assert.match(src, /async function loadPresetArt\(api, presetId, theme\)/);
+  assert.match(src, /const artUrl = await loadPresetArt\(api, sel\.id, theme\)/);
 });
 
 test("dream-skin payload 组装后可被 JS 解析（无占位符残留）", () => {
   const css = readFileSync(join(tweakRoot, "assets/dream-skin.css"), "utf8");
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
-  const presetDir = readdirSync(join(tweakRoot, "presets")).find((name) =>
-    statSync(join(tweakRoot, "presets", name)).isDirectory(),
-  );
+  const presetDir = readdirSync(join(tweakRoot, "presets")).find((name) => {
+    const dir = join(tweakRoot, "presets", name);
+    return statSync(dir).isDirectory() && existsSync(join(dir, "background.jpg"));
+  });
   const theme = JSON.parse(
     readFileSync(join(tweakRoot, "presets", presetDir, "theme.json"), "utf8"),
   );
