@@ -7,6 +7,15 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.5
+
+宠物浮层不再把插件装进去，强退留下的帮手启动时清掉。
+
+### Fixed
+
+- 宠物活动槽 `avatar-overlay-composition-surface` 不再跑 Dream Skin / 设置注入，避免整应用卡死。
+- 启动时清掉强退残留的 crashpad、修饰键监听和视觉 MCP（crashpad 只杀比当前主进程更早启动的，不误杀 Chrome）。
+
 ## 1.1.4
 
 视觉工具箱真正能被模型调到，关掉时还在跑的会话会在宠物上留下入口。
