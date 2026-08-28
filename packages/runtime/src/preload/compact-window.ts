@@ -13,3 +13,19 @@ export function isCompactPetWindow(
     return false;
   }
 }
+
+/** 宠物活动槽 / 徽章的独立 HTML，不是会话页。跑 tweak 会把整应用卡死。 */
+export function isAvatarOverlaySurface(
+  locationLike: { href: string; search: string } = location,
+): boolean {
+  const href = locationLike.href || "";
+  return href.includes("avatar-overlay-composition-surface");
+}
+
+export function shouldSkipTweaks(
+  locationLike: { href: string; search: string } = location,
+  root: { classList: { contains(name: string): boolean } } | null = document.documentElement,
+  body: { classList: { contains(name: string): boolean } } | null = document.body,
+): boolean {
+  return isCompactPetWindow(locationLike, root, body) || isAvatarOverlaySurface(locationLike);
+}

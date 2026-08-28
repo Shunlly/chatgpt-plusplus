@@ -69,6 +69,7 @@ import {
   type TweakStorePlatform,
 } from "./tweak-store";
 import { maybeStartBrowserUiServer } from "./browser-ui";
+import { parseProcessTable, parsePsLstart, sweepOrphanHelpers } from "./orphan-helpers";
 
 const userRoot = process.env.CHATGPT_PLUSPLUS_USER_ROOT ?? process.env.CODEX_PLUSPLUS_USER_ROOT;
 const runtimeDir = process.env.CHATGPT_PLUSPLUS_RUNTIME ?? process.env.CODEX_PLUSPLUS_RUNTIME;
@@ -105,6 +106,7 @@ let interruptedState: InterruptedState = emptyState();
 let interruptedSaveTimer: NodeJS.Timeout | null = null;
 interruptedState = promoteCrashed(readInterruptedState(), Date.now());
 writeInterruptedState(true);
+sweepOrphanChatgptPlusPlusHelpers();
 
 // Optional: enable Chrome DevTools Protocol on a TCP port so we can drive the
 // running Codex from outside (curl http://localhost:<port>/json, attach via
@@ -2040,6 +2042,72 @@ function broadcastInterrupted(): void {
       wc.send("codexpp:interrupted-changed", interruptedState.interrupted);
     } catch {}
   }
+}
+
+
+function sweepOrphanChatgptPlusPlusHelpers(): void {
+  try {
+    const listed = spawnSync(
+      process.platform === "win32" ? "wmic" : "ps",
+      process.platform === "win32"
+        ? ["process", "get", "ProcessId,ParentProcessId,CommandLine", "/FORMAT:CSV"]
+        : ["-axo", "pid=,ppid=,lstart=,args="],
+      { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] },
+    );
+    if (listed.status !== 0 || !listed.stdout) return;
+    const rows = process.platform === "win32"
+      ? parseWmicCsv(listed.stdout)
+      : parsePsLstart(listed.stdout);
+    const killed = sweepOrphanHelpers({
+      selfPid: process.pid,
+      rows,
+      kill: (pid) => process.kill(pid, "SIGKILL"),
+    });
+    if (killed.length) log("info", `cleared ${killed.length} orphan helper(s)`, killed);
+  } catch (e) {
+    log("warn", "orphan helper sweep failed", String(e));
+  }
+}
+
+function parseWmicCsv(output: string): ReturnType<typeof parseProcessTable> {
+  const lines = output.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const iPid = header.findIndex((h) => h === "processid");
+  const iPpid = header.findIndex((h) => h === "parentprocessid");
+  const iCmd = header.findIndex((h) => h === "commandline");
+  if (iPid < 0 || iPpid < 0 || iCmd < 0) return [];
+  const rows = [];
+  for (const line of lines.slice(1)) {
+    const cols = parseCsvLine(line);
+    const pid = Number(cols[iPid]);
+    const ppid = Number(cols[iPpid]);
+    const command = cols[iCmd] || "";
+    if (!Number.isFinite(pid) || !command) continue;
+    rows.push({ pid, ppid: Number.isFinite(ppid) ? ppid : 0, command });
+  }
+  return rows;
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      q = !q;
+      continue;
+    }
+    if (ch === "," && !q) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
 }
 
 function isCompactBrowserWindow(win: Electron.BrowserWindow | null): boolean {

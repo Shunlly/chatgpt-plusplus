@@ -18,7 +18,7 @@ import { installReactHook } from "./react-hook";
 import { startSettingsInjector, stopSettingsInjector } from "./settings-injector";
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
 import { mountManager } from "./manager";
-import { isCompactPetWindow } from "./compact-window";
+import { isCompactPetWindow, shouldSkipTweaks } from "./compact-window";
 import {
   installRunningThreadCapture,
   noteViewMessage,
@@ -89,8 +89,10 @@ try {
   fileLog("statsig model visibility patch", statsigPatchResult);
   // 新版 Codex 运行中会刷新 Statsig 把 use_hidden_models 写回 true，
   // 启动打一次不够；持续维护保证自定义 model_catalog 模型不被隐藏。
-  startStatsigModelVisibilityMaintenance({ onChange: (changed) =>
-    fileLog("statsig model visibility re-patch", { changed }) });
+  if (!shouldSkipTweaks()) {
+    startStatsigModelVisibilityMaintenance({ onChange: (changed) =>
+      fileLog("statsig model visibility re-patch", { changed }) });
+  }
 } catch (e) {
   fileLog("statsig model visibility patch FAILED", String(e));
 }
@@ -124,10 +126,10 @@ function disarmPetWindow(): void {
 }
 
 function watchPetWindow(): void {
-  if (isCompactPetWindow()) {
+  if (shouldSkipTweaks()) {
     fileLog("skip tweaks: compact/pet window");
     disarmPetWindow();
-    startInterruptedPetOverlay();
+    if (isCompactPetWindow()) startInterruptedPetOverlay();
     return;
   }
   const obs = new MutationObserver(() => {
@@ -146,9 +148,9 @@ function watchPetWindow(): void {
 async function boot() {
   fileLog("boot start", { readyState: document.readyState });
   try {
-    if (isCompactPetWindow()) {
+    if (shouldSkipTweaks()) {
       fileLog("skip tweaks: compact/pet window");
-      startInterruptedPetOverlay();
+      if (isCompactPetWindow()) startInterruptedPetOverlay();
       return;
     }
     // 立即执行关键注入器，确保设置生效
@@ -180,7 +182,7 @@ let reloading: Promise<void> | null = null;
 function subscribeReload(): void {
   ipcRenderer.on("codexpp:tweaks-changed", () => {
     if (reloading) return;
-    if (isCompactPetWindow()) return;
+    if (shouldSkipTweaks()) return;
     reloading = (async () => {
       try {
         console.info("[chatgpt-plusplus] hot-reloading tweaks");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { isCompactPetWindow } from "../src/preload/compact-window";
+import { isAvatarOverlaySurface, isCompactPetWindow, shouldSkipTweaks } from "../src/preload/compact-window";
 
 function cls(on: boolean) {
   return { classList: { contains: (name: string) => on && name === "compact-window" } };
@@ -20,7 +20,8 @@ test("宠物窗启动中断会话条，但不跑 tweak 宿主", () => {
   const src = readFileSync(resolve(process.cwd(), "packages/runtime/src/preload/index.ts"), "utf8");
   assert.match(src, /startInterruptedPetOverlay\(\)/);
   assert.match(src, /skip tweaks: compact\/pet window/);
-  assert.match(src, /if \(isCompactPetWindow\(\)\) return;/);
+  assert.match(src, /if \(shouldSkipTweaks\(\)\)/);
+  assert.match(src, /if \(isCompactPetWindow\(\)\) startInterruptedPetOverlay\(\)/);
 });
 
 test("打开中断会话不会把宠物窗当主窗", () => {
@@ -30,4 +31,15 @@ test("打开中断会话不会把宠物窗当主窗", () => {
   const body = src.slice(start, start + 1200);
   assert.match(body, /!isCompactBrowserWindow\(win\)/);
   assert.match(body, /createFreshWindow/);
+});
+
+test("宠物活动槽 HTML 跳过 tweak，主会话页不跳过", () => {
+  const overlay = { href: "app://-/avatar-overlay-composition-surface.html?surfaceId=activity-slot-1", search: "?surfaceId=activity-slot-1" };
+  const pet = { href: "app://-/index.html?initialRoute=%2Favatar-overlay", search: "?initialRoute=%2Favatar-overlay" };
+  const main = { href: "app://-/index.html", search: "" };
+  assert.equal(isAvatarOverlaySurface(overlay), true);
+  assert.equal(isCompactPetWindow(overlay, cls(false), cls(false)), false);
+  assert.equal(shouldSkipTweaks(overlay, cls(false), cls(false)), true);
+  assert.equal(shouldSkipTweaks(pet, cls(false), cls(false)), true);
+  assert.equal(shouldSkipTweaks(main, cls(false), cls(false)), false);
 });
