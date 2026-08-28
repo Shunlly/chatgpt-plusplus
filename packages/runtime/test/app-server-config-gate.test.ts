@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   catalogFingerprint,
+  catalogPathFromToml,
+  enableCatalogImageInput,
   isCodexAppServerSpawn,
 } from "../src/app-server-config-gate";
 
@@ -25,4 +27,39 @@ test("catalogFingerprint 跟踪 model_catalog_json 路径和目标文件", () =>
   assert.notEqual(a, b);
   assert.notEqual(a, c);
   assert.equal(catalogFingerprint("foo = 1\n"), null);
+});
+
+test("相对 model_catalog_json 相对 config 目录解析", () => {
+  assert.equal(
+    catalogPathFromToml('model_catalog_json = "sub2api-model-catalog.json"\n', "/tmp/codex"),
+    "/tmp/codex/sub2api-model-catalog.json",
+  );
+  assert.equal(
+    catalogPathFromToml('model_catalog_json = "/abs/catalog.json"\n', "/tmp/codex"),
+    "/abs/catalog.json",
+  );
+});
+
+test("给仅 text 的模型补上 image，已有 image 的不动", () => {
+  const raw = JSON.stringify({
+    models: [
+      { slug: "a", input_modalities: ["text"] },
+      { slug: "b", input_modalities: ["text", "image"] },
+      { slug: "c", input_modalities: ["TEXT"] },
+    ],
+  });
+  const once = enableCatalogImageInput(raw);
+  assert.equal(once.changed, 2);
+  const models = JSON.parse(once.json).models;
+  assert.deepEqual(models[0].input_modalities, ["text", "image"]);
+  assert.deepEqual(models[1].input_modalities, ["text", "image"]);
+  assert.deepEqual(models[2].input_modalities, ["TEXT", "image"]);
+  assert.equal(enableCatalogImageInput(once.json).changed, 0);
+});
+
+test("坏 JSON 不改写", () => {
+  const raw = "{not json";
+  const out = enableCatalogImageInput(raw);
+  assert.equal(out.changed, 0);
+  assert.equal(out.json, raw);
 });

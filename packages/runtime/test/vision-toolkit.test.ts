@@ -88,3 +88,31 @@ test("mcp --ping 无 key 跟随 VISION_LANG", () => {
   assert.equal(json.ok, false);
   assert.equal(json.error, "API key is not set");
 });
+
+test("vision_glance 说明跟白名单走，并禁止 view_image", () => {
+  assert.match(mcp, /function buildToolInstructions\(enabledModels, selfPath\)/);
+  assert.match(mcp, /enabledModels\.join\(" \/ "\)/);
+  assert.match(mcp, /view_image/);
+  assert.match(mcp, /instructions: TOOL_INSTRUCTIONS/);
+});
+
+test("mcp 实现 resources/list 空列表", () => {
+  assert.match(mcp, /case "resources\/list"/);
+});
+
+test("mcp --glance 缺参数退出 2", () => {
+  const r = spawnSync(
+    process.execPath,
+    [resolve(tweakDir, "mcp-server.mjs"), "--glance"],
+    { encoding: "utf8", timeout: 5000, env: { PATH: process.env.PATH } },
+  );
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /--glance/);
+});
+
+test("视觉请求用 fetch，大图走 sips 压缩", () => {
+  assert.match(mcp, /await fetch\(/);
+  assert.match(mcp, /function shrinkIfNeeded/);
+  assert.match(mcp, /sips/);
+  assert.equal(mcp.includes("spawn(\"curl\""), false);
+});

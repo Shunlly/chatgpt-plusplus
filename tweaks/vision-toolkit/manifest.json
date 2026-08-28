@@ -1,7 +1,7 @@
 {
   "id": "com.chatgpt-plusplus.vision-toolkit",
   "name": "视觉工具箱",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "为纯文本模型接入云端视觉能力：看图问答、OCR、识别（通过 MCP 工具 vision_glance）",
   "githubRepo": "Shunlly/chatgpt-plusplus",
   "author": "ChatGPT++ Team",
@@ -9,7 +9,10 @@
   "main": "index.js",
   "mcp": {
     "command": "node",
-    "args": ["--max-old-space-size=128", "mcp-server.mjs"],
+    "args": [
+      "--max-old-space-size=128",
+      "mcp-server.mjs"
+    ],
     "env": {
       "VISION_BASE_URL": "https://api.groq.com/openai/v1",
       "VISION_MODEL": "qwen/qwen3.6-27b",
@@ -19,8 +22,16 @@
       "VISION_MAX_TOKENS": "1024",
       "VISION_IDLE_EXIT_MINUTES": "30",
       "VISION_ENABLED_MODELS": "deepseek-v4-flash,deepseek-v4-pro,glm-5.2,glm-5.3,qwen3.7-max"
-    }
+    },
+    "name": "visiontoolkit"
   },
-  "permissions": ["network"],
-  "tags": ["vision", "multimodal", "mcp", "tools"]
+  "permissions": [
+    "network"
+  ],
+  "tags": [
+    "vision",
+    "multimodal",
+    "mcp",
+    "tools"
+  ]
 }

@@ -13,6 +13,7 @@ tweak-declared servers into Codex's `~/.codex/config.toml`.
   "githubRepo": "you/tools",
   "scope": "main",
   "mcp": {
+    "name": "tools",
     "command": "node",
     "args": ["mcp-server.js"],
     "env": {
@@ -39,13 +40,16 @@ The managed block is rewritten when tweaks reload.
 
 ## Server Names
 
-The default server name is derived from the tweak id:
+Set `mcp.name` to letters and digits only, for example `"visiontoolkit"`.
+Codex turns `-` / `_` in the server name into `.` when listing tools, and then
+the configured server no longer matches (`unknown MCP server 'com.chatgpt.plusplus.vision.toolkit'`).
 
-- `co.bennett.project-home` -> `project-home`
-- `com.you.tools` -> `com-you-tools`
+If `mcp.name` is omitted, ChatGPT++ derives a name from the tweak id by
+stripping punctuation to dotted segments (`com.chatgpt-plusplus.vision-toolkit`
+→ `com.chatgpt.plusplus.vision.toolkit`). Prefer an explicit `mcp.name`.
 
 If a generated name conflicts with another managed name, ChatGPT++ appends
-`-2`, `-3`, and so on.
+`.2`, `.3`, and so on.
 
 If the user already has a manual `[mcp_servers.<name>]` entry outside the
 managed block, ChatGPT++ skips that managed server instead of overwriting it.
@@ -69,5 +73,6 @@ removes its managed MCP entry on the next reload.
 
 ## Validation
 
-`manifest.mcp.command` must be a non-empty string. `args` must be string array
-when present. `env` must be an object of string values.
+`manifest.mcp.command` must be a non-empty string. Optional `mcp.name` must
+match `^[a-zA-Z][a-zA-Z0-9]{0,63}$`. `args` must be a string array when present.
+`env` must be an object of string values.

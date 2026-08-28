@@ -7,6 +7,21 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.4
+
+视觉工具箱真正能被模型调到，关掉时还在跑的会话会在宠物上留下入口。
+
+### Added
+
+- 进行中关掉 ChatGPT++：重启后宠物窗列出中断会话，可点进主窗。
+- README 补上插件说明和视觉工具箱截图。
+
+### Fixed
+
+- MCP 服务名改为 `visiontoolkit`，不再报 `unknown MCP server 'com.chatgpt.plusplus.vision.toolkit'`。
+- 纯文本模型目录补上 `image` 输入，输入框能传图。
+- `vision_glance` 改用 `fetch`，大图先压缩，并提供 `--glance` 回退。
+
 ## 1.1.3
 
 稳定性修复 + 视觉工具箱配置体验。

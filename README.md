@@ -2,236 +2,120 @@
 
 **English** | [简体中文](./README.zh-CN.md)
 
-ChatGPT++ lets you install local tweaks into the OpenAI ChatGPT desktop app. Tweaks
-can change UI, add settings pages, run main-process code, and use native
-OS-level features through the ChatGPT++ bridge.
-[Join the Discord community](https://discord.gg/6bY6gGX36H).
+Local tweaks for the OpenAI ChatGPT / Codex desktop app: themes, vision for text-only models, conversation import/export. The runtime lives in your user data directory, not inside the app bundle.
+[Discord](https://discord.gg/6bY6gGX36H)
 
-<img width="1400" alt="ChatGPT++ main sidebar with the Dream Skin Theme entry" src="docs/screenshots/main-nav.png" />
+<img width="1400" alt="ChatGPT++ sidebar with Plugins and Theme" src="docs/screenshots/main-nav.png" />
 
-> Unofficial project. Not affiliated with OpenAI. Use at your own risk.
-
-## TL;DR
-
-ChatGPT++ patches your local ChatGPT app so ChatGPT loads a small ChatGPT++ runtime on
-startup.
-
-That runtime lives in your user data directory, not inside ChatGPT. It finds
-tweaks in a local `tweaks/` folder and loads them when ChatGPT opens.
-
-The app patch is tiny. Your tweaks, config, logs, backups, and runtime files
-stay outside the app bundle, so you can edit tweaks without rebuilding ChatGPT.
-
-When ChatGPT updates, the patch is usually removed. ChatGPT++ installs a watcher
-that notices this and re-applies the patch.
-
-1.0.0 adds cleaner patching, better debug output, Owl runtime detection,
-browser-host debugging, and native bridge support for AppKit, Metal, helper
-processes, and tweak-owned native modules.
-
-## Table Of Contents
-
-- [Install](#install)
-- [What ChatGPT++ Is](#what-chatgpt-is)
-- [How It Works](#how-it-works)
-- [Common Commands](#common-commands)
-- [Where Files Live](#where-files-live)
-- [Writing Tweaks](#writing-tweaks)
-- [Dream Skin Theme](#dream-skin-theme)
-- [Owl And Native Bridge](#owl-and-native-bridge)
-- [Browser Host Mode](#browser-host-mode)
-- [Updates And Recovery](#updates-and-recovery)
-- [Security](#security)
-- [More Docs](#more-docs)
+> Unofficial. Not affiliated with OpenAI. Use at your own risk.
 
 ## Install
 
-Agentic install, from Codex:
+Grab a package from [GitHub Releases](https://github.com/Shunlly/chatgpt-plusplus/releases) (no Node.js required):
 
-```text
-Inspect and install this for me: https://github.com/Shunlly/chatgpt-plusplus
-Tell me where you install it and send me the local path for adding new tweaks.
-```
+| OS | File |
+|---|---|
+| macOS Apple Silicon | `ChatGPT++-<version>-macos-arm64.dmg` |
+| Windows x64 | `ChatGPT++-<version>-win-x64-setup.exe` |
 
-Homebrew:
+- macOS: open the dmg, drag `ChatGPT++.app` into Applications. If macOS says it is damaged: `xattr -dr com.apple.quarantine "/Applications/ChatGPT++.app"`, then right-click Open.
+- Windows: run the setup. It patches ChatGPT/Codex on finish. Start Menu has “Install & Repair”.
+
+Installer installs update from Releases, not from `chatgptplusplus update`.
+
+Other options:
 
 ```sh
 brew install Shunlly/chatgpt-plusplus/chatgptplusplus
 chatgptplusplus install
 ```
 
-Installer packages (DMG / EXE):
-
-GitHub Releases ships self-contained installers (no Node.js needed): `.dmg` for macOS and `*-setup.exe` for Windows.
-
-- macOS: open the dmg, double-click `ChatGPT++.app` (or drag it into Applications); a Terminal window opens and runs `install`.
-- Windows: run the setup; it patches ChatGPT/Codex on finish, with an "Install & Repair" entry in the Start menu.
-
-Installer installs are separate from source installs. To update an installer install, download the new installer from GitHub Releases (`update` prints this hint instead of overwriting the binary).
-
-GitHub source installer:
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Shunlly/chatgpt-plusplus/main/install.sh | bash
 ```
-
-Windows PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/Shunlly/chatgpt-plusplus/main/install.ps1 | iex
 ```
 
-Bun:
+Launch **ChatGPT++**. The sidebar should show **Plugins** and **Theme**. Settings has ChatGPT++ pages: Config / Plugins / Store.
 
-```sh
-bun install -g github:Shunlly/chatgpt-plusplus
-chatgptplusplus install
-```
+## Built-in plugins
 
-After install, launch ChatGPT++. Open Settings and look for the ChatGPT++
-section.
+Open sidebar **Plugins**, or Settings → ChatGPT++ → **Plugins**. Each card has an on/off switch; cards with a GitHub repo also have **Update**.
 
-## What ChatGPT++ Is
+<img width="1400" alt="Plugins page with Vision Toolkit, Dream Skin, import/export, delete" src="docs/screenshots/plugins.png" />
 
-ChatGPT++ is a tweak loader for the ChatGPT desktop app.
+| Plugin | What it does |
+|---|---|
+| **Vision Toolkit** | Lets text-only models (DeepSeek, etc.) look at images |
+| **Dream Skin** | Themes; upload a photo to pull colors |
+| **Conversation export/import** | Markdown / JSON / HTML |
+| **Conversation delete** | Delete button on the thread list |
 
-It gives you:
+### Vision Toolkit
 
-- A local `tweaks/` folder.
-- A runtime that loads renderer and main-process tweaks.
-- A ChatGPT++ Settings section inside ChatGPT.
-- CLI tools for install, repair, update, debug, and tweak development.
-- A watcher that repairs ChatGPT++ after ChatGPT updates.
-- A public SDK for tweak authors.
-- Native bridge APIs for advanced macOS tweaks.
+Text-only models cannot see pixels. This plugin adds MCP tool `vision_glance`: it sends the image to your configured vision API and returns text to the current model.
 
-It does not replace ChatGPT, proxy your account, or run a separate ChatGPT clone.
-It modifies your installed app so it can load local code.
+**Configure it first or sending a picture will do nothing.**
 
-## How It Works
+1. Open **Plugins**, find **Vision Toolkit**, make sure it is on.
+2. Click **Configure** on the card.
+3. Fill API key, base URL, and model. Default is Groq’s OpenAI-compatible API; keys: [console.groq.com](https://console.groq.com/keys).
+4. Click **Test connection**. Save when it says connected.
+5. **Fully quit and reopen ChatGPT++** (Force Reload is not enough; the MCP process must restart).
+6. Pick a model on the allowlist (e.g. `deepseek-v4-pro`), attach an image, ask what is in it.
 
-Install flow:
+<img width="1100" alt="Vision Toolkit config: API key, endpoint, model, allowlist, test" src="docs/screenshots/vision-config.png" />
 
-1. ChatGPT++ finds your ChatGPT app.
-2. It backs up the unpatched app files.
-3. It patches ChatGPT `app.asar` so a ChatGPT++ loader runs first.
-4. It stages the ChatGPT++ runtime in your user data directory.
-5. It re-signs the app when needed.
-6. It installs a watcher for future ChatGPT updates.
+Notes:
 
-Runtime flow:
+- Config is stored at `tweak-data/com.chatgpt-plusplus.vision-toolkit/config.json` and survives upgrades.
+- Only **allowlisted** text-only models call `vision_glance`. Do not add native vision models (GPT-4o, Gemini, …).
+- MCP server name is `visiontoolkit` (letters/digits only). Restart after every config change.
+- Details: [tweaks/vision-toolkit/README.md](./tweaks/vision-toolkit/README.md).
 
-1. You launch ChatGPT++.
-2. The ChatGPT++ loader starts.
-3. The loader starts the ChatGPT++ runtime from disk.
-4. ChatGPT starts normally.
-5. ChatGPT++ discovers enabled tweaks.
-6. Renderer tweaks run in ChatGPT windows.
-7. Main-process tweaks run in the ChatGPT main process.
-8. The Settings UI shows ChatGPT++ pages and tweak controls.
+### Dream Skin
 
-## Common Commands
+Sidebar **Theme**: presets plus custom themes from an uploaded image.
+
+![Dream Skin theme page](docs/screenshots/theme-page.png)
+
+### Interrupted chats on the pet
+
+If you quit ChatGPT++ while a turn is still running, the pet window lists **Interrupted** chats after relaunch. Click the title to open it in the main window; × dismisses it.
+
+## Commands
 
 | Command | What it does |
 |---|---|
-| `chatgptplusplus install` | Patch ChatGPT and install the runtime. |
-| `chatgptplusplus status` | Show installed version and patch state. |
-| `chatgptplusplus debug` | Show app path, runtime type, paths, open state, and bridge status. |
-| `chatgptplusplus repair` | Re-apply the patch after an app update or broken install. |
-| `chatgptplusplus update` | Update ChatGPT++ from the latest GitHub release. |
-| `chatgptplusplus update-codex` | Prepare ChatGPT for its official updater, then re-patch after restart. |
-| `chatgptplusplus doctor` | Diagnose signatures, integrity, permissions, and common failures. |
-| `chatgptplusplus safe-mode` | Disable all tweaks without deleting them. |
-| `chatgptplusplus safe-mode --off` | Leave safe mode. |
-| `chatgptplusplus uninstall` | Remove ChatGPT++ and restore the app when safe. |
-| `chatgptplusplus uninstall --purge` | Also delete tweaks, config, logs, backups, and ChatGPT++ user data. |
+| `chatgptplusplus install` | Patch the app and install the runtime |
+| `chatgptplusplus status` | Version and patch state |
+| `chatgptplusplus repair` | Re-patch after an official app update |
+| `chatgptplusplus update` | Update from GitHub (installer builds point you at Releases) |
+| `chatgptplusplus doctor` | Signatures, permissions, common failures |
+| `chatgptplusplus safe-mode` | Disable all tweaks |
+| `chatgptplusplus uninstall` | Uninstall; `--purge` also deletes config/logs |
 
-Tweak development commands:
+Tweak dev: `create-tweak` / `validate-tweak` / `dev`.
 
-| Command | What it does |
-|---|---|
-| `chatgptplusplus create-tweak ./my-tweak` | Create a new tweak folder. |
-| `chatgptplusplus validate-tweak ./my-tweak` | Validate a tweak manifest and entry file. |
-| `chatgptplusplus dev ./my-tweak` | Link a local tweak into ChatGPT++ for development. |
-
-Source checkout commands:
-
-```sh
-npm run build
-npm test
-node packages/installer/dist/cli.js install
-node packages/installer/dist/cli.js debug
-```
-
-## Where Files Live
-
-ChatGPT++ keeps almost everything outside ChatGPT++.
+## Where files live
 
 | Item | Location |
 |---|---|
-| Loader patch | Inside ChatGPT `app.asar` |
-| Runtime | `<user-data-dir>/runtime/` |
-| Tweaks | `<user-data-dir>/tweaks/` |
-| Tweak data | `<user-data-dir>/tweak-data/` |
-| Config | `<user-data-dir>/config.json` |
-| State | `<user-data-dir>/state.json` |
-| Logs | `<user-data-dir>/log/` |
-| Backups | `<user-data-dir>/backup/` |
+| Runtime | `<user-data>/runtime/` |
+| Tweaks | `<user-data>/tweaks/` |
+| Tweak data (incl. vision config) | `<user-data>/tweak-data/` |
+| Config / logs / backups | `<user-data>/config.json` `log/` `backup/` |
 
-Default user data paths:
+macOS: `~/Library/Application Support/chatgpt-plusplus/`  
+Windows: `%APPDATA%/chatgpt-plusplus/`
 
-| OS | Path |
-|---|---|
-| macOS | `~/Library/Application Support/chatgpt-plusplus/` |
-| Windows | `%APPDATA%/chatgpt-plusplus/` |
-| Linux | `$XDG_DATA_HOME/chatgpt-plusplus/` or `~/.local/share/chatgpt-plusplus/` |
+## Writing tweaks
 
-On Windows Store installs, ChatGPT++ also creates a writable managed app copy
-under `%LOCALAPPDATA%/chatgpt-plusplus/store-apps/`. Use the ChatGPT++ shortcut for
-that copy.
+A folder with `manifest.json` + `index.js`. Full guide: [Writing Tweaks](./docs/WRITING-TWEAKS.md).
 
-## Writing Tweaks
-
-A tweak is a folder with a manifest and an entry file:
-
-```text
-my-tweak/
-  manifest.json
-  index.js
-```
-
-Minimal `manifest.json`:
-
-```json
-{
-  "id": "com.you.my-tweak",
-  "name": "My Tweak",
-  "version": "0.1.0",
-  "githubRepo": "you/my-tweak",
-  "description": "Adds a ChatGPT++ settings page.",
-  "scope": "renderer",
-  "main": "index.js"
-}
-```
-
-Minimal `index.js`:
-
-```js
-module.exports = {
-  start(api) {
-    api.settings.registerPage({
-      id: "main",
-      title: api.manifest.name,
-      render(root) {
-        root.textContent = "Hello from ChatGPT++.";
-      },
-    });
-  },
-  stop() {},
-};
-```
-
-Local dev loop:
+MCP tweaks declare `mcp` in the manifest. Server names must be letters/digits only (`"name": "visiontoolkit"`). See [MCP](./docs/tweaks/mcp.md).
 
 ```sh
 chatgptplusplus create-tweak ./my-tweak --id com.you.my-tweak --name "My Tweak"
@@ -239,172 +123,44 @@ chatgptplusplus validate-tweak ./my-tweak
 chatgptplusplus dev ./my-tweak
 ```
 
-Full docs are in [Writing Tweaks](./docs/WRITING-TWEAKS.md).
+## Owl / native bridge
 
-## Dream Skin Theme
+macOS ChatGPT uses Owl. Probe with `chatgptplusplus debug`. Native APIs: [native bridge](./docs/tweaks/native-bridge.md).
 
-This repo ships `tweaks/dream-skin`, a theme switcher that restyles the ChatGPT
-desktop app from uploaded images.
-
-- A **Theme** entry in the main sidebar: New chat → Pull requests → Scheduled → Plugins → **Theme**.
-- One-click switching between saved preset and custom themes.
-- Create a new theme by uploading an image; colors are extracted and applied to the whole app.
-- The new-chat composer stays visible without scrolling, ready to type immediately.
-
-![Dream Skin theme manager](docs/screenshots/theme-page.png)
-
-## Owl And Native Bridge
-
-Current macOS ChatGPT builds use Owl: a native app shell with Chromium and an
-Electron-compatible JavaScript runtime.
-
-ChatGPT++ 1.0.0 detects Owl and reports capability status through:
-
-```sh
-chatgptplusplus debug
-```
-
-Tweak authors should use the ChatGPT++ SDK, not raw Owl internals:
-
-- `api.codex.runtime.getInfo()`
-- `api.codex.runtime.getCapabilities()`
-- `api.codex.windows.*`
-- `api.codex.cdp.*`
-- `api.codex.native.*`
-
-Native bridge support includes:
-
-- Tweak-owned `.node` modules.
-- Objective-C++/N-API shims for Swift, AppKit, Metal, and MetalKit.
-- Native child panels.
-- Metal-backed child-window overlays.
-- Helper processes.
-
-Start with [Native Bridge](./docs/tweaks/native-bridge.md).
-
-## Browser Host Mode
-
-Browser host mode opens the ChatGPT UI in a normal browser tab while a
-hidden ChatGPT window provides the private app bridge:
+## Browser host (experimental)
 
 ```sh
 chatgptplusplus browser --port 8765
 ```
 
-Then open:
+Then open `http://127.0.0.1:8765/`.
 
-```text
-http://127.0.0.1:8765/
-```
-
-This is useful for debugging and browser automation. It is experimental. The
-in-app browser uses iframe shims in this mode, so some websites may block
-embedding.
-
-## Updates And Recovery
-
-Update ChatGPT++:
-
-```sh
-chatgptplusplus update
-```
-
-> When installed from a dmg/exe package, `update` does not replace the binary — it points you to the latest GitHub release. `repair` still works as usual.
-
-Run the official ChatGPT updater on macOS:
-
-```sh
-chatgptplusplus update-codex
-```
-
-Repair ChatGPT++:
+## Updates and recovery
 
 ```sh
 chatgptplusplus repair --force
-```
-
-Disable tweaks temporarily:
-
-```sh
 chatgptplusplus safe-mode
-```
-
-Re-enable normal tweak loading:
-
-```sh
-chatgptplusplus safe-mode --off
-```
-
-Uninstall:
-
-```sh
-chatgptplusplus uninstall
-```
-
-Clean uninstall, including tweaks/config/logs/backups:
-
-```sh
 chatgptplusplus uninstall --purge
 ```
 
+Official ChatGPT updates often strip the patch; the watcher tries to restore it. If not, `repair`.
+
 ## Security
 
-ChatGPT++ runs local code inside your ChatGPT desktop app. Install tweaks only from
-sources you trust.
+Tweaks run local code inside ChatGPT. Install only what you trust. ChatGPT++ does not silently overwrite tweak files. See [SECURITY.md](./SECURITY.md).
 
-Important details:
+## Requirements
 
-- ChatGPT++ does not silently update tweak files.
-- Tweak update checks link to GitHub Releases for review.
-- Native tweaks can run native code and need extra review.
-- Native bridge paths are restricted to files inside the tweak directory.
-- Tweak data APIs default to ChatGPT++'s user data directory.
+macOS 14+ / Windows 10 1809+ / Linux (systemd). 8GB RAM recommended. [Performance](./docs/PERFORMANCE.md), [troubleshooting](./docs/TROUBLESHOOTING.md).
 
-See [Security](./SECURITY.md).
-
-## System Requirements And Known Issues
-
-**System requirements:**
-
-- macOS 14.0+ / Windows 10 1809+ / Linux (systemd) — ChatGPT++ patches the local
-  ChatGPT/Codex desktop app, so it inherits the app's platform support.
-- 8 GB RAM recommended (16 GB+ for heavy use). See
-  [Performance](./docs/PERFORMANCE.md) for monitoring commands and low-end device tips.
-
-**Known issues:**
-
-- **watcher 卡死（v1.0.25 及更早）**：GitHub API 请求无超时，网络黑洞时 watcher
-  可能无限等待并烧满 CPU。v1.0.26+ 已加进程级 5 分钟看门狗 + 30 秒请求超时；
-  旧版本请升级并清理卡死进程（见 [Troubleshooting](./docs/TROUBLESHOOTING.md)）。
-- **Electron 崩溃**：渲染进程偶发崩溃时主进程会记录
-  `render-process-gone`（reason/exitCode）到 `log/main.log`，反馈 issue 时请附上。
-- **依赖安全**：`brace-expansion`/`tar` 高危漏洞已在 v1.0.26 修复
-  （`npm audit` 0 漏洞）。
-
-## More Docs
+## More docs
 
 - [Architecture](./docs/ARCHITECTURE.md)
-- [Troubleshooting](./docs/TROUBLESHOOTING.md)
-- [Performance](./docs/PERFORMANCE.md)
-- [Writing Tweaks](./docs/WRITING-TWEAKS.md)
-- [Tweak API Reference](./docs/tweaks/api-reference.md)
-- [Manifest Reference](./docs/tweaks/manifest.md)
-- [Runtime And Lifecycle](./docs/tweaks/runtime-lifecycle.md)
-- [UI And DOM Patterns](./docs/tweaks/ui-and-dom.md)
-- [MCP Servers](./docs/tweaks/mcp.md)
-- [Owl Runtime Surface](./docs/OWL-RUNTIME.md)
-- [Owl Bridge Roadmap](./docs/OWL-BRIDGE-ROADMAP.md)
-
-## Credits
-
-ChatGPT++ is a continuation of the tweak system for the Codex desktop app.
-The MIT license header retains the original copyright (c) 2026 Bennett.
-
-## Contributors
-
-- [Alex Naidis (@TheCrazyLex)](https://github.com/TheCrazyLex) - macOS
-  permission hardening and sudo install handling.
+- [Writing tweaks](./docs/WRITING-TWEAKS.md)
+- [Tweak API](./docs/tweaks/api-reference.md)
+- [Manifest](./docs/tweaks/manifest.md)
+- [MCP](./docs/tweaks/mcp.md)
 
 ## License
 
-MIT.
+MIT. Upstream copyright (c) 2026 Bennett.

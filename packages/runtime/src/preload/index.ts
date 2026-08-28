@@ -19,6 +19,11 @@ import { startSettingsInjector, stopSettingsInjector } from "./settings-injector
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
 import { mountManager } from "./manager";
 import { isCompactPetWindow } from "./compact-window";
+import {
+  installRunningThreadCapture,
+  noteViewMessage,
+  startInterruptedPetOverlay,
+} from "./interrupted-pet";
 
 const BROWSER_UI_CONNECT_PORT = "codexpp:browser-ui-connect-app-host";
 const BROWSER_UI_BRIDGE_REQUEST = "codexpp:browser-ui-bridge-request";
@@ -73,6 +78,8 @@ function safeStringify(v: unknown): string {
 }
 
 fileLog("preload entry", { url: location.href });
+installRunningThreadCapture();
+
 
 // 在 Codex 页面脚本执行前，把 Statsig 缓存里的 use_hidden_models 改为 false，
 // 否则官方 UI 会隐藏 model_catalog_json 自定义模型（表现为模型目录加载不出来）。
@@ -120,6 +127,7 @@ function watchPetWindow(): void {
   if (isCompactPetWindow()) {
     fileLog("skip tweaks: compact/pet window");
     disarmPetWindow();
+    startInterruptedPetOverlay();
     return;
   }
   const obs = new MutationObserver(() => {
@@ -127,6 +135,7 @@ function watchPetWindow(): void {
     obs.disconnect();
     fileLog("compact-window appeared; teardown tweaks");
     disarmPetWindow();
+    startInterruptedPetOverlay();
   });
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   if (document.body) {
@@ -139,6 +148,7 @@ async function boot() {
   try {
     if (isCompactPetWindow()) {
       fileLog("skip tweaks: compact/pet window");
+      startInterruptedPetOverlay();
       return;
     }
     // 立即执行关键注入器，确保设置生效
@@ -240,6 +250,7 @@ async function runBrowserUiBridgeMethod(
     case "usesOwlAppShell":
       return ipcRenderer.sendSync(DESKTOP_GET_USES_OWL_APP_SHELL) === true;
     case "sendMessageFromView":
+      noteViewMessage(args[0]);
       return ipcRenderer.invoke(DESKTOP_MESSAGE_FROM_VIEW, args[0]);
     case "sendWorkerMessageFromView":
       return ipcRenderer.invoke(desktopWorkerFromViewChannel(String(args[0])), args[1]);

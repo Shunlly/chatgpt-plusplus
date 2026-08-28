@@ -8,7 +8,7 @@
  * code). The renderer-side runtime is bundled separately into preload.js.
  */
 import { app, BrowserView, BrowserWindow, clipboard, ipcMain, session, shell, webContents } from "electron";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -27,6 +27,16 @@ import {
   setTweakEnabledAndReload,
 } from "./tweak-lifecycle";
 import { appendCappedLog } from "./logging";
+import {
+  applyRunning,
+  dismissThread,
+  emptyState,
+  normalizeThread,
+  parseState,
+  promoteCrashed,
+  type InterruptedState,
+  type ThreadRef,
+} from "./interrupted-threads";
 import {
   getCdpStatus,
   getRuntimeCapabilities,
@@ -79,6 +89,9 @@ const INSTALLER_STATE_FILE = join(userRoot, "state.json");
 const UPDATE_MODE_FILE = join(userRoot, "update-mode.json");
 const SELF_UPDATE_STATE_FILE = join(userRoot, "self-update-state.json");
 const SIGNED_CODEX_BACKUP = join(userRoot, "backup", "Codex.app");
+const INTERRUPTED_THREADS_FILE = join(userRoot, "interrupted-threads.json");
+const DESKTOP_MESSAGE_FOR_VIEW = "codex_desktop:message-for-view";
+
 declare const __CHATGPT_PLUSPLUS_VERSION__: string;
 const CHATGPT_PLUSPLUS_VERSION = __CHATGPT_PLUSPLUS_VERSION__;
 const CHATGPT_PLUSPLUS_REPO = "Shunlly/chatgpt-plusplus";
@@ -87,6 +100,11 @@ const CODEX_WINDOW_SERVICES_KEY = "__codexpp_window_services__";
 
 mkdirSync(LOG_DIR, { recursive: true });
 mkdirSync(TWEAKS_DIR, { recursive: true });
+
+let interruptedState: InterruptedState = emptyState();
+let interruptedSaveTimer: NodeJS.Timeout | null = null;
+interruptedState = promoteCrashed(readInterruptedState(), Date.now());
+writeInterruptedState(true);
 
 // Optional: enable Chrome DevTools Protocol on a TCP port so we can drive the
 // running Codex from outside (curl http://localhost:<port>/json, attach via
@@ -617,6 +635,7 @@ app.on("will-quit", () => {
   stopAllMainTweaks();
   nativeBridge.disposeAll();
   disposeAllOwlViews();
+  writeInterruptedState(true);
   // Best-effort flush of any pending storage writes.
   for (const t of tweakState.loadedMain.values()) {
     try {
@@ -842,6 +861,48 @@ ipcMain.handle("codexpp:user-paths", () => ({
   tweaksDir: TWEAKS_DIR,
   logDir: LOG_DIR,
 }));
+
+ipcMain.on("codexpp:running-threads", (_e, running: unknown) => {
+  if (!Array.isArray(running)) return;
+  const at = Date.now();
+  const threads: ThreadRef[] = [];
+  const seen = new Set<string>();
+  for (const item of running) {
+    const thread = normalizeThread(item, at);
+    if (!thread || seen.has(thread.id)) continue;
+    seen.add(thread.id);
+    threads.push(thread);
+  }
+  const next = applyRunning(interruptedState, threads);
+  if (sameInterrupted(interruptedState, next)) return;
+  interruptedState = next;
+  writeInterruptedState();
+  broadcastInterrupted();
+});
+
+ipcMain.handle("codexpp:list-interrupted-threads", () => interruptedState.interrupted);
+
+ipcMain.handle("codexpp:dismiss-interrupted-thread", (_e, id: unknown) => {
+  if (typeof id !== "string" || !id) return interruptedState.interrupted;
+  interruptedState = dismissThread(interruptedState, id);
+  writeInterruptedState();
+  broadcastInterrupted();
+  return interruptedState.interrupted;
+});
+
+ipcMain.handle("codexpp:open-interrupted-thread", (e, id: unknown) => {
+  if (typeof id !== "string" || !id) return false;
+  const thread = interruptedState.interrupted.find((item) => item.id === id)
+    ?? interruptedState.running.find((item) => item.id === id);
+  if (!thread) return false;
+  const opened = openCodexThreadRoute(thread.path);
+  if (!opened) return false;
+  interruptedState = dismissThread(interruptedState, id);
+  writeInterruptedState();
+  broadcastInterrupted();
+  hideCompactSender(e.sender);
+  return true;
+});
 
 ipcMain.handle("codexpp:codex-runtime-info", () => currentRuntimeInfo());
 ipcMain.handle("codexpp:codex-runtime-capabilities", () => currentRuntimeCapabilities());
@@ -1936,7 +1997,107 @@ function assertTweakId(tweakId: string): void {
   if (!/^[a-zA-Z0-9._-]+$/.test(tweakId)) throw new Error("bad tweak id");
 }
 
+function sameInterrupted(a: InterruptedState, b: InterruptedState): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function readInterruptedState(): InterruptedState {
+  try {
+    if (!existsSync(INTERRUPTED_THREADS_FILE)) return emptyState();
+    return parseState(JSON.parse(readFileSync(INTERRUPTED_THREADS_FILE, "utf8")));
+  } catch {
+    return emptyState();
+  }
+}
+
+function writeInterruptedState(flush = false): void {
+  const persist = () => {
+    interruptedSaveTimer = null;
+    try {
+      const tmp = `${INTERRUPTED_THREADS_FILE}.tmp`;
+      writeFileSync(tmp, JSON.stringify(interruptedState), "utf8");
+      renameSync(tmp, INTERRUPTED_THREADS_FILE);
+    } catch (e) {
+      log("warn", "interrupted-threads flush failed", String(e));
+    }
+  };
+  if (flush) {
+    if (interruptedSaveTimer) {
+      clearTimeout(interruptedSaveTimer);
+      interruptedSaveTimer = null;
+    }
+    persist();
+    return;
+  }
+  if (interruptedSaveTimer) return;
+  interruptedSaveTimer = setTimeout(persist, 50);
+}
+
+function broadcastInterrupted(): void {
+  for (const wc of webContents.getAllWebContents()) {
+    try {
+      if (wc.isDestroyed()) continue;
+      wc.send("codexpp:interrupted-changed", interruptedState.interrupted);
+    } catch {}
+  }
+}
+
+function isCompactBrowserWindow(win: Electron.BrowserWindow | null): boolean {
+  if (!win || win.isDestroyed()) return false;
+  try {
+    return new URL(win.webContents.getURL()).searchParams.has("initialRoute");
+  } catch {
+    return false;
+  }
+}
+
+function getMainCodexWindow(): Electron.BrowserWindow | null {
+  const primary = getPrimaryCodexWindow();
+  if (primary && !isCompactBrowserWindow(primary)) return primary;
+  return BrowserWindow.getAllWindows().find((win) => !win.isDestroyed() && !isCompactBrowserWindow(win))
+    ?? primary;
+}
+
+function hideCompactSender(sender: Electron.WebContents): void {
+  const win = BrowserWindow.fromWebContents(sender);
+  if (!win || win.isDestroyed() || !isCompactBrowserWindow(win)) return;
+  try {
+    win.hide();
+  } catch {}
+}
+
+function openCodexThreadRoute(path: string): boolean {
+  if (typeof path !== "string" || !path.startsWith("/") || path.includes("://")) return false;
+  const services = getCodexWindowServices();
+  const wm = asRecord(services?.windowManager);
+  const win = getMainCodexWindow();
+  const message = { type: "navigate-to-route", path };
+  // 宠物/hotkey 窗带 initialRoute，不能当主窗跳，否则点完又把自己藏掉。
+  if (win && !win.isDestroyed() && !isCompactBrowserWindow(win)) {
+    try {
+      if (typeof wm?.sendMessageToWindow === "function") {
+        wm.sendMessageToWindow(win, message);
+      } else if (typeof wm?.sendMessageToWebContents === "function") {
+        wm.sendMessageToWebContents(win.webContents, message);
+      } else {
+        win.webContents.send(DESKTOP_MESSAGE_FOR_VIEW, message);
+      }
+    } catch (e) {
+      log("warn", "navigate interrupted thread failed", String(e));
+      return false;
+    }
+    return focusCodexWindow(win.id);
+  }
+  const create = services?.createFreshWindow;
+  if (typeof create === "function") {
+    void create.call(services, path);
+    return true;
+  }
+  return false;
+}
+
 function getPrimaryCodexWindow(): Electron.BrowserWindow | null {
+
   const services = getCodexWindowServices();
   const fromServices = typeof services?.getPrimaryWindow === "function"
     ? services.getPrimaryWindow("local")

@@ -16,7 +16,7 @@
  *   VISION_LANG       zh | en（描述语言，默认 zh）
  *   VISION_MAX_TOKENS 描述长度上限（默认 1024）
  *
- * 依赖：仅 Node 内置模块（spawn curl 发 HTTP 请求）。不引任何第三方包。
+ * 依赖：仅 Node 内置模块（fetch 发 HTTP；macOS 大图用 sips 压缩）。不引任何第三方包。
  */
 
 import fs from "node:fs";
@@ -200,6 +200,53 @@ async function normalizeImage(input) {
   };
 }
 
+const SHRINK_MIN_BYTES = 200 * 1024;
+const SHRINK_EDGE = 1280;
+
+function runCmd(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let err = "";
+    child.stderr.on("data", (c) => { err += c; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(err.trim() || `${cmd} exit ${code}`));
+    });
+  });
+}
+
+/** 大图压成 JPEG 再上传。macOS 用自带 sips，别的平台原样发送。 */
+async function shrinkIfNeeded(img) {
+  if (!img?.base64 || (img.bytes || 0) < SHRINK_MIN_BYTES) return img;
+  if (process.platform !== "darwin") return img;
+  const raw = Buffer.from(img.base64, "base64");
+  const inFile = path.join(os.tmpdir(), `vt-${process.pid}-${Date.now()}`);
+  const outFile = `${inFile}.jpg`;
+  fs.writeFileSync(inFile, raw);
+  try {
+    await runCmd("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "70", "-Z", String(SHRINK_EDGE), inFile, "--out", outFile]);
+    const out = fs.readFileSync(outFile);
+    if (out.length >= raw.length * 0.9) return img;
+    const base64 = out.toString("base64");
+    log(`图片压缩 ${raw.length} → ${out.length} bytes`);
+    return {
+      ...img,
+      mimeType: "image/jpeg",
+      base64,
+      bytes: out.length,
+      dataUri: `data:image/jpeg;base64,${base64}`,
+      url: `data:image/jpeg;base64,${base64}`,
+    };
+  } catch (e) {
+    log(`图片压缩跳过：${e instanceof Error ? e.message : String(e)}`);
+    return img;
+  } finally {
+    try { fs.unlinkSync(inFile); } catch {}
+    try { fs.unlinkSync(outFile); } catch {}
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Prompt 构造 —— focus hint 机制（把「为什么要看这张图」传给视觉模型）
 // ---------------------------------------------------------------------------
@@ -208,12 +255,12 @@ function buildVisionPrompt(question) {
   const q = (question || "").trim();
   if (CONFIG.lang === "en") {
     return q
-      ? `Look at the image(s) and answer this specific request, focusing only on what's relevant: ${q}`
-      : "Describe the image(s) in detail: layout, text content (OCR), UI elements, colors, and anything notable. Be precise and structured.";
+      ? `Answer using only what is needed: ${q}`
+      : "Briefly describe the image: key text, layout, notable UI. Short sentences.";
   }
   return q
-    ? `请看图并针对下面这个具体需求作答，只聚焦相关内容：${q}`
-    : "请详细描述图片内容：整体布局、其中的文字（OCR 逐字转录）、UI 元素、颜色，以及任何值得注意的细节。要求准确、有条理。";
+    ? `只回答相关内容：${q}`
+    : "简要描述图片：关键文字、布局、明显 UI。短句即可。";
 }
 
 // ---------------------------------------------------------------------------
@@ -322,48 +369,24 @@ async function describeImages(images, question) {
   const body = adapter.buildBody(images, prompt);
   const url = adapter.endpoint(CONFIG.baseUrl);
 
-  log(`调用视觉模型 ${CONFIG.model} @ ${url}（${images.length} 张图，协议 ${CONFIG.protocol}）`);
+  const t0 = Date.now();
+  log(`调用视觉模型 ${CONFIG.model} @ ${url}（${images.length} 张图，协议 ${CONFIG.protocol}，${images.reduce((n, i) => n + (i.bytes || 0), 0)} bytes）`);
 
-  const rawText = await new Promise((resolve, reject) => {
-    const payload = JSON.stringify(body);
-    const headers = adapter.headers();
-    const args = ["-s", "-X", "POST", url];
-    for (const [k, v] of Object.entries(headers)) {
-      args.push("-H", `${k}: ${v}`);
-    }
-    args.push("-d", "@-");
-    const curl = spawn("curl", args, { stdio: ["pipe", "pipe", "inherit"] });
-    let chunks = [];
-    curl.stdout.on("data", (c) => chunks.push(c));
-    curl.on("close", (code) => {
-      const text = Buffer.concat(chunks).toString("utf8");
-      if (code !== 0) {
-        reject(new Error(`curl 退出 ${code}：${text.slice(0, 200)}`));
-      } else {
-        // 尝试解析 JSON 判断 HTTP 错误(curl -s 不暴露状态码,需要从 body 推)
-        try {
-          const j = JSON.parse(text);
-          if (j.error) {
-            reject(new Error(`视觉模型报错：${JSON.stringify(j.error).slice(0, 300)}`));
-          } else {
-            resolve(text);
-          }
-        } catch {
-          // 不是 JSON,当成功的纯文本
-          resolve(text);
-        }
-      }
-    });
-    curl.on("error", (err) => reject(new Error(`spawn curl 失败：${err.message}`)));
-    curl.stdin.write(payload);
-    curl.stdin.end();
-  });
+  const res = await fetch(url, { method: "POST", headers: adapter.headers(), body: JSON.stringify(body) });
+  const rawText = await res.text();
+  log(`HTTP ${res.status} ${Date.now() - t0}ms body=${rawText.length}`);
+  if (!res.ok) {
+    throw new Error(`视觉模型 HTTP ${res.status}：${rawText.slice(0, 300)}`);
+  }
 
   let json;
   try {
     json = JSON.parse(rawText);
   } catch {
     throw new Error(`视觉模型返回非 JSON：${rawText.slice(0, 500)}`);
+  }
+  if (json.error) {
+    throw new Error(`视觉模型报错：${JSON.stringify(json.error).slice(0, 300)}`);
   }
 
   const text = stripThinkBlocks(adapter.parseText(json));
@@ -400,7 +423,7 @@ async function runVisionGlance(args) {
 
   const images = [];
   for (const item of list) {
-    images.push(await normalizeImage(item));
+    images.push(await shrinkIfNeeded(await normalizeImage(item)));
   }
 
   // 累计体积校验（针对 base64 图；远程 URL 不计入）
@@ -416,15 +439,30 @@ async function runVisionGlance(args) {
   return text;
 }
 
+function buildToolInstructions(enabledModels, selfPath) {
+  const who = enabledModels.length
+    ? `白名单模型（${enabledModels.join(" / ")}）`
+    : "看不见像素的纯文本模型";
+  const glanceCmd = `node --max-old-space-size=128 ${JSON.stringify(selfPath)} --glance`;
+  return (
+    `${who}看图必须调用 vision_glance（MCP 工具 mcp__visiontoolkit__vision_glance）。` +
+    "即使用户消息里已经有 <image> 或 input_image，你也看不见像素。" +
+    "不要用 view_image（只会把图再塞一遍），不要用 tesseract。" +
+    "把本地绝对路径、http(s) URL 或 data URI 传给 image，question 写你想问的。" +
+    (enabledModels.length ? "不在白名单里的原生多模态模型不要调用本工具。" : "") +
+    `若调用返回 unsupported call，立刻用 exec_command 执行：${glanceCmd} <图片绝对路径> [问题]，把 stdout 当作看图结果。`
+  );
+}
+
+const SELF_PATH = process.argv[1] || "mcp-server.mjs";
+const TOOL_INSTRUCTIONS = buildToolInstructions(CONFIG.enabledModels, SELF_PATH);
+
 const TOOLS = [
   {
     name: "vision_glance",
     description:
-      "【仅供纯文本模型使用】让不支持原生视觉的文本模型（如 DeepSeek、Qwen-Plus、Yi）「看」图片：看图问答、OCR 文字识别、UI/截图理解、内容描述。" +
-      "如果你本身支持视觉输入（GPT-4V / Claude 3.5 / Gemini / GPT-4o 等），请直接处理用户上传的图片，不要调用此工具。" +
-      "\n\n传入图片（本地文件路径、http(s) URL 或 data URI），可选传入 question 说明你想了解什么" +
-      "（作为 focus hint，会让识别结果更聚焦、更省 token）。返回图片内容的文字描述/答案，" +
-      "供模型据此继续推理。适用于：读截图里的报错、还原设计稿、识别图表数据、提取图片中的文字等。",
+      TOOL_INSTRUCTIONS +
+      " 看图问答、OCR、UI/截图理解、内容描述。返回文本供你继续推理。",
     inputSchema: {
       type: "object",
       properties: {
@@ -507,6 +545,7 @@ async function handleMessage(msg) {
           protocolVersion: PROTOCOL_VERSION,
           serverInfo: SERVER_INFO,
           capabilities: { tools: {} },
+          instructions: TOOL_INSTRUCTIONS,
         });
         return;
 
@@ -516,6 +555,18 @@ async function handleMessage(msg) {
 
       case "tools/list":
         sendResult(id, { tools: TOOLS });
+        return;
+
+      case "resources/list":
+        sendResult(id, { resources: [] });
+        return;
+
+      case "resources/templates/list":
+        sendResult(id, { resourceTemplates: [] });
+        return;
+
+      case "prompts/list":
+        sendResult(id, { prompts: [] });
         return;
 
       case "tools/call": {
@@ -639,14 +690,40 @@ if (process.argv.includes("--self-check")) {
   if (c.baseUrl !== "https://overlay.example") throw new Error("overlay baseUrl 应去掉尾斜杠");
   const d = resolveConfig({ VISION_API_KEY: "YOUR_VISION_API_KEY" }, {});
   if (d.apiKey !== "") throw new Error("占位 key 应视为未配置");
+  const ins = buildToolInstructions(["foo", "bar-*"], "/tmp/mcp-server.mjs");
+  if (!ins.includes("foo / bar-*")) throw new Error("说明应带上当前白名单");
+  if (!ins.includes("--glance")) throw new Error("说明应带上 --glance 回退");
+  if (buildToolInstructions([], "/tmp/x").includes("白名单模型（")) throw new Error("空白名单不应列出具体模型");
   process.stderr.write("self-check ok\n");
   process.exit(0);
+}
+
+async function glance(image, question) {
+  if (!CONFIG.apiKey) throw new Error("未配置 API Key");
+  const images = [await shrinkIfNeeded(await normalizeImage(image))];
+  return describeImages(images, question || "");
 }
 
 if (process.argv.includes("--ping")) {
   ping().then(() => process.exit(0)).catch((e) => {
     const error = e instanceof Error ? e.message : String(e);
     process.stdout.write(JSON.stringify({ ok: false, error: error.slice(0, 300) }) + "\n");
+    process.exit(1);
+  });
+} else if (process.argv.includes("--glance")) {
+  const rest = process.argv.slice(process.argv.indexOf("--glance") + 1);
+  const image = rest[0];
+  const question = rest.slice(1).join(" ");
+  if (!image) {
+    process.stderr.write("usage: mcp-server.mjs --glance <image> [question]\n");
+    process.exit(2);
+  }
+  glance(image, question).then((text) => {
+    process.stdout.write(text + (text.endsWith("\n") ? "" : "\n"));
+    process.exit(0);
+  }).catch((e) => {
+    const error = e instanceof Error ? e.message : String(e);
+    process.stderr.write(error + "\n");
     process.exit(1);
   });
 } else {

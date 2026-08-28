@@ -60,7 +60,10 @@ export function buildManagedMcpBlock(
     const mcp = normalizeMcpServer(tweak.manifest.mcp);
     if (!mcp) continue;
 
-    const baseName = mcpServerNameFromTweakId(tweak.manifest.id);
+    const baseName =
+      mcp.name && /^[a-zA-Z][a-zA-Z0-9]{0,63}$/.test(mcp.name)
+        ? mcp.name
+        : mcpServerNameFromTweakId(tweak.manifest.id);
     if (manualNames.has(baseName)) {
       skippedServerNames.push(baseName);
       continue;
@@ -106,11 +109,14 @@ export function stripManagedMcpBlock(toml: string): string {
 
 export function mcpServerNameFromTweakId(id: string): string {
   const withoutPublisher = id.replace(/^co\.bennett\./, "");
+  // Codex resources/list 会把工具名前缀的 `_` 还原成 `.`。名字里如果有 `-`，
+  // 会变成 `com.chatgpt.plusplus.vision.toolkit` 这种点号 id，对不上带横杠的配置键。
   const slug = withoutPublisher
-    .replace(/[^a-zA-Z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .replace(/\.+/g, ".")
     .toLowerCase();
-  return slug || "tweak-mcp";
+  return slug || "tweak.mcp";
 }
 
 function findMcpServerNames(toml: string): Set<string> {
@@ -129,7 +135,7 @@ function reserveUniqueName(baseName: string, usedNames: Set<string>): string {
     return baseName;
   }
   for (let i = 2; ; i += 1) {
-    const candidate = `${baseName}-${i}`;
+    const candidate = `${baseName}.${i}`;
     if (!usedNames.has(candidate)) {
       usedNames.add(candidate);
       return candidate;

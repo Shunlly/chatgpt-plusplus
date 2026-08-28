@@ -9,10 +9,14 @@ import {
   syncManagedMcpServers,
 } from "../src/mcp-sync";
 
-test("mcpServerNameFromTweakId matches Bennett tweak names", () => {
-  assert.equal(mcpServerNameFromTweakId("co.bennett.native-widgets"), "native-widgets");
-  assert.equal(mcpServerNameFromTweakId("co.bennett.project-home"), "project-home");
-  assert.equal(mcpServerNameFromTweakId("com.example.my-widget"), "com-example-my-widget");
+test("mcpServerNameFromTweakId 去掉横杠，避免 Codex resources/list 对不上", () => {
+  assert.equal(mcpServerNameFromTweakId("co.bennett.native-widgets"), "native.widgets");
+  assert.equal(mcpServerNameFromTweakId("co.bennett.project-home"), "project.home");
+  assert.equal(mcpServerNameFromTweakId("com.example.my-widget"), "com.example.my.widget");
+  assert.equal(
+    mcpServerNameFromTweakId("com.chatgpt-plusplus.vision-toolkit"),
+    "com.chatgpt.plusplus.vision.toolkit",
+  );
 });
 
 test("buildManagedMcpBlock creates TOML entries and resolves local server scripts", () => {
@@ -35,9 +39,9 @@ test("buildManagedMcpBlock creates TOML entries and resolves local server script
       },
     ]);
 
-    assert.deepEqual(built.serverNames, ["native-widgets"]);
+    assert.deepEqual(built.serverNames, ["native.widgets"]);
     assert.equal(built.skippedServerNames.length, 0);
-    assert.match(built.block, /\[mcp_servers\.native-widgets\]/);
+    assert.match(built.block, /\[mcp_servers\."native\.widgets"\]/);
     assert.match(built.block, /command = "node"/);
     assert.match(built.block, new RegExp(`args = \\["${escapeRegExp(join(tweakDir, "mcp-server.js"))}"\\]`));
     assert.match(built.block, /env = \{ WIDGETS = "1" \}/);
@@ -56,12 +60,12 @@ test("buildManagedMcpBlock skips user-managed server names", () => {
           },
         },
       ],
-      `[mcp_servers.project-home]\ncommand = "node"\n`,
+      `[mcp_servers."project.home"]\ncommand = "node"\n`,
     );
 
     assert.equal(built.block, "");
     assert.deepEqual(built.serverNames, []);
-    assert.deepEqual(built.skippedServerNames, ["project-home"]);
+    assert.deepEqual(built.skippedServerNames, ["project.home"]);
   });
 });
 
@@ -88,14 +92,14 @@ test("syncManagedMcpServers updates only the managed config block", () => {
     assert.equal(first.changed, true);
     assert.match(afterFirst, /\[mcp_servers\.project-home\]/);
     assert.match(afterFirst, /# BEGIN CHATGPT\+\+ MANAGED MCP SERVERS/);
-    assert.match(afterFirst, /\[mcp_servers\.native-widgets\]/);
+    assert.match(afterFirst, /\[mcp_servers\."native\.widgets"\]/);
 
     const second = syncManagedMcpServers({ configPath, tweaks: [] });
     const afterSecond = readFileSync(configPath, "utf8");
 
     assert.equal(second.changed, true);
     assert.match(afterSecond, /\[mcp_servers\.project-home\]/);
-    assert.doesNotMatch(afterSecond, /native-widgets/);
+    assert.doesNotMatch(afterSecond, /native\.widgets/);
     assert.doesNotMatch(afterSecond, /CHATGPT\+\+ MANAGED/);
   });
 });
@@ -148,7 +152,7 @@ test("syncManagedMcpServers cleans up legacy CODEX++ managed blocks", () => {
     assert.doesNotMatch(next, /old-managed/);
     assert.doesNotMatch(next, /CODEX\+\+ MANAGED/);
     assert.match(next, /# BEGIN CHATGPT\+\+ MANAGED MCP SERVERS/);
-    assert.match(next, /\[mcp_servers\.native-widgets\]/);
+    assert.match(next, /\[mcp_servers\."native\.widgets"\]/);
   });
 });
 
@@ -182,3 +186,19 @@ function withTempDir(fn: (root: string) => void): void {
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+test("mcp.name 覆盖自动生成的服务名", () => {
+  withTempDir((root) => {
+    const built = buildManagedMcpBlock([
+      {
+        dir: root,
+        manifest: {
+          id: "com.chatgpt-plusplus.vision-toolkit",
+          mcp: { name: "visiontoolkit", command: "node", args: ["mcp-server.mjs"] },
+        },
+      },
+    ]);
+    assert.deepEqual(built.serverNames, ["visiontoolkit"]);
+    assert.match(built.block, /\[mcp_servers\.visiontoolkit\]/);
+  });
+});

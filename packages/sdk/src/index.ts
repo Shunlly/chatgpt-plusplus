@@ -53,6 +53,8 @@ export interface TweakManifest {
 export type TweakScope = "renderer" | "main" | "both";
 
 export interface TweakMcpServer {
+  /** 写入 config.toml 的 MCP 服务名。只用字母数字，避免 Codex 把 -/_ 还原成点号后找不到服务。 */
+  name?: string;
   /** Command to launch the MCP server, for example "node". */
   command: string;
   /** Optional launch arguments. Relative file arguments are resolved against the tweak dir. */
@@ -232,6 +234,14 @@ function validateMcpManifest(value: unknown, errors: TweakManifestIssue[]): void
   }
 
   requireString(value, "command", errors, "mcp.command");
+  if (value.name !== undefined) {
+    if (typeof value.name !== "string" || !/^[a-zA-Z][a-zA-Z0-9]{0,63}$/.test(value.name)) {
+      errors.push({
+        path: "mcp.name",
+        message: "mcp.name must be a letter followed by letters or digits",
+      });
+    }
+  }
 
   if (value.args !== undefined) {
     if (!Array.isArray(value.args) || !value.args.every((arg) => typeof arg === "string")) {
