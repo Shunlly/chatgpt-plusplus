@@ -68,9 +68,8 @@ function resolveConfig(env, overlay) {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
-    // 空闲多少分钟后自动退出（0 = 永不退出）。Codex 会给每个加载中的会话拉起
-    // 一个本进程且长期不回收，多会话并发时进程线性堆积；空闲自退能把闲置
-    // 会话占用的进程释放掉。
+    // 空闲多少分钟后自动退出（0 = 永不退出）。Codex 每个加载中的会话拉起
+    // 一个本进程且不回收。只按 tools/call 续命，ping/list 保活不算活跃。
     idleExitMinutes: Number.parseFloat(pick(overlay, env, "idleExitMinutes", "VISION_IDLE_EXIT_MINUTES", "30")) || 0,
   };
 }
@@ -504,9 +503,9 @@ async function dispatchTool(name, args) {
 // MCP JSON-RPC over stdio
 // ---------------------------------------------------------------------------
 
-// 空闲自退出：任何 stdin 消息（含 ping）都会重置计时；有视觉调用在途时顺延。
-// 注意：进程退出后，宿主对该会话再调 vision_glance 会得到一次错误，需要
-// 宿主重新拉起 server——这是「闲置会话不占内存」换来的代价，阈值可调。
+// 空闲自退出：只在启动和 tools/call 结束时重置。ping / tools/list 不算活跃，
+// 否则 Codex 保活会让进程永远退不掉。调用在途时顺延。
+// 退出后宿主再调 vision_glance 会先失败一次，再重新拉起——阈值可调。
 let idleTimer = null;
 let inFlightCalls = 0;
 
@@ -647,7 +646,6 @@ function main() {
   let buffer = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => {
-    armIdleExit();
     buffer += chunk;
     let index;
     while ((index = buffer.indexOf("\n")) >= 0) {

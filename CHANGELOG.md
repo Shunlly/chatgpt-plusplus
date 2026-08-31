@@ -7,6 +7,15 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.7
+
+长时间挂着不再把服务卡死：视觉 MCP 保活 ping 不再续命，启动时清掉胀到 1GB 以上的 Codex 日志库。
+
+### Fixed
+
+- 视觉工具箱 MCP：`ping` / `tools/list` 不再重置空闲退出。Codex 每个会话拉一个进程，保活 ping 会让它们永远堆着。
+- 启动时若 `~/.codex/logs_2.sqlite` 超过 1GB（常见是只删行不 VACUUM 涨出数 GB 空洞），直接丢掉让 Codex 重建，避免 app-server 写入卡死。
+
 ## 1.1.6
 
 插件更新能看见进度；视觉工具箱不再把原生多模态模型当成看不见图。

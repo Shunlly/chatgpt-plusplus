@@ -116,3 +116,11 @@ test("视觉请求用 fetch，大图走 sips 压缩", () => {
   assert.match(mcp, /sips/);
   assert.equal(mcp.includes("spawn(\"curl\""), false);
 });
+
+test("mcp 空闲退出不因 ping/list 续命，只在 tools/call 后重置", () => {
+  assert.match(mcp, /function armIdleExit\(/);
+  assert.match(mcp, /inFlightCalls -= 1;\s*armIdleExit\(\)/);
+  assert.match(mcp, /process\.stdin\.on\("data"/);
+  assert.equal(/stdin\.on\("data",[\s\S]*?armIdleExit\(/.test(mcp), false);
+});
+

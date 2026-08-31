@@ -70,6 +70,7 @@ import {
 } from "./tweak-store";
 import { maybeStartBrowserUiServer } from "./browser-ui";
 import { parseProcessTable, parsePsLstart, sweepOrphanHelpers } from "./orphan-helpers";
+import { compactOversizedCodexLogs } from "./codex-logs-compact";
 
 const userRoot = process.env.CHATGPT_PLUSPLUS_USER_ROOT ?? process.env.CODEX_PLUSPLUS_USER_ROOT;
 const runtimeDir = process.env.CHATGPT_PLUSPLUS_RUNTIME ?? process.env.CODEX_PLUSPLUS_RUNTIME;
@@ -107,6 +108,10 @@ let interruptedSaveTimer: NodeJS.Timeout | null = null;
 interruptedState = promoteCrashed(readInterruptedState(), Date.now());
 writeInterruptedState(true);
 sweepOrphanChatgptPlusPlusHelpers();
+{
+  const removed = compactOversizedCodexLogs(join(homedir(), ".codex"));
+  if (removed.length) log("info", `cleared oversized Codex logs (${removed.length} file(s))`);
+}
 
 // Optional: enable Chrome DevTools Protocol on a TCP port so we can drive the
 // running Codex from outside (curl http://localhost:<port>/json, attach via
