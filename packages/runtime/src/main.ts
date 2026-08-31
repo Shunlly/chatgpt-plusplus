@@ -19,7 +19,7 @@ import { shouldIgnoreTweakWatchPath, TWEAK_RELOAD_DEBOUNCE_MS } from "./tweak-wa
 import { createDiskStorage, type DiskStorage } from "./storage";
 import { syncManagedMcpServers } from "./mcp-sync";
 import { installAppServerConfigGate } from "./app-server-config-gate";
-import { findTweakRootById, githubTweakArchiveUrl, githubTweakUpdateRef } from "./tweak-github-update";
+import { findTweakRootById, githubTweakArchiveUrl, githubTweakUpdateRef, writeFetchBodyToFile, type TweakUpdateProgress } from "./tweak-github-update";
 import { getWatcherHealth } from "./watcher-health";
 import {
   isMainProcessTweakScope,
@@ -767,8 +767,15 @@ ipcMain.handle("codexpp:install-store-tweak", async (_e, id: string) => {
   return { installed: entry.id };
 });
 
-ipcMain.handle("codexpp:update-tweak-from-github", async (_e, id: string) => {
-  await updateTweakFromGithub(String(id ?? ""));
+ipcMain.handle("codexpp:update-tweak-from-github", async (e, id: string) => {
+  const tweakId = String(id ?? "");
+  await updateTweakFromGithub(tweakId, (p) => {
+    try {
+      e.sender.send("codexpp:tweak-update-progress", p);
+    } catch {
+      // 窗口已经关了
+    }
+  });
   reloadTweaks("github-tweak-update", tweakLifecycleDeps);
   return { ok: true };
 });
@@ -1459,7 +1466,10 @@ async function fetchTweakStoreRegistry(): Promise<TweakStoreFetchResult> {
   }
 }
 
-async function updateTweakFromGithub(id: string): Promise<void> {
+async function updateTweakFromGithub(
+  id: string,
+  onProgress?: (p: TweakUpdateProgress) => void,
+): Promise<void> {
   const tweak = tweakState.discovered.find((item) => item.manifest.id === id);
   if (!tweak) throw new Error(`tweak not found: ${id}`);
   const repo = tweak.manifest.githubRepo;
@@ -1478,9 +1488,13 @@ async function updateTweakFromGithub(id: string): Promise<void> {
       redirect: "follow",
     });
     if (!res.ok) throw new Error(`download failed: ${res.status}`);
-    writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+    await writeFetchBodyToFile(res, archive, (received, total) => {
+      onProgress?.({ id, phase: "download", received, total });
+    });
+    onProgress?.({ id, phase: "extract", received: 1, total: 1 });
     mkdirSync(extractDir, { recursive: true });
     extractTarArchive(archive, extractDir);
+    onProgress?.({ id, phase: "install", received: 1, total: 1 });
     const source = findTweakRootById(extractDir, id);
     if (!source) throw new Error(`archive 里没有 id=${id} 的 tweak`);
     const staged = join(work, "staged");

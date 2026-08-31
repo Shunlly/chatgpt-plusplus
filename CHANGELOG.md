@@ -7,6 +7,15 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.6
+
+插件更新能看见进度；视觉工具箱不再把原生多模态模型当成看不见图。
+
+### Fixed
+
+- 已安装插件点「更新」时显示下载/解压进度条，不再只有「更新中…」。
+- 视觉工具箱说明：白名单纯文本走 `vision_glance`，名单外多模态/全模态自己看图。
+
 ## 1.1.5
 
 宠物浮层不再把插件装进去，强退留下的帮手启动时清掉。

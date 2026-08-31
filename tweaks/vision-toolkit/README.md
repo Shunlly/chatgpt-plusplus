@@ -22,10 +22,10 @@ MCP 服务名必须是字母数字：`visiontoolkit`。名字里带 `-` 时，Co
 
 ## 白名单
 
-`VISION_ENABLED_MODELS`（配置表单里的「模型白名单」）控制谁可以调用 `vision_glance`。
+`VISION_ENABLED_MODELS` 只放**看不见图的纯文本模型**。
 
-- 只放**不能原生看图**的模型。
-- GPT-4o / Claude / Gemini 等原生视觉模型不要加，否则多绕一层还可能走错工具。
+- 名单内：必须调 `vision_glance`。
+- 名单外：原生多模态 / 全模态，图直接给模型（`input_image` / `view_image`），不要加进来。
 - 改白名单后同样要重启 ChatGPT++。
 
 ## 默认接口

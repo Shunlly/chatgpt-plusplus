@@ -89,10 +89,10 @@ test("mcp --ping 无 key 跟随 VISION_LANG", () => {
   assert.equal(json.error, "API key is not set");
 });
 
-test("vision_glance 说明跟白名单走，并禁止 view_image", () => {
+test("vision_glance 说明：白名单走 glance，名单外自己看图", () => {
   assert.match(mcp, /function buildToolInstructions\(enabledModels, selfPath\)/);
   assert.match(mcp, /enabledModels\.join\(" \/ "\)/);
-  assert.match(mcp, /view_image/);
+  assert.match(mcp, /原生多模态或全模态/);
   assert.match(mcp, /instructions: TOOL_INSTRUCTIONS/);
 });
 

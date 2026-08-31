@@ -2567,10 +2567,29 @@ function tweakRow(
       : `Open ${pages.map((p) => p.page.title).join(", ")}`;
     right.appendChild(configureBtn);
   }
+  let progressWrap: HTMLElement | null = null;
   if (m.githubRepo) {
+    progressWrap = document.createElement("div");
+    progressWrap.className = "px-3 pb-3";
+    progressWrap.hidden = true;
+    const bar = document.createElement("progress");
+    bar.className = "h-1.5 w-full";
+    bar.style.accentColor = "var(--color-token-text-primary, currentColor)";
+    bar.setAttribute("aria-label", "插件更新进度");
+    const hint = document.createElement("div");
+    hint.className = "mt-1 text-xs text-token-text-secondary";
+    progressWrap.append(bar, hint);
     const updateBtn = compactButton("更新", () => {
       updateBtn.disabled = true;
       updateBtn.textContent = "更新中…";
+      progressWrap!.hidden = false;
+      bar.removeAttribute("value");
+      hint.textContent = "下载中…";
+      const onProg = (_evt: unknown, p: { id: string; phase: string; received: number; total: number }) => {
+        if (p.id !== m.id) return;
+        applyTweakUpdateProgress(bar, hint, p);
+      };
+      ipcRenderer.on("codexpp:tweak-update-progress", onProg);
       void ipcRenderer
         .invoke("codexpp:update-tweak-from-github", m.id)
         .then(() => {
@@ -2580,7 +2599,11 @@ function tweakRow(
         .catch((e) => {
           updateBtn.disabled = false;
           updateBtn.textContent = "更新";
+          progressWrap!.hidden = true;
           showStoreToast(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => {
+          ipcRenderer.removeListener("codexpp:tweak-update-progress", onProg);
         });
     });
     updateBtn.title = "从 GitHub 拉取最新版本";
@@ -2603,6 +2626,7 @@ function tweakRow(
   header.appendChild(right);
 
   cell.appendChild(header);
+  if (progressWrap) cell.appendChild(progressWrap);
 
   // If the tweak is enabled and registered settings sections, render those
   // bodies as nested rows beneath the header inside the same cell.
@@ -2835,6 +2859,35 @@ function openInPlaceButton(label: string, onClick: () => void): HTMLButtonElemen
     onClick();
   });
   return btn;
+}
+
+function formatTweakUpdateBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function applyTweakUpdateProgress(
+  bar: HTMLProgressElement,
+  hint: HTMLElement,
+  p: { phase: string; received: number; total: number },
+): void {
+  if (p.phase === "download") {
+    if (p.total > 0) {
+      bar.max = p.total;
+      bar.value = p.received;
+      hint.textContent = `下载中 ${formatTweakUpdateBytes(p.received)} / ${formatTweakUpdateBytes(p.total)}`;
+    } else {
+      bar.removeAttribute("value");
+      hint.textContent = `下载中 ${formatTweakUpdateBytes(p.received)}`;
+    }
+    return;
+  }
+  if (p.total > 0) {
+    bar.max = 1;
+    bar.value = 1;
+  }
+  hint.textContent = p.phase === "extract" ? "解压中…" : "安装中…";
 }
 
 function compactButton(label: string, onClick: () => void): HTMLButtonElement {

@@ -440,17 +440,23 @@ async function runVisionGlance(args) {
 }
 
 function buildToolInstructions(enabledModels, selfPath) {
-  const who = enabledModels.length
-    ? `白名单模型（${enabledModels.join(" / ")}）`
-    : "看不见像素的纯文本模型";
   const glanceCmd = `node --max-old-space-size=128 ${JSON.stringify(selfPath)} --glance`;
-  return (
-    `${who}看图必须调用 vision_glance（MCP 工具 mcp__visiontoolkit__vision_glance）。` +
-    "即使用户消息里已经有 <image> 或 input_image，你也看不见像素。" +
-    "不要用 view_image（只会把图再塞一遍），不要用 tesseract。" +
+  const glanceHow =
     "把本地绝对路径、http(s) URL 或 data URI 传给 image，question 写你想问的。" +
-    (enabledModels.length ? "不在白名单里的原生多模态模型不要调用本工具。" : "") +
-    `若调用返回 unsupported call，立刻用 exec_command 执行：${glanceCmd} <图片绝对路径> [问题]，把 stdout 当作看图结果。`
+    `若调用返回 unsupported call，立刻用 exec_command 执行：${glanceCmd} <图片绝对路径> [问题]，把 stdout 当作看图结果。`;
+  if (!enabledModels.length) {
+    return (
+      "看不见像素的纯文本模型看图必须调用 vision_glance（MCP 工具 mcp__visiontoolkit__vision_glance）。" +
+      "即使用户消息里已经有 <image> 或 input_image，你也看不见像素。" +
+      "不要用 view_image（只会把图再塞一遍），不要用 tesseract。" +
+      glanceHow
+    );
+  }
+  return (
+    `仅白名单纯文本模型（${enabledModels.join(" / ")}）看图必须调用 vision_glance（MCP 工具 mcp__visiontoolkit__vision_glance）。` +
+    "这些模型看不见像素：不要用 view_image，不要用 tesseract。" +
+    glanceHow +
+    "不在白名单里的模型是原生多模态或全模态：直接看用户消息里的 <image> / input_image，本地文件用 view_image，禁止调用本工具。"
   );
 }
 
@@ -693,7 +699,12 @@ if (process.argv.includes("--self-check")) {
   const ins = buildToolInstructions(["foo", "bar-*"], "/tmp/mcp-server.mjs");
   if (!ins.includes("foo / bar-*")) throw new Error("说明应带上当前白名单");
   if (!ins.includes("--glance")) throw new Error("说明应带上 --glance 回退");
-  if (buildToolInstructions([], "/tmp/x").includes("白名单模型（")) throw new Error("空白名单不应列出具体模型");
+  if (!ins.includes("原生多模态或全模态")) throw new Error("说明应把名单外模型留给自己看图");
+  if (!ins.includes("禁止调用本工具")) throw new Error("名单外不应走 vision_glance");
+  if (ins.indexOf("仅白名单纯文本模型") > ins.indexOf("原生多模态或全模态")) throw new Error("白名单约束应先于原生多模态说明");
+  const empty = buildToolInstructions([], "/tmp/x");
+  if (empty.includes("白名单模型（") || empty.includes("仅白名单纯文本模型（")) throw new Error("空白名单不应列出具体模型");
+  if (empty.includes("原生多模态或全模态")) throw new Error("空白名单没有「名单外」分流");
   process.stderr.write("self-check ok\n");
   process.exit(0);
 }
