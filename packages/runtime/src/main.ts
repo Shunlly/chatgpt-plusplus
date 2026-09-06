@@ -69,6 +69,7 @@ import {
   type TweakStorePlatform,
 } from "./tweak-store";
 import { maybeStartBrowserUiServer } from "./browser-ui";
+import { installWindowBranding } from "./window-branding";
 import { parseProcessTable, parsePsLstart, sweepOrphanHelpers } from "./orphan-helpers";
 import { compactOversizedCodexLogs } from "./codex-logs-compact";
 
@@ -623,6 +624,11 @@ app.on("web-contents-created", (_e, wc) => {
   }
 });
 
+installWindowBranding({
+  app,
+  BrowserWindow,
+  log: (msg) => log("info", msg),
+});
 log("info", "main.ts evaluated; app.isReady=" + app.isReady());
 if (isChatgptPlusPlusSafeModeEnabled()) {
   log("warn", "safe mode is enabled; tweaks will not be loaded");
