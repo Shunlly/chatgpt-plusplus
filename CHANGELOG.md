@@ -7,6 +7,16 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.8
+
+Windows 26.825 起官方窗口标题变成 ChatGPT，打开 ChatGPT++ 看起来像进了官方 ChatGPT。现在标题和任务栏标识改回 ChatGPT++，启动器也优先打开真正的桌面主程序。
+
+### Fixed
+
+- 主窗口标题不再显示为 ChatGPT / Codex，改为 ChatGPT++
+- Windows 任务栏使用 `com.chatgpt-plusplus.app`，避免和官方 ChatGPT 挤在同一个图标
+- 启动器优先 `ChatGPT.exe`（26.825 的真实主程序）；`Codex.exe` 是更新垫片，不再优先启动
+
 ## 1.1.7
 
 长时间挂着不再把服务卡死：视觉 MCP 保活 ping 不再续命，启动时清掉胀到 1GB 以上的 Codex 日志库。

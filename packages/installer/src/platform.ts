@@ -380,13 +380,21 @@ function isWinCodexRoot(appRoot: string): boolean {
 }
 
 function findWinExecutable(appRoot: string): string {
-  try {
-    const exe = readdirSync(appRoot).find((name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name));
-    if (exe) return join(appRoot, exe);
-  } catch {}
-  return existsSync(join(appRoot, "Codex.exe"))
-    ? join(appRoot, "Codex.exe")
-    : join(appRoot, "ChatGPT.exe");
+  const names = (() => {
+    try {
+      return readdirSync(appRoot).filter((name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name));
+    } catch {
+      return [] as string[];
+    }
+  })();
+  const preferred = names.find((name) => name.toLowerCase() === "chatgpt.exe")
+    ?? names.find((name) => name.toLowerCase() === "codex.exe")
+    ?? names[0];
+  if (preferred) return join(appRoot, preferred);
+  for (const name of ["ChatGPT.exe", "Codex.exe"]) {
+    if (existsSync(join(appRoot, name))) return join(appRoot, name);
+  }
+  return join(appRoot, "ChatGPT.exe");
 }
 
 function findWindowsStoreCodexInstalls(): { name: string; installLocation: string | null }[] {

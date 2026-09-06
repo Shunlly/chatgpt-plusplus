@@ -19,6 +19,7 @@ import { startSettingsInjector, stopSettingsInjector } from "./settings-injector
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
 import { mountManager } from "./manager";
 import { isCompactPetWindow, shouldSkipTweaks } from "./compact-window";
+import { brandedWindowTitle } from "../window-branding";
 import {
   installRunningThreadCapture,
   noteViewMessage,
@@ -77,8 +78,23 @@ function safeStringify(v: unknown): string {
   }
 }
 
+function startDocumentTitleBranding(): void {
+  if (shouldSkipTweaks()) return;
+  const apply = (): void => {
+    const next = brandedWindowTitle(document.title);
+    if (next && document.title !== next) document.title = next;
+  };
+  apply();
+  setInterval(apply, 1500);
+  const titleEl = document.querySelector("title");
+  if (titleEl) {
+    new MutationObserver(apply).observe(titleEl, { childList: true, characterData: true, subtree: true });
+  }
+}
+
 fileLog("preload entry", { url: location.href });
 installRunningThreadCapture();
+startDocumentTitleBranding();
 
 
 // 在 Codex 页面脚本执行前，把 Statsig 缓存里的 use_hidden_models 改为 false，

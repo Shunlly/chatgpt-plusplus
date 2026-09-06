@@ -170,12 +170,15 @@ export function openCodex(appRoot: string, opts: OpenCodexOptions = {}): void {
 
 function winAppExecutable(appRoot: string): string | null {
   try {
-    const exe = readdirSync(appRoot).find(
+    const names = readdirSync(appRoot).filter(
       (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
     );
-    if (exe) return join(appRoot, exe);
+    const preferred = names.find((name) => name.toLowerCase() === "chatgpt.exe")
+      ?? names.find((name) => name.toLowerCase() === "codex.exe")
+      ?? names[0];
+    if (preferred) return join(appRoot, preferred);
   } catch {}
-  for (const name of ["Codex.exe", "ChatGPT.exe"]) {
+  for (const name of ["ChatGPT.exe", "Codex.exe"]) {
     if (existsSync(join(appRoot, name))) return join(appRoot, name);
   }
   return null;
