@@ -9,13 +9,14 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 
 ## 1.1.8
 
-Windows 26.825 起官方窗口标题变成 ChatGPT，打开 ChatGPT++ 看起来像进了官方 ChatGPT。现在标题和任务栏标识改回 ChatGPT++，启动器也优先打开真正的桌面主程序。
+Windows 26.825 起官方窗口标题变成 ChatGPT，打开 ChatGPT++ 看起来像进了官方 ChatGPT。现在标题和任务栏标识改回 ChatGPT++，启动器也优先打开真正的桌面主程序。长会话侧栏能滑不能点，是 Dream Skin 旧副本还在观察 main 尺寸。
 
 ### Fixed
 
 - 主窗口标题不再显示为 ChatGPT / Codex，改为 ChatGPT++
 - Windows 任务栏使用 `com.chatgpt-plusplus.app`，避免和官方 ChatGPT 挤在同一个图标
 - 启动器优先 `ChatGPT.exe`（26.825 的真实主程序）；`Codex.exe` 是更新垫片，不再优先启动
+- Dream Skin 旧副本会在长会话里观察 main 尺寸，主线程假死（侧栏能滑但不能点开会话）。版本升到 2.0.1，启动时同步内置 tweak，避免 App 升级后仍留着旧文件
 
 ## 1.1.7
 

@@ -15,6 +15,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import chokidar from "chokidar";
 import { discoverTweaks, type DiscoveredTweak } from "./tweak-discovery";
+import { syncBundledTweaks } from "./sync-bundled-tweaks";
 import { shouldIgnoreTweakWatchPath, TWEAK_RELOAD_DEBOUNCE_MS } from "./tweak-watch-ignore";
 import { createDiskStorage, type DiskStorage } from "./storage";
 import { syncManagedMcpServers } from "./mcp-sync";
@@ -638,6 +639,13 @@ if (isChatgptPlusPlusSafeModeEnabled()) {
 
 // 2. Initial tweak discovery + main-scope load.
 migrateLegacyDreamSkinCustomThemes();
+{
+  // 安装器只在 version 升高时覆盖用户 tweaks。App 直接替换时不会跑安装器，
+  // 启动时再同步一次，避免 Dream Skin 旧副本继续观察 main 把会话页卡死。
+  const bundledTweaks = join(process.resourcesPath || "", "tweaks");
+  const upgraded = syncBundledTweaks(bundledTweaks, TWEAKS_DIR);
+  if (upgraded.length) log("info", "upgraded bundled tweak(s):", upgraded.join(", "));
+}
 loadAllMainTweaks();
 // Codex 后端会在读完 config.toml 后启动。Windows 上 catalog 常比 app-server 晚写入，
 // 这里拦住 spawn，并在 model_catalog_json 变化后重启后端让它重读。

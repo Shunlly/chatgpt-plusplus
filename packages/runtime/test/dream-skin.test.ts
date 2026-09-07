@@ -99,6 +99,13 @@ test("dream-skin 侧边栏观察器隐藏不扫描且 200ms 合并", () => {
   assert.match(src, /querySelector\("nav"\) \|\| document\.querySelector\("aside"\)/);
 });
 
+test("dream-skin 卡死修复随版本号发出，避免同版本跳过覆盖", () => {
+  const manifest = JSON.parse(readFileSync(join(tweakRoot, "manifest.json"), "utf8"));
+  assert.equal(manifest.version, "2.0.1");
+  const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
+  assert.equal(template.includes("resizeObserver?.observe(shellMain)"), false);
+});
+
 test("dream-skin 注入脚本忽略会话正文突变，且不观察 main 尺寸", () => {
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
   assert.match(template, /const mutationTouchesShell = \(records\) =>/);
