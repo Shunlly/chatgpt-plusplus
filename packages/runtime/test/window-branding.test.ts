@@ -43,6 +43,7 @@ test("installWindowBranding 会改写标题并拦截 page-title-updated", () => 
       fromWebContents: () => win,
       getAllWindows: () => [win],
     },
+    enableTitleHooks: true,
   });
   assert.equal(app.id, "com.chatgpt-plusplus.app");
   assert.equal(titles[0], "ChatGPT++");

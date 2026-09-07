@@ -53,12 +53,45 @@ export function installWindowBranding(opts: {
     getAllWindows(): BrandableWindow[];
   };
   log?: (msg: string) => void;
+  /** 测试可强制打开。Windows Owl 上 setTitle/preventDefault 会原生崩溃，默认关掉。 */
+  enableTitleHooks?: boolean;
 }): void {
   const log = opts.log ?? (() => {});
   try {
     opts.app.setAppUserModelId?.(CHATGPT_PLUSPLUS_APP_USER_MODEL_ID);
   } catch (e) {
     log(`setAppUserModelId skipped: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const enableTitleHooks =
+    opts.enableTitleHooks ?? (typeof process === "undefined" || process.platform !== "win32");
+  if (!enableTitleHooks) {
+    // Windows Owl: page-title-updated + preventDefault 会原生崩溃。
+    // 延迟 setTitle，不用 preventDefault；ready 后再设 AUMID，让任务栏跟快捷方式合成 ChatGPT++。
+    const applyAll = (): void => {
+      try {
+        for (const win of opts.BrowserWindow.getAllWindows()) {
+          if (!win || win.isDestroyed() || isCompactBrandingWindow(win)) continue;
+          const next = brandedWindowTitle(win.getTitle());
+          if (next && win.getTitle() !== next) {
+            try { win.setTitle(next); } catch {}
+          }
+        }
+      } catch {}
+      try { opts.app.setAppUserModelId?.(CHATGPT_PLUSPLUS_APP_USER_MODEL_ID); } catch {}
+    };
+    const start = (): void => {
+      applyAll();
+      try { setInterval(applyAll, 2000); } catch {}
+    };
+    try {
+      if (opts.app.isReady?.()) setTimeout(start, 1500);
+      else void opts.app.whenReady?.().then(() => setTimeout(start, 1500));
+    } catch {
+      setTimeout(start, 1500);
+    }
+    log(`window branding installed title=${CHATGPT_PLUSPLUS_WINDOW_TITLE} (win32: delayed title)`);
+    return;
   }
 
   const branded = new WeakSet<object>();

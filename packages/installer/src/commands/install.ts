@@ -4,10 +4,10 @@ import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, c
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isDedicatedMacApp, locateCodex, MAC_CHATGPTPP_DEFAULT, type CodexInstall } from "../platform.js";
+import { isDedicatedMacApp, locateCodex, MAC_CHATGPTPP_DEFAULT, windowsIsolatedUserDataDir, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
-import { setIntegrity, getIntegrity } from "../integrity.js";
+import { setIntegrity, getIntegrity, replaceWindowsEmbeddedAsarHash } from "../integrity.js";
 import { writeFuse } from "../fuses.js";
 import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
 import { readPlist, writePlist } from "../plist.js";
@@ -251,8 +251,6 @@ export async function install(opts: Opts = {}): Promise<void> {
   const paths = ensureUserPaths();
   step.detail(`User dir: ${kleur.cyan(paths.root)}`);
   step(formatCliStep(formatCliShimResult(installCliShims(paths.binDir))));
-  const launcher = installWindowsManagedAppLauncher(codex);
-  if (launcher) step(`Installed patched ChatGPT++ launcher${launcher.shortcutPaths.length === 1 ? "" : "s"}: ${launcher.shortcutPaths.map((p) => kleur.cyan(p)).join(", ")}`);
 
   // 1. Backup originals.
   const pristineAppBackup = codex.platform === "darwin" ? join(paths.backup, "Codex.app") : null;
@@ -288,10 +286,23 @@ export async function install(opts: Opts = {}): Promise<void> {
   const { headerHash: patchedAsarHash } = readHeaderHash(codex.asarPath);
   step.detail(`Patched app.asar (entry was ${kleur.dim(originalEntry)})`);
 
-  // 4. Update Info.plist hash so Electron's integrity check passes.
+  // 4. 更新 asar 完整性哈希，否则 Electron/Owl 会直接 FATAL 退出。
   if (codex.metaPath) {
     setIntegrity(codex, patchedAsarHash);
     step.detail(`Updated ElectronAsarIntegrity → ${kleur.dim(patchedAsarHash.slice(0, 12))}…`);
+  }
+  if (codex.platform === "win32") {
+    const replaced = replaceWindowsEmbeddedAsarHash(codex.executable, originalAsarHash, patchedAsarHash);
+    step.detail(`Updated ${kleur.cyan(basename(codex.executable))} asar integrity hash (${replaced} replacement(s))`);
+  }
+
+  // Windows 快捷方式必须指向 ChatGPT++.exe，不能直接开镜像里的 ChatGPT.exe，
+  // 否则任务栏/进程看起来像又复制了一份官方 ChatGPT。
+  let launcher: { shortcutPaths: string[] } | null = null;
+  if (codex.platform === "win32") {
+    const branded = ensureWindowsBrandedExecutable(codex.executable);
+    launcher = installWindowsManagedAppLauncher({ ...codex, executable: branded });
+    if (launcher) step(`Installed patched ChatGPT++ launcher${launcher.shortcutPaths.length === 1 ? "" : "s"}: ${launcher.shortcutPaths.map((p) => kleur.cyan(p)).join(", ")}`);
   }
 
   // 5. Belt-and-suspenders: flip the integrity validation fuse off.
@@ -1122,7 +1133,16 @@ function quitWindowsCodex(
   readOpenReport: (codex: CodexInstall) => OpenReport,
 ): void {
   try {
-    execFileSync("taskkill.exe", ["/IM", basename(codex.executable), "/T", "/F"], {
+    // 只杀镜像目录里的进程。商店原版 ChatGPT.exe 和补丁副本同名，
+    // /IM ChatGPT.exe 会把正在用的官方应用一起杀掉，而且补丁写的是本地副本，没必要动原版。
+    const root = resolve(codex.appRoot).toLowerCase();
+    const script = [
+      `$root = '${root.replace(/'/g, "''")}'`,
+      "Get-CimInstance Win32_Process | Where-Object {",
+      "  $_.ExecutablePath -and $_.ExecutablePath.ToLower().StartsWith($root)",
+      "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+    ].join("; ");
+    execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
       stdio: "ignore",
     });
   } catch {
@@ -1179,6 +1199,42 @@ function escapePowerShellSingleQuotedString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/** 复制一份 ChatGPT++.exe，让快捷方式和任务栏显示 ChatGPT++ 而不是官方 ChatGPT。 */
+function ensureWindowsBrandedExecutable(executable: string): string {
+  const branded = join(dirname(executable), "ChatGPT++.exe");
+  if (basename(executable).toLowerCase() === "chatgpt++.exe") {
+    brandWindowsExecutableResources(executable);
+    return executable;
+  }
+  try {
+    copyFileSync(executable, branded);
+    brandWindowsExecutableResources(branded);
+    return branded;
+  } catch {
+    return executable;
+  }
+}
+
+function brandWindowsExecutableResources(exePath: string): void {
+  const rcedit = join(resolveAssetsDir(), "win", "rcedit-x64.exe");
+  if (!existsSync(rcedit) || !existsSync(exePath)) return;
+  try {
+    execFileSync(
+      rcedit,
+      [
+        exePath,
+        "--set-version-string", "FileDescription", "ChatGPT++",
+        "--set-version-string", "ProductName", "ChatGPT++",
+        "--set-version-string", "InternalName", "ChatGPT++",
+        "--set-version-string", "OriginalFilename", "ChatGPT++.exe",
+      ],
+      { stdio: "ignore" },
+    );
+  } catch {
+    // 改版本资源失败不影响启动，任务栏仍可能显示 ChatGPT。
+  }
+}
+
 function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths: string[] } | null {
   if (codex.platform !== "win32") return null;
   if (
@@ -1194,9 +1250,10 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
   const shimDir = join(localAppData, "Microsoft", "WindowsApps");
   mkdirSync(shimDir, { recursive: true });
   const commandPath = join(shimDir, "chatgpt-plusplus-codex.cmd");
+  const isolatedDir = windowsIsolatedUserDataDir();
   writeFileSync(
     commandPath,
-    `@echo off\r\nstart "" "${codex.executable}" %*\r\n`,
+    `@echo off\r\nstart "" "${codex.executable}" --user-data-dir="${isolatedDir}" %*\r\n`,
     "utf8",
   );
   const shortcutPaths = [commandPath];
@@ -1207,28 +1264,47 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
   if (!startMenuRoot) return { shortcutPaths };
 
   const startMenuShortcut = join(startMenuRoot, "ChatGPT++.lnk");
-  if (createWindowsCodexShortcut(startMenuShortcut, codex.executable)) {
+  if (createWindowsCodexShortcut(startMenuShortcut, codex.executable, isolatedDir)) {
     shortcutPaths.push(startMenuShortcut);
   }
   const desktopShortcut = join(homedir(), "Desktop", "ChatGPT++.lnk");
-  if (createWindowsCodexShortcut(desktopShortcut, codex.executable)) {
+  if (createWindowsCodexShortcut(desktopShortcut, codex.executable, isolatedDir)) {
     shortcutPaths.push(desktopShortcut);
   }
 
   return { shortcutPaths };
 }
 
-function createWindowsCodexShortcut(shortcutPath: string, targetPath: string): boolean {
+
+function setWindowsShortcutAppUserModelId(shortcutPath: string, appId: string): void {
+  const ps1 = join(resolveAssetsDir(), "win", "set-lnk-aumid.ps1");
+  if (!existsSync(ps1) || !existsSync(shortcutPath)) return;
+  try {
+    execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, shortcutPath, appId],
+      { stdio: "ignore" },
+    );
+  } catch {
+    // AUMID 失败时快捷方式仍能启动，只是任务栏可能拆成两个图标。
+  }
+}
+
+function createWindowsCodexShortcut(shortcutPath: string, targetPath: string, userDataDir?: string): boolean {
   try {
     mkdirSync(dirname(shortcutPath), { recursive: true });
+    const args = userDataDir ? `--user-data-dir=${userDataDir}` : "";
     const script = [
       `$shortcutPath = '${escapePowerShellSingleQuotedString(shortcutPath)}'`,
       `$targetPath = '${escapePowerShellSingleQuotedString(targetPath)}'`,
       `$workingDirectory = '${escapePowerShellSingleQuotedString(dirname(targetPath))}'`,
+      `$arguments = '${escapePowerShellSingleQuotedString(args)}'`,
       "$shell = New-Object -ComObject WScript.Shell",
       "$shortcut = $shell.CreateShortcut($shortcutPath)",
       "$shortcut.TargetPath = $targetPath",
       "$shortcut.WorkingDirectory = $workingDirectory",
+      "$shortcut.Arguments = $arguments",
+      "$shortcut.Description = 'ChatGPT++'",
       "$shortcut.IconLocation = \"$targetPath,0\"",
       "$shortcut.Save()",
     ].join("; ");
@@ -1237,6 +1313,7 @@ function createWindowsCodexShortcut(shortcutPath: string, targetPath: string): b
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
       { stdio: "ignore" },
     );
+    setWindowsShortcutAppUserModelId(shortcutPath, "com.chatgpt-plusplus.app");
     return true;
   } catch {
     return false;

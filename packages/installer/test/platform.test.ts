@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inferCodexChannel, locateCodex, resolveLinuxInstall } from "../src/platform";
+import { inferCodexChannel, isolateWindowsOwlUserData, locateCodex, resolveLinuxInstall } from "../src/platform";
 
 test("inferCodexChannel detects stable and beta metadata", () => {
   assert.equal(inferCodexChannel("com.openai.codex", "Codex"), "stable");
@@ -141,6 +141,23 @@ test("locateCodex finds the dedicated ChatGPT++ bundle on macOS", { skip: proces
     assert.equal(codex.appName, "ChatGPT++");
     assert.equal(codex.bundleId, "com.openai.chatgptpp");
     assert.equal(codex.channel, "stable");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("isolateWindowsOwlUserData 把 Owl 用户数据目录改成 ChatGPT++", () => {
+  const root = mkdtempSync(join(tmpdir(), "codexpp-owl-"));
+  try {
+    mkdirSync(join(root, "resources"), { recursive: true });
+    writeFileSync(
+      join(root, "resources", "owl-app.ini"),
+      "[Owl]\nUserDataDirectoryName=Codex\nAppVersion=26.901.51231\n",
+    );
+    assert.equal(isolateWindowsOwlUserData(root), true);
+    const ini = readFileSync(join(root, "resources", "owl-app.ini"), "utf8");
+    assert.match(ini, /UserDataDirectoryName=ChatGPT\+\+/);
+    assert.equal(ini.includes("UserDataDirectoryName=Codex"), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

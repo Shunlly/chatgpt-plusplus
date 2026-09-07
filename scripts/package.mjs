@@ -364,8 +364,10 @@ function findIscc() {
   // choco install innosetup 后 iscc 会进 PATH；未进时兜底常见安装目录
   const candidates = ["iscc"];
   const pf = process.env["ProgramFiles(x86)"] || process.env.ProgramFiles || "";
+  const localPrograms = join(process.env.LOCALAPPDATA || "", "Programs");
   for (const sub of ["Inno Setup 6", "Inno Setup 5"]) {
     candidates.push(join(pf, sub, "ISCC.exe"));
+    candidates.push(join(localPrograms, sub, "ISCC.exe"));
   }
   for (const c of candidates) {
     const r = spawnSync(process.platform === "win32" ? "where" : "which", [c], { encoding: "utf8" });

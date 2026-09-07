@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, cpSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, cpSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -337,7 +337,36 @@ function ensureWindowsStoreMirror(storeAppRoot: string): string {
       // 删除失败（占用）不阻塞安装。
     }
   }
+  // Owl 默认 UserDataDirectoryName=Codex，和商店原版抢同一份用户数据/单实例锁，
+  // 启动镜像会把窗口交给已打开的官方 ChatGPT，看起来像打不开。
+  isolateWindowsOwlUserData(mirrorAppRoot);
   return mirrorAppRoot;
+}
+
+/** Windows Owl 独立用户数据目录名（%LOCALAPPDATA%\ChatGPT++）。 */
+export const WINDOWS_ISOLATED_USER_DATA_NAME = "ChatGPT++";
+
+export function windowsIsolatedUserDataDir(): string {
+  return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), WINDOWS_ISOLATED_USER_DATA_NAME);
+}
+
+/** 把商店镜像的 owl-app.ini 改到独立用户数据目录，避免和官方 ChatGPT 单实例冲突。 */
+export function isolateWindowsOwlUserData(appRoot: string): boolean {
+  const iniPath = join(appRoot, "resources", "owl-app.ini");
+  if (!existsSync(iniPath)) return false;
+  const original = readFileSync(iniPath, "utf8");
+  const line = `UserDataDirectoryName=${WINDOWS_ISOLATED_USER_DATA_NAME}`;
+  let updated = original.replace(/^UserDataDirectoryName\s*=\s*.*$/im, line);
+  if (updated === original) {
+    if (/^\s*\[Owl\]/im.test(original)) {
+      updated = original.replace(/^\s*\[Owl\]\s*$/im, `[Owl]\n${line}`);
+    } else {
+      const nl = original.includes("\r\n") ? "\r\n" : "\n";
+      updated = `${original.trimEnd()}${nl}[Owl]${nl}${line}${nl}`;
+    }
+  }
+  if (updated !== original) writeFileSync(iniPath, updated);
+  return true;
 }
 
 function mirrorDirectory(source: string, target: string): void {

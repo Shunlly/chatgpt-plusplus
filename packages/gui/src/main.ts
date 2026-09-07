@@ -4,7 +4,7 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 // tweak id 自改名后未变：老用户数据按此 id 存储，改动会导致主题/设置丢失，勿改。
 const TWEAK_ID = "com.codexplusplus.dream-skin";
@@ -31,19 +31,51 @@ function tryReadJson(file: string): unknown | null {
 }
 
 // 打开补丁后的官方应用主界面（ChatGPT++ 是增强层，入口即 ChatGPT/Codex 本体）。
+function winIsolatedUserDataDir(): string {
+  return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "ChatGPT++");
+}
+
+function winPreferredPatchedExe(root: string): string | null {
+  try {
+    const names = readdirSync(root).filter(
+      (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
+    );
+    const preferred =
+      names.find((name) => name.toLowerCase() === "chatgpt++.exe") ??
+      names.find((name) => name.toLowerCase() === "chatgpt.exe") ??
+      names.find((name) => name.toLowerCase() === "codex.exe") ??
+      names[0];
+    return preferred ? join(root, preferred) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> {
   const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
   const candidates: string[] = [];
   if (process.platform === "win32") {
     // Windows 的 state.appRoot 是镜像目录，必须启动目录里的主程序 exe，
     // 直接 openPath 目录只会打开资源管理器窗口（看起来像"又弹了一个安装器"）。
+    // 商店镜像必须带 --user-data-dir，否则和官方 ChatGPT 抢同一份 Codex 用户数据，
+    // 单实例锁会把窗口交给已打开的原版，表现为“安装完打不开”。
     const root = state?.appRoot;
     if (root && existsSync(root)) {
-      const exe = readdirSync(root).find(
-        (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
-      );
-      // 只启动主程序 exe；找不到就交给面板报错，绝不打开目录（那会像"又弹了个安装器"）。
-      if (exe) candidates.push(join(root, exe));
+      const exe = winPreferredPatchedExe(root);
+      if (exe && existsSync(exe)) {
+        const args: string[] = [];
+        if (/\\chatgpt-plusplus\\store-apps\\/i.test(root.replace(/\//g, "\\"))) {
+          args.push(`--user-data-dir=${winIsolatedUserDataDir()}`);
+        }
+        const child = spawn(exe, args, {
+          detached: true,
+          stdio: "ignore",
+          cwd: dirname(exe),
+          windowsHide: false,
+        });
+        child.unref();
+        return { ok: true, error: null };
+      }
     }
   } else {
     if (state?.appRoot && existsSync(state.appRoot)) candidates.push(state.appRoot);
@@ -202,19 +234,29 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
     if (process.platform === "win32" && args[0] !== "uninstall") {
       const cli = cliPath();
       const stamp = Date.now();
-      const outFile = join(app.getPath("temp"), `cppp-cli-${stamp}.out.log`);
-      const errFile = join(app.getPath("temp"), `cppp-cli-${stamp}.err.log`);
+      const tmp = app.getPath("temp");
+      const outFile = join(tmp, `cppp-cli-${stamp}.out.log`);
+      const errFile = join(tmp, `cppp-cli-${stamp}.err.log`);
+      const scriptFile = join(tmp, `cppp-cli-${stamp}.ps1`);
       const esc = (v: string) => v.replace(/'/g, "''");
+      const argList = args.map((a) => `'${esc(a)}'`).join(", ");
+      // -Verb RunAs 与 -RedirectStandard* 不能写在同一条 Start-Process 上，否则会 AmbiguousParameterSet。
+      // 先写临时脚本，提权后再跑；脚本内部才重定向 CLI 输出。
+      writeFileSync(
+        scriptFile,
+        [
+          "$ErrorActionPreference = 'Continue'",
+          `$p = Start-Process -FilePath '${esc(cli)}' -ArgumentList @(${argList}) -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput '${esc(outFile)}' -RedirectStandardError '${esc(errFile)}'`,
+          "if ($null -eq $p) { exit 1 }",
+          "exit $p.ExitCode",
+        ].join("\r\n"),
+        "utf8",
+      );
       const ps = [
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-Command",
-        [
-          `$p = Start-Process -FilePath '${esc(cli)}' -ArgumentList '${esc(args.join(" "))}'`,
-          "-Verb RunAs -Wait -PassThru",
-          `-RedirectStandardOutput '${esc(outFile)}' -RedirectStandardError '${esc(errFile)}'`,
-          "exit $p.ExitCode",
-        ].join(" "),
+        `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File','${esc(scriptFile)}') -Verb RunAs -Wait -PassThru; if ($null -eq $p) { exit 1223 }; exit $p.ExitCode`,
       ];
       const child = spawn("powershell.exe", ps, { stdio: ["ignore", "pipe", "pipe"] });
       child.stdout?.on("data", (d) => pushLog(win, d.toString()));
@@ -240,7 +282,7 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
             // 日志不可读不阻塞
           }
         }
-        for (const f of [outFile, errFile]) {
+        for (const f of [outFile, errFile, scriptFile]) {
           try { rmSync(f, { force: true }); } catch { /* 忽略 */ }
         }
         resolve({ code });

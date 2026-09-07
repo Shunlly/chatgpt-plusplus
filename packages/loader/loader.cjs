@@ -78,6 +78,17 @@ function safe(label, fn) {
   }
 }
 
+safe("aumid", () => {
+  const electron = require("electron");
+  const app = electron.app;
+  if (app && typeof app.setAppUserModelId === "function") {
+    app.setAppUserModelId("com.chatgpt-plusplus.app");
+  }
+  if (app && typeof app.setName === "function") {
+    app.setName("ChatGPT++");
+  }
+});
+
 safe("init", () => {
   if (!originalMain) {
     throw new Error("loader: package.json missing __codexpp.originalMain");
