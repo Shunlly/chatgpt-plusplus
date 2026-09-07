@@ -139,8 +139,10 @@ function overlayCss(): string {
 :host {
   position: fixed;
   top: 8px;
-  left: 8px;
-  right: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 16px);
   z-index: 2147483646;
   pointer-events: none;
   font: 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

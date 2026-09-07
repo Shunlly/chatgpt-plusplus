@@ -24,6 +24,8 @@ type BrandableWindow = {
   getTitle(): string;
   setTitle(title: string): void;
   on(event: string, listener: (...args: unknown[]) => void): unknown;
+  getSize?: () => number[];
+  isAlwaysOnTop?: () => boolean;
   webContents?: { getURL?: () => string };
 };
 
@@ -35,10 +37,24 @@ export function isCompactBrandingWindow(win: BrandableWindow | null | undefined)
   if (!win) return false;
   try {
     const url = win.webContents?.getURL?.() ?? "";
-    return new URL(url).searchParams.has("initialRoute");
-  } catch {
-    return false;
-  }
+    if (url) {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has("initialRoute")) return true;
+      if (/compact|pet/i.test(parsed.pathname + parsed.search + parsed.hash)) return true;
+    }
+  } catch {}
+  try {
+    if (win.isAlwaysOnTop?.()) return true;
+  } catch {}
+  try {
+    const size = win.getSize?.();
+    if (Array.isArray(size) && size.length >= 2) {
+      const [w, h] = size;
+      // 宠物窗很小；对它 setTitle 会打断 Windows 的 -webkit-app-region 拖动。
+      if (w > 0 && h > 0 && w <= 480 && h <= 720) return true;
+    }
+  } catch {}
+  return false;
 }
 
 export function installWindowBranding(opts: {

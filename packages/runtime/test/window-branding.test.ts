@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { brandedWindowTitle, CHATGPT_PLUSPLUS_WINDOW_TITLE, installWindowBranding } from "../src/window-branding";
+import { brandedWindowTitle, CHATGPT_PLUSPLUS_WINDOW_TITLE, installWindowBranding, isCompactBrandingWindow } from "../src/window-branding";
 
 test("把 ChatGPT/Codex 窗口标题改成 ChatGPT++，宠物窗标题不改", () => {
   assert.equal(brandedWindowTitle("ChatGPT"), CHATGPT_PLUSPLUS_WINDOW_TITLE);
@@ -60,4 +60,53 @@ test("主进程和 preload 接上窗口品牌化", () => {
   assert.match(main, /from \"\.\/window-branding\"/);
   assert.match(preload, /brandedWindowTitle/);
   assert.match(preload, /startDocumentTitleBranding/);
+});
+
+test("isCompactBrandingWindow 识别宠物窗，避免 setTitle 打断拖动", () => {
+  assert.equal(
+    isCompactBrandingWindow({
+      isDestroyed: () => false,
+      getTitle: () => "ChatGPT",
+      setTitle: () => {},
+      on: () => {},
+      webContents: { getURL: () => "app://-/index.html?initialRoute=pet" },
+    }),
+    true,
+  );
+  assert.equal(
+    isCompactBrandingWindow({
+      isDestroyed: () => false,
+      getTitle: () => "ChatGPT",
+      setTitle: () => {},
+      on: () => {},
+      isAlwaysOnTop: () => true,
+      getSize: () => [1280, 800],
+      webContents: { getURL: () => "app://-/index.html" },
+    }),
+    true,
+  );
+  assert.equal(
+    isCompactBrandingWindow({
+      isDestroyed: () => false,
+      getTitle: () => "ChatGPT",
+      setTitle: () => {},
+      on: () => {},
+      isAlwaysOnTop: () => false,
+      getSize: () => [360, 480],
+      webContents: { getURL: () => "app://-/index.html" },
+    }),
+    true,
+  );
+  assert.equal(
+    isCompactBrandingWindow({
+      isDestroyed: () => false,
+      getTitle: () => "ChatGPT",
+      setTitle: () => {},
+      on: () => {},
+      isAlwaysOnTop: () => false,
+      getSize: () => [1280, 800],
+      webContents: { getURL: () => "app://-/index.html" },
+    }),
+    false,
+  );
 });
