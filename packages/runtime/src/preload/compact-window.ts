@@ -14,12 +14,25 @@ export function isCompactPetWindow(
   }
 }
 
+/** 桌面宠物 / 活动槽，走 Owl 原生 startDrag，不能当迷你会话窗处理。 */
+export function isAvatarOverlayWindow(
+  locationLike: { href: string; search: string } = location,
+): boolean {
+  const href = locationLike.href || "";
+  if (/avatar-overlay/i.test(href)) return true;
+  try {
+    const route = new URLSearchParams(locationLike.search || "").get("initialRoute") || "";
+    return /avatar-overlay/i.test(route);
+  } catch {
+    return false;
+  }
+}
+
 /** 宠物活动槽 / 徽章的独立 HTML，不是会话页。跑 tweak 会把整应用卡死。 */
 export function isAvatarOverlaySurface(
   locationLike: { href: string; search: string } = location,
 ): boolean {
-  const href = locationLike.href || "";
-  return href.includes("avatar-overlay-composition-surface");
+  return isAvatarOverlayWindow(locationLike);
 }
 
 export function shouldSkipTweaks(

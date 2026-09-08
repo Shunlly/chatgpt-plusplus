@@ -18,7 +18,7 @@ import { installReactHook } from "./react-hook";
 import { startSettingsInjector, stopSettingsInjector } from "./settings-injector";
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
 import { mountManager } from "./manager";
-import { isCompactPetWindow, shouldSkipTweaks } from "./compact-window";
+import { isAvatarOverlayWindow, isCompactPetWindow, shouldSkipTweaks } from "./compact-window";
 import { brandedWindowTitle } from "../window-branding";
 import {
   installRunningThreadCapture,
@@ -78,54 +78,75 @@ function safeStringify(v: unknown): string {
   }
 }
 
+let titleBrandingTimer: ReturnType<typeof setInterval> | null = null;
+
 function startDocumentTitleBranding(): void {
-  if (shouldSkipTweaks()) return;
+  if (shouldSkipTweaks() || isAvatarOverlayWindow()) return;
   const apply = (): void => {
+    if (shouldSkipTweaks() || isAvatarOverlayWindow()) {
+      stopDocumentTitleBranding();
+      return;
+    }
     const next = brandedWindowTitle(document.title);
     if (next && document.title !== next) document.title = next;
   };
   apply();
-  setInterval(apply, 1500);
+  titleBrandingTimer = setInterval(apply, 1500);
   const titleEl = document.querySelector("title");
   if (titleEl) {
     new MutationObserver(apply).observe(titleEl, { childList: true, characterData: true, subtree: true });
   }
 }
 
+function stopDocumentTitleBranding(): void {
+  if (titleBrandingTimer) {
+    clearInterval(titleBrandingTimer);
+    titleBrandingTimer = null;
+  }
+}
+
+function shouldStartInterruptedPetOverlay(): boolean {
+  return isCompactPetWindow() && !isAvatarOverlayWindow();
+}
+
 fileLog("preload entry", { url: location.href });
-installRunningThreadCapture();
+if (!isAvatarOverlayWindow()) installRunningThreadCapture();
 startDocumentTitleBranding();
 
 
 // 在 Codex 页面脚本执行前，把 Statsig 缓存里的 use_hidden_models 改为 false，
 // 否则官方 UI 会隐藏 model_catalog_json 自定义模型（表现为模型目录加载不出来）。
 let statsigPatchResult: { matched: number; changed: number; skipped: number } | null = null;
-try {
-  statsigPatchResult = applyStatsigModelVisibilityPatch();
-  fileLog("statsig model visibility patch", statsigPatchResult);
-  // 新版 Codex 运行中会刷新 Statsig 把 use_hidden_models 写回 true，
-  // 启动打一次不够；持续维护保证自定义 model_catalog 模型不被隐藏。
-  if (!shouldSkipTweaks()) {
-    startStatsigModelVisibilityMaintenance({ onChange: (changed) =>
-      fileLog("statsig model visibility re-patch", { changed }) });
+if (isAvatarOverlayWindow()) {
+  fileLog("skip host hooks: avatar overlay");
+} else {
+  try {
+    statsigPatchResult = applyStatsigModelVisibilityPatch();
+    fileLog("statsig model visibility patch", statsigPatchResult);
+    // 新版 Codex 运行中会刷新 Statsig 把 use_hidden_models 写回 true，
+    // 启动打一次不够；持续维护保证自定义 model_catalog 模型不被隐藏。
+    if (!shouldSkipTweaks()) {
+      startStatsigModelVisibilityMaintenance({ onChange: (changed) =>
+        fileLog("statsig model visibility re-patch", { changed }) });
+    }
+  } catch (e) {
+    fileLog("statsig model visibility patch FAILED", String(e));
   }
-} catch (e) {
-  fileLog("statsig model visibility patch FAILED", String(e));
-}
 
-try {
-  installBrowserUiHostBridge();
-  fileLog("browser UI host bridge installed");
-} catch (e) {
-  fileLog("browser UI host bridge FAILED", String(e));
-}
+  try {
+    installBrowserUiHostBridge();
+    fileLog("browser UI host bridge installed");
+  } catch (e) {
+    fileLog("browser UI host bridge FAILED", String(e));
+  }
 
-// React hook must be installed *before* Codex's bundle runs.
-try {
-  installReactHook();
-  fileLog("react hook installed");
-} catch (e) {
-  fileLog("react hook FAILED", String(e));
+  // React hook must be installed *before* Codex's bundle runs.
+  try {
+    installReactHook();
+    fileLog("react hook installed");
+  } catch (e) {
+    fileLog("react hook FAILED", String(e));
+  }
 }
 
 queueMicrotask(() => {
@@ -137,6 +158,7 @@ queueMicrotask(() => {
 });
 
 function disarmPetWindow(): void {
+  stopDocumentTitleBranding();
   teardownTweakHost();
   stopSettingsInjector();
 }
@@ -145,7 +167,7 @@ function watchPetWindow(): void {
   if (shouldSkipTweaks()) {
     fileLog("skip tweaks: compact/pet window");
     disarmPetWindow();
-    if (isCompactPetWindow()) startInterruptedPetOverlay();
+    if (shouldStartInterruptedPetOverlay()) startInterruptedPetOverlay();
     return;
   }
   const obs = new MutationObserver(() => {
@@ -153,7 +175,7 @@ function watchPetWindow(): void {
     obs.disconnect();
     fileLog("compact-window appeared; teardown tweaks");
     disarmPetWindow();
-    startInterruptedPetOverlay();
+    if (shouldStartInterruptedPetOverlay()) startInterruptedPetOverlay();
   });
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   if (document.body) {
@@ -166,7 +188,7 @@ async function boot() {
   try {
     if (shouldSkipTweaks()) {
       fileLog("skip tweaks: compact/pet window");
-      if (isCompactPetWindow()) startInterruptedPetOverlay();
+      if (shouldStartInterruptedPetOverlay()) startInterruptedPetOverlay();
       return;
     }
     // 立即执行关键注入器，确保设置生效

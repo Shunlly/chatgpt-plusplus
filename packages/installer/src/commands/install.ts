@@ -26,6 +26,12 @@ import {
 import { chownForTargetUser } from "../ownership.js";
 import { getOpenReport, type OpenReport } from "./debug.js";
 import { openCodex, quitCodex } from "../alerts.js";
+import {
+  WINDOWS_PLUSPLUS_AUMID,
+  installWindowsLaunchStub,
+  isManagedStoreAppsPath,
+  staleManagedChatGptShortcutCandidates,
+} from "../windows-launch.js";
 
 interface Opts {
   app?: string;
@@ -1237,26 +1243,36 @@ function brandWindowsExecutableResources(exePath: string): void {
 
 function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths: string[] } | null {
   if (codex.platform !== "win32") return null;
-  if (
-    !/\\chatgpt-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`) &&
-    !/\\codex-plusplus\\store-apps\\/i.test(`${codex.appRoot.replace(/\//g, "\\")}\\`)
-  ) {
+  const appRoot = codex.appRoot.replace(/\//g, "\\");
+  if (!isManagedStoreAppsPath(appRoot) && !/\\codex-plusplus\\store-apps\\/i.test(appRoot)) {
     return null;
   }
 
   const localAppData = process.env.LOCALAPPDATA;
   if (!localAppData) return null;
 
+  const isolatedDir = windowsIsolatedUserDataDir();
+  const stub = installWindowsLaunchStub({
+    assetsDir: resolveAssetsDir(),
+    localAppData,
+    owlExe: codex.executable,
+    userDataDir: isolatedDir,
+  });
+  const launchTarget = stub && existsSync(stub) ? stub : codex.executable;
+  const launchUserData = stub && existsSync(stub) ? undefined : isolatedDir;
+
   const shimDir = join(localAppData, "Microsoft", "WindowsApps");
   mkdirSync(shimDir, { recursive: true });
   const commandPath = join(shimDir, "chatgpt-plusplus-codex.cmd");
-  const isolatedDir = windowsIsolatedUserDataDir();
   writeFileSync(
     commandPath,
-    `@echo off\r\nstart "" "${codex.executable}" --user-data-dir="${isolatedDir}" %*\r\n`,
+    `@echo off\r\nstart "" "${launchTarget}" %*\r\n`,
     "utf8",
   );
   const shortcutPaths = [commandPath];
+  if (stub) shortcutPaths.push(stub);
+
+  removeStaleManagedChatGptShortcuts();
 
   const startMenuRoot = process.env.APPDATA
     ? join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs")
@@ -1264,17 +1280,53 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
   if (!startMenuRoot) return { shortcutPaths };
 
   const startMenuShortcut = join(startMenuRoot, "ChatGPT++.lnk");
-  if (createWindowsCodexShortcut(startMenuShortcut, codex.executable, isolatedDir)) {
+  if (createWindowsCodexShortcut(startMenuShortcut, launchTarget, launchUserData, codex.executable)) {
     shortcutPaths.push(startMenuShortcut);
   }
   const desktopShortcut = join(homedir(), "Desktop", "ChatGPT++.lnk");
-  if (createWindowsCodexShortcut(desktopShortcut, codex.executable, isolatedDir)) {
+  if (createWindowsCodexShortcut(desktopShortcut, launchTarget, launchUserData, codex.executable)) {
     shortcutPaths.push(desktopShortcut);
   }
 
   return { shortcutPaths };
 }
 
+function removeStaleManagedChatGptShortcuts(): void {
+  for (const shortcutPath of staleManagedChatGptShortcutCandidates({
+    appData: process.env.APPDATA,
+    home: homedir(),
+  })) {
+    removeStaleManagedChatGptShortcut(shortcutPath);
+  }
+  const startMenuFolder = process.env.APPDATA
+    ? join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs", "ChatGPT++")
+    : null;
+  if (startMenuFolder && existsSync(startMenuFolder)) {
+    try {
+      const entries = readdirSync(startMenuFolder);
+      if (entries.length === 0) rmSync(startMenuFolder, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
+function removeStaleManagedChatGptShortcut(shortcutPath: string): void {
+  if (!existsSync(shortcutPath)) return;
+  try {
+    const script = [
+      `$shortcutPath = '${escapePowerShellSingleQuotedString(shortcutPath)}'`,
+      "$shell = New-Object -ComObject WScript.Shell",
+      "$target = $shell.CreateShortcut($shortcutPath).TargetPath",
+      "if ($target -match '(?i)\\\\chatgpt-plusplus\\\\store-apps\\\\' -and $target -match '(?i)\\\\chatgpt\\.exe$') {",
+      "  Remove-Item -LiteralPath $shortcutPath -Force",
+      "}",
+    ].join("; ");
+    execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+      { stdio: "ignore" },
+    );
+  } catch {}
+}
 
 function setWindowsShortcutAppUserModelId(shortcutPath: string, appId: string): void {
   const ps1 = join(resolveAssetsDir(), "win", "set-lnk-aumid.ps1");
@@ -1290,10 +1342,12 @@ function setWindowsShortcutAppUserModelId(shortcutPath: string, appId: string): 
   }
 }
 
-function createWindowsCodexShortcut(shortcutPath: string, targetPath: string, userDataDir?: string): boolean {
+function createWindowsCodexShortcut(shortcutPath: string, targetPath: string, userDataDir?: string, iconPath?: string): boolean {
   try {
     mkdirSync(dirname(shortcutPath), { recursive: true });
-    const args = userDataDir ? `--user-data-dir=${userDataDir}` : "";
+    const args = userDataDir
+      ? `--user-data-dir=${userDataDir} --app-user-model-id=${WINDOWS_PLUSPLUS_AUMID}`
+      : "";
     const script = [
       `$shortcutPath = '${escapePowerShellSingleQuotedString(shortcutPath)}'`,
       `$targetPath = '${escapePowerShellSingleQuotedString(targetPath)}'`,
@@ -1305,7 +1359,7 @@ function createWindowsCodexShortcut(shortcutPath: string, targetPath: string, us
       "$shortcut.WorkingDirectory = $workingDirectory",
       "$shortcut.Arguments = $arguments",
       "$shortcut.Description = 'ChatGPT++'",
-      "$shortcut.IconLocation = \"$targetPath,0\"",
+      `$shortcut.IconLocation = "${escapePowerShellSingleQuotedString(iconPath && existsSync(iconPath) ? iconPath : targetPath)},0"`,
       "$shortcut.Save()",
     ].join("; ");
     execFileSync(
@@ -1313,7 +1367,7 @@ function createWindowsCodexShortcut(shortcutPath: string, targetPath: string, us
       ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
       { stdio: "ignore" },
     );
-    setWindowsShortcutAppUserModelId(shortcutPath, "com.chatgpt-plusplus.app");
+    setWindowsShortcutAppUserModelId(shortcutPath, WINDOWS_PLUSPLUS_AUMID);
     return true;
   } catch {
     return false;

@@ -3,7 +3,7 @@
  * 不能走 tweak 宿主，否则点击会话又会跳不出去。
  */
 import { ipcRenderer } from "electron";
-import { isCompactPetWindow } from "./compact-window";
+import { isAvatarOverlayWindow, isCompactPetWindow } from "./compact-window";
 import {
   parseTrayRunning,
   shouldApplyRunning,
@@ -28,7 +28,7 @@ export function noteViewMessage(message: unknown): void {
 }
 
 export function startInterruptedPetOverlay(): void {
-  if (overlayStarted || !isCompactPetWindow()) return;
+  if (overlayStarted || !isCompactPetWindow() || isAvatarOverlayWindow()) return;
   overlayStarted = true;
   const boot = () => {
     void refreshOverlay();
@@ -147,7 +147,6 @@ function overlayCss(): string {
   pointer-events: none;
   font: 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f4f4f5;
-  -webkit-app-region: no-drag;
 }
 .box {
   pointer-events: auto;
