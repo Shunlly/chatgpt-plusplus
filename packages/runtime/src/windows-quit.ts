@@ -26,6 +26,23 @@ export function shouldQuitCompanionProcess(input: {
   );
 }
 
+export function shouldQuitForeignChatgptProcess(input: {
+  pid: number;
+  selfPid: number;
+  name?: string | null;
+  path?: string | null;
+  command?: string | null;
+}): boolean {
+  if (!input.pid || input.pid === input.selfPid) return false;
+  const name = String(input.name ?? "").toLowerCase();
+  if (name !== "chatgpt.exe" && name !== "codex.exe") return false;
+  const path = String(input.path ?? "").toLowerCase().replace(/\//g, "\\");
+  const command = String(input.command ?? "").toLowerCase().replace(/\//g, "\\");
+  if (`${path} ${command}`.includes("\\chatgpt-plusplus\\")) return false;
+  if (!path.trim()) return true;
+  return path.includes("\\windowsapps\\");
+}
+
 export function parseCompanionProcessLines(output: string, selfPid: number): number[] {
   const pids: number[] = [];
   for (const line of output.split(/\r?\n/)) {
@@ -44,19 +61,26 @@ export function killChatgptPlusPlusCompanions(selfPid = process.pid): number[] {
   if (process.platform !== "win32") return [];
   let output = "";
   try {
-    output = execFileSync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-Command",
-        "Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(ChatGPT|ChatGPT\\+\\+|codex)\\.exe$' } | ForEach-Object { '{0}`t{1}`t{2}`t{3}' -f $_.ProcessId, $_.Name, $_.ExecutablePath, $_.CommandLine }",
-      ],
-      { encoding: "utf8", timeout: 8000, windowsHide: true },
-    );
+    output = listChatgptProcessTable();
   } catch {
     return [];
   }
-  const pids = parseCompanionProcessLines(output, selfPid);
+  return killPids(parseCompanionProcessLines(output, selfPid));
+}
+
+function listChatgptProcessTable(): string {
+  return execFileSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      "Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(ChatGPT|ChatGPT\\+\\+|codex)\\.exe$' } | ForEach-Object { '{0}`t{1}`t{2}`t{3}' -f $_.ProcessId, $_.Name, $_.ExecutablePath, $_.CommandLine }",
+    ],
+    { encoding: "utf8", timeout: 8000, windowsHide: true },
+  );
+}
+
+function killPids(pids: number[]): number[] {
   for (const pid of pids) {
     try {
       execFileSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
@@ -67,4 +91,28 @@ export function killChatgptPlusPlusCompanions(selfPid = process.pid): number[] {
     } catch {}
   }
   return pids;
+}
+
+export function killForeignChatgptProcesses(selfPid = process.pid): number[] {
+  if (process.platform !== "win32") return [];
+  let output = "";
+  try {
+    output = listChatgptProcessTable();
+  } catch {
+    return [];
+  }
+  const pids: number[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const parts = line.split("\t");
+    if (parts.length < 2) continue;
+    const pid = Number(parts[0]);
+    if (shouldQuitForeignChatgptProcess({
+      pid,
+      selfPid,
+      name: parts[1] ?? "",
+      path: parts[2] ?? "",
+      command: parts[3] ?? "",
+    })) pids.push(pid);
+  }
+  return killPids(pids);
 }

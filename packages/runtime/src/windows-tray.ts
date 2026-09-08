@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { isCompactBrandingWindow } from "./window-branding";
-import { killChatgptPlusPlusCompanions } from "./windows-quit";
+import { killChatgptPlusPlusCompanions, killForeignChatgptProcesses } from "./windows-quit";
 
 export const CHATGPT_PLUSPLUS_TRAY_TOOLTIP = "ChatGPT++";
 
@@ -159,8 +159,16 @@ export function installWindowsTrayFallback(log: (msg: string) => void): void {
   try { patchElectronTray(); } catch (e) {
     log(`windows tray patch skipped: ${e instanceof Error ? e.message : String(e)}`);
   }
+  const kickForeign = (): void => {
+    try { killForeignChatgptProcesses(process.pid); } catch {}
+  };
+  try {
+    if (app.isReady()) kickForeign();
+    else void app.whenReady().then(kickForeign);
+  } catch {}
   const start = (): void => {
     try {
+      try { killForeignChatgptProcesses(process.pid); } catch {}
       if (!tray || tray.isDestroyed()) createFallbackTray(log);
       if (tray && !tray.isDestroyed()) applyTrayChrome(tray);
     } catch (e) {
