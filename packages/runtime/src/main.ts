@@ -71,7 +71,7 @@ import {
 } from "./tweak-store";
 import { maybeStartBrowserUiServer } from "./browser-ui";
 import { installWindowBranding } from "./window-branding";
-import { installWindowsTrayFallback } from "./windows-tray";
+import { installWindowsTrayFallback, setWindowsTrayActions, showMainWindow } from "./windows-tray";
 import { installWindowsPetDrag } from "./windows-pet-drag";
 import { parseProcessTable, parsePsLstart, sweepOrphanHelpers } from "./orphan-helpers";
 import { compactOversizedCodexLogs } from "./codex-logs-compact";
@@ -633,6 +633,12 @@ installWindowBranding({
   log: (msg) => log("info", msg),
 });
 installWindowsTrayFallback((msg) => log("info", msg));
+setWindowsTrayActions({
+  onNewChat: openNewChatFromTray,
+  onSendFeedback: sendFeedbackFromTray,
+  listRecent: listTrayRecentThreads,
+  onOpenRecent: openCodexThreadRoute,
+});
 installWindowsPetDrag((msg) => log("info", msg));
 log("info", "main.ts evaluated; app.isReady=" + app.isReady());
 if (isChatgptPlusPlusSafeModeEnabled()) {
@@ -2199,6 +2205,39 @@ function openCodexThreadRoute(path: string): boolean {
     return true;
   }
   return false;
+}
+
+function openNewChatFromTray(): void {
+  if (!openCodexThreadRoute("/")) showMainWindow();
+}
+
+function sendFeedbackFromTray(): void {
+  showMainWindow();
+  const win = getMainCodexWindow();
+  if (!win || win.isDestroyed()) return;
+  const message = { type: "run-command", id: "feedback" };
+  const wm = asRecord(getCodexWindowServices()?.windowManager);
+  try {
+    if (typeof wm?.sendMessageToWindow === "function") {
+      wm.sendMessageToWindow(win, message);
+    } else {
+      win.webContents.send(DESKTOP_MESSAGE_FOR_VIEW, message);
+    }
+  } catch (e) {
+    log("warn", "tray send feedback failed", String(e));
+  }
+}
+
+function listTrayRecentThreads(): ThreadRef[] {
+  const seen = new Set<string>();
+  const out: ThreadRef[] = [];
+  for (const thread of [...interruptedState.running, ...interruptedState.interrupted]) {
+    if (seen.has(thread.id)) continue;
+    seen.add(thread.id);
+    out.push(thread);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 function getPrimaryCodexWindow(): Electron.BrowserWindow | null {

@@ -3,7 +3,7 @@
  * Owl 自己也会建托盘（常叫 ChatGPT），我们再补一个就会并排出现。
  */
 import { Tray, Menu, nativeImage, app, BrowserWindow } from "electron";
-import { buildWindowsTrayMenuTemplate } from "./windows-tray-menu";
+import { buildWindowsTrayMenuTemplate, type TrayRecentItem } from "./windows-tray-menu";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -50,17 +50,43 @@ function electronTrayHost(): { Tray: typeof Tray } {
   return requireElectron("electron") as { Tray: typeof Tray };
 }
 
+type TrayActions = {
+  onNewChat: () => void;
+  onSendFeedback: () => void;
+  listRecent: () => TrayRecentItem[];
+  onOpenRecent: (path: string) => void;
+};
+
+let trayActions: TrayActions = {
+  onNewChat: showMainWindow,
+  onSendFeedback: showMainWindow,
+  listRecent: () => [],
+  onOpenRecent: () => {},
+};
+
+export function setWindowsTrayActions(next: Partial<TrayActions>): void {
+  trayActions = { ...trayActions, ...next };
+}
+
 function applyTrayChrome(target: Tray): void {
   try { target.setToolTip(CHATGPT_PLUSPLUS_TRAY_TOOLTIP); } catch {}
+  try { target.setIgnoreDoubleClickEvents(true); } catch {}
+  // Owl 已经挂了完整右键菜单（最近/新对话/反馈/退出），不要覆盖。
+  try {
+    if (typeof target.listenerCount === "function" && target.listenerCount("right-click") > 0) return;
+  } catch {}
   try {
     const menu = Menu.buildFromTemplate(
       buildWindowsTrayMenuTemplate({
         onOpen: showMainWindow,
         onQuit: quitFromTray,
+        onNewChat: () => trayActions.onNewChat(),
+        onSendFeedback: () => trayActions.onSendFeedback(),
+        recent: trayActions.listRecent(),
+        onOpenRecent: (path) => trayActions.onOpenRecent(path),
       }),
     );
     target.setContextMenu(menu);
-    target.setIgnoreDoubleClickEvents(true);
     target.removeAllListeners("click");
     target.removeAllListeners("right-click");
     target.on("click", showMainWindow);
