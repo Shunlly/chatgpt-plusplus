@@ -26,12 +26,11 @@ import {
 import { chownForTargetUser } from "../ownership.js";
 import { getOpenReport, type OpenReport } from "./debug.js";
 import { openCodex, quitCodex } from "../alerts.js";
-import {
-  WINDOWS_PLUSPLUS_AUMID,
-  installWindowsLaunchStub,
-  isManagedStoreAppsPath,
-  staleManagedChatGptShortcutCandidates,
-} from "../windows-launch.js";
+const WINDOWS_PLUSPLUS_AUMID = "com.chatgpt-plusplus.app";
+
+function isManagedStoreAppsPath(path: string): boolean {
+  return /\\chatgpt-plusplus\\store-apps\\/i.test(path.replace(/\//g, "\\"));
+}
 
 interface Opts {
   app?: string;
@@ -1252,14 +1251,19 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
   if (!localAppData) return null;
 
   const isolatedDir = windowsIsolatedUserDataDir();
-  const stub = installWindowsLaunchStub({
-    assetsDir: resolveAssetsDir(),
-    localAppData,
-    owlExe: codex.executable,
-    userDataDir: isolatedDir,
-  });
-  const launchTarget = stub && existsSync(stub) ? stub : codex.executable;
-  const launchUserData = stub && existsSync(stub) ? undefined : isolatedDir;
+  const stubDir = join(localAppData, "chatgpt-plusplus", "bin");
+  const stub = join(stubDir, "ChatGPT++.exe");
+  const stubSrc = join(resolveAssetsDir(), "win", "chatgptpp-launch.exe");
+  if (existsSync(stubSrc) && existsSync(codex.executable)) {
+    mkdirSync(stubDir, { recursive: true });
+    copyFileSync(stubSrc, stub);
+    writeFileSync(join(stubDir, "launch.json"), JSON.stringify({
+      exe: codex.executable,
+      userDataDir: isolatedDir,
+    }, null, 2));
+  }
+  const launchTarget = existsSync(stub) ? stub : codex.executable;
+  const launchUserData = existsSync(stub) ? undefined : isolatedDir;
 
   const shimDir = join(localAppData, "Microsoft", "WindowsApps");
   mkdirSync(shimDir, { recursive: true });
@@ -1270,7 +1274,7 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
     "utf8",
   );
   const shortcutPaths = [commandPath];
-  if (stub) shortcutPaths.push(stub);
+  if (existsSync(stub)) shortcutPaths.push(stub);
 
   removeStaleManagedChatGptShortcuts();
 
@@ -1292,10 +1296,11 @@ function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths:
 }
 
 function removeStaleManagedChatGptShortcuts(): void {
-  for (const shortcutPath of staleManagedChatGptShortcutCandidates({
-    appData: process.env.APPDATA,
-    home: homedir(),
-  })) {
+  const stale = [join(homedir(), "Desktop", "ChatGPT.lnk")];
+  if (process.env.APPDATA) {
+    stale.push(join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs", "ChatGPT.lnk"));
+  }
+  for (const shortcutPath of stale) {
     removeStaleManagedChatGptShortcut(shortcutPath);
   }
   const startMenuFolder = process.env.APPDATA

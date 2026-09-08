@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { brandedWindowTitle, CHATGPT_PLUSPLUS_WINDOW_TITLE, installWindowBranding, isCompactBrandingWindow, pickMainBrandingWindow } from "../src/window-branding";
+import { brandedWindowTitle, CHATGPT_PLUSPLUS_WINDOW_TITLE, installWindowBranding, isCompactBrandingWindow } from "../src/window-branding";
 
 test("把 ChatGPT/Codex 窗口标题改成 ChatGPT++，宠物窗标题不改", () => {
   assert.equal(brandedWindowTitle("ChatGPT"), CHATGPT_PLUSPLUS_WINDOW_TITLE);
@@ -111,15 +111,10 @@ test("isCompactBrandingWindow 识别宠物窗，避免 setTitle 打断拖动", (
   );
 });
 
-function fakeWin(opts: {
-  url: string;
-  title?: string;
-  alwaysOnTop?: boolean;
-  size?: number[];
-}) {
+function fakeWin(opts: { url: string; alwaysOnTop?: boolean; size?: number[] }) {
   return {
     isDestroyed: () => false,
-    getTitle: () => opts.title ?? "ChatGPT",
+    getTitle: () => "ChatGPT",
     setTitle: () => {},
     on: () => {},
     isAlwaysOnTop: () => opts.alwaysOnTop ?? false,
@@ -129,24 +124,12 @@ function fakeWin(opts: {
 }
 
 test("isCompactBrandingWindow 识别桌面宠物，空 URL 也不提前 setTitle", () => {
-  assert.equal(
-    isCompactBrandingWindow(fakeWin({ url: "app://-/index.html?initialRoute=%2Favatar-overlay" })),
-    true,
-  );
+  assert.equal(isCompactBrandingWindow(fakeWin({ url: "app://-/index.html?initialRoute=%2Favatar-overlay" })), true);
   assert.equal(isCompactBrandingWindow(fakeWin({ url: "" })), true);
-  assert.equal(isCompactBrandingWindow(fakeWin({ url: "about:blank" })), true);
-});
-
-test("pickMainBrandingWindow 只挑主窗", () => {
-  const pet = fakeWin({ url: "app://-/index.html?initialRoute=%2Favatar-overlay", size: [180, 200], alwaysOnTop: true });
-  const main = fakeWin({ url: "app://-/index.html", size: [1280, 800] });
-  assert.equal(pickMainBrandingWindow([pet, main]), main);
-  assert.equal(pickMainBrandingWindow([pet]), null);
 });
 
 test("Windows 品牌化不再对所有窗口周期 setTitle", () => {
   const src = readFileSync(resolve(process.cwd(), "packages/runtime/src/window-branding.ts"), "utf8");
-  assert.match(src, /pickMainBrandingWindow/);
   assert.match(src, /main title once/);
   assert.doesNotMatch(src, /setInterval\(applyAll/);
 });

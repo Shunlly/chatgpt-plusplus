@@ -56,47 +56,6 @@ export function isCompactBrandingWindow(win: BrandableWindow | null | undefined)
   return false;
 }
 
-export function pickMainBrandingWindow(windows: BrandableWindow[]): BrandableWindow | null {
-  let best: BrandableWindow | null = null;
-  let bestArea = 0;
-  for (const win of windows) {
-    if (!win || win.isDestroyed() || isCompactBrandingWindow(win)) continue;
-    let area = 0;
-    try {
-      const size = win.getSize?.();
-      if (Array.isArray(size) && size.length >= 2) {
-        area = Math.max(0, Number(size[0]) || 0) * Math.max(0, Number(size[1]) || 0);
-      }
-    } catch {}
-    if (!best || area > bestArea) {
-      best = win;
-      bestArea = area;
-    }
-  }
-  return best;
-}
-
-function applyMainWindowTitle(opts: {
-  app: {
-    setAppUserModelId?: (id: string) => void;
-  };
-  BrowserWindow: {
-    getAllWindows(): BrandableWindow[];
-  };
-  brandedMain: WeakSet<object>;
-}): void {
-  try {
-    opts.app.setAppUserModelId?.(CHATGPT_PLUSPLUS_APP_USER_MODEL_ID);
-  } catch {}
-  const main = pickMainBrandingWindow(opts.BrowserWindow.getAllWindows());
-  if (!main || opts.brandedMain.has(main)) return;
-  const next = brandedWindowTitle(main.getTitle());
-  if (next && main.getTitle() !== next) {
-    try { main.setTitle(next); } catch {}
-  }
-  opts.brandedMain.add(main);
-}
-
 export function installWindowBranding(opts: {
   app: {
     setAppUserModelId?: (id: string) => void;
@@ -123,24 +82,24 @@ export function installWindowBranding(opts: {
     opts.enableTitleHooks ?? (typeof process === "undefined" || process.platform !== "win32");
   if (!enableTitleHooks) {
     // Windows Owl: page-title-updated + preventDefault 会原生崩溃。
-    // 只给已经确认的主窗 setTitle 一次；周期 setTitle 会打断宠物窗 startDrag。
-    const brandedMain = new WeakSet<object>();
-    const applyMain = (): void => {
-      applyMainWindowTitle({ app: opts.app, BrowserWindow: opts.BrowserWindow, brandedMain });
-    };
-    const start = (): void => {
-      applyMain();
+    // 只改一次标题，且跳过宠物窗；周期 setTitle 会打断 startDrag。
+    const apply = (): void => {
+      try { opts.app.setAppUserModelId?.(CHATGPT_PLUSPLUS_APP_USER_MODEL_ID); } catch {}
+      try {
+        for (const win of opts.BrowserWindow.getAllWindows()) {
+          if (!win || win.isDestroyed() || isCompactBrandingWindow(win)) continue;
+          const next = brandedWindowTitle(win.getTitle());
+          if (next && win.getTitle() !== next) {
+            try { win.setTitle(next); } catch {}
+          }
+        }
+      } catch {}
     };
     try {
-      opts.app.on("web-contents-created", () => {
-        try { setTimeout(applyMain, 2500); } catch {}
-      });
-    } catch {}
-    try {
-      if (opts.app.isReady?.()) setTimeout(start, 2500);
-      else void opts.app.whenReady?.().then(() => setTimeout(start, 2500));
+      if (opts.app.isReady?.()) setTimeout(apply, 2500);
+      else void opts.app.whenReady?.().then(() => setTimeout(apply, 2500));
     } catch {
-      setTimeout(start, 2500);
+      setTimeout(apply, 2500);
     }
     log(`window branding installed title=${CHATGPT_PLUSPLUS_WINDOW_TITLE} (win32: main title once)`);
     return;

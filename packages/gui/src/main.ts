@@ -51,26 +51,10 @@ function winPreferredPatchedExe(root: string): string | null {
   }
 }
 
-function winLauncherExe(): string | null {
-  const exe = join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "chatgpt-plusplus", "bin", "ChatGPT++.exe");
-  return existsSync(exe) ? exe : null;
-}
-
 async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> {
   const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
   const candidates: string[] = [];
   if (process.platform === "win32") {
-    const launcher = winLauncherExe();
-    if (launcher) {
-      const child = spawn(launcher, [], {
-        detached: true,
-        stdio: "ignore",
-        cwd: dirname(launcher),
-        windowsHide: false,
-      });
-      child.unref();
-      return { ok: true, error: null };
-    }
     // Windows 的 state.appRoot 是镜像目录，必须启动目录里的主程序 exe，
     // 直接 openPath 目录只会打开资源管理器窗口（看起来像"又弹了一个安装器"）。
     // 商店镜像必须带 --user-data-dir，否则和官方 ChatGPT 抢同一份 Codex 用户数据，

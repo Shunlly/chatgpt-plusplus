@@ -81,9 +81,9 @@ function safeStringify(v: unknown): string {
 let titleBrandingTimer: ReturnType<typeof setInterval> | null = null;
 
 function startDocumentTitleBranding(): void {
-  if (shouldSkipTweaks() || isAvatarOverlayWindow()) return;
+  if (shouldSkipTweaks()) return;
   const apply = (): void => {
-    if (shouldSkipTweaks() || isAvatarOverlayWindow()) {
+    if (shouldSkipTweaks()) {
       stopDocumentTitleBranding();
       return;
     }
