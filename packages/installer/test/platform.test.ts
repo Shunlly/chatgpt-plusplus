@@ -162,3 +162,21 @@ test("isolateWindowsOwlUserData 把 Owl 用户数据目录改成 ChatGPT++", () 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("locateCodex Windows 优先使用已有 store-apps 镜像", () => {
+  if (process.platform !== "win32") return;
+  const local = mkdtempSync(join(tmpdir(), "codexpp-local-"));
+  const prev = process.env.LOCALAPPDATA;
+  try {
+    const app = join(local, "chatgpt-plusplus", "store-apps", "OpenAI.Codex_1_x64__xx", "app");
+    mkdirSync(join(app, "resources"), { recursive: true });
+    writeFileSync(join(app, "resources", "app.asar"), "x");
+    writeFileSync(join(app, "ChatGPT.exe"), "x");
+    process.env.LOCALAPPDATA = local;
+    const install = locateCodex();
+    assert.equal(install.appRoot.toLowerCase(), app.toLowerCase());
+  } finally {
+    process.env.LOCALAPPDATA = prev;
+    rmSync(local, { recursive: true, force: true });
+  }
+});

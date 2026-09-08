@@ -71,11 +71,22 @@ export async function patchAsar(
     } catch (e) {
       throw annotatePermError(e, asarPath);
     }
-    try {
-      renameSync(stagingPath, asarPath);
-    } catch (e) {
-      try { unlinkSync(stagingPath); } catch { /* best effort */ }
-      throw annotatePermError(e, asarPath);
+    let renamed = false;
+    let lastErr: unknown;
+    for (let i = 0; i < 8; i++) {
+      try {
+        renameSync(stagingPath, asarPath);
+        renamed = true;
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (!isTransientCleanupError(e) || i === 7) break;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 * (i + 1));
+      }
+    }
+    if (!renamed) {
+      try { unlinkSync(stagingPath); } catch { /* 尽力删除临时文件 */ }
+      throw annotatePermError(lastErr, asarPath);
     }
     return readHeaderHash(asarPath);
   } finally {

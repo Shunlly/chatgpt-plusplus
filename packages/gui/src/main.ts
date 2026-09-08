@@ -37,7 +37,7 @@ function winIsolatedUserDataDir(): string {
 
 async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> {
   if (process.platform === "win32") {
-    const launched = launchWindowsChatgptPlusPlus();
+    const launched = await launchWindowsChatgptPlusPlus();
     if (launched) return { ok: true, error: null };
     return { ok: false, error: "未找到已补丁的 ChatGPT++，请先点安装。也可以直接点桌面的 ChatGPT++ 快捷方式。" };
   }
@@ -73,9 +73,18 @@ function spawnDetached(exe: string, args: string[] = []): boolean {
   }
 }
 
-/** Windows 优先走 bin 启动器，避免 Electron 把镜像目录里的 \\app\\ 误当成自己的 app.asar。 */
-function launchWindowsChatgptPlusPlus(): boolean {
-  if (spawnDetached(winLauncherStub())) return true;
+/** Windows 优先用系统方式打开 bin 启动器，避免 Electron spawn/asar 路径拦截。 */
+async function launchWindowsChatgptPlusPlus(): Promise<boolean> {
+  const stub = winLauncherStub();
+  if (existsSync(stub)) {
+    try {
+      const err = await shell.openPath(stub);
+      if (!err) return true;
+    } catch {
+      // 下面再尝试 spawn。
+    }
+  }
+  if (spawnDetached(stub)) return true;
   const launchFile = join(dirname(winLauncherStub()), "launch.json");
   const cfg = tryReadJson(launchFile) as { exe?: string; userDataDir?: string } | null;
   if (cfg?.exe && spawnDetached(cfg.exe, [
@@ -358,7 +367,12 @@ app.whenReady().then(async () => {
   ipcMain.handle("open-app", () => openPatchedApp());
   ipcMain.handle("run-cli", async (_e, cmd: "install" | "repair" | "uninstall") => {
     const target = logWindow ?? win;
-    return runCli([cmd], target);
+    const args: string[] = [cmd];
+    if ((cmd === "install" || cmd === "repair") && process.platform === "win32") {
+      const st = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
+      if (st?.appRoot && existsSync(st.appRoot)) args.push("--app", st.appRoot);
+    }
+    return runCli(args, target);
   });
 });
 

@@ -181,6 +181,7 @@ function locateWin(override?: string): CodexInstall {
   const candidates: string[] = [];
   if (override) candidates.push(override);
   if (local) {
+    candidates.push(...windowsManagedStoreMirrors(local));
     candidates.push(...windowsCodexCandidates(local));
     candidates.push(
       join(local, "Programs", "Codex (Beta)"),
@@ -264,6 +265,27 @@ function locateWin(override?: string): CodexInstall {
     channel: inferCodexChannel(null, appName),
     platform: "win32",
   };
+}
+
+
+/** 已有的商店镜像优先于再去碰 WindowsApps。 */
+function windowsManagedStoreMirrors(local: string): string[] {
+  const roots = [
+    join(local, "chatgpt-plusplus", "store-apps"),
+    join(local, "codex-plusplus", "store-apps"),
+  ];
+  const out: string[] = [];
+  for (const root of roots) {
+    try {
+      for (const name of readdirSync(root)) {
+        const app = join(root, name, "app");
+        if (isWinCodexRoot(app)) out.push(app);
+      }
+    } catch {
+      // 目录不存在或不可读就跳过。
+    }
+  }
+  return out;
 }
 
 function windowsCodexCandidates(root: string): string[] {
