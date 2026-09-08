@@ -3,13 +3,14 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inferCodexChannel, isolateWindowsOwlUserData, locateCodex, resolveLinuxInstall } from "../src/platform";
+import { inferCodexChannel, isolateWindowsOwlUserData, isWindowsChatGptAppRoot, locateCodex, preferredWindowsLaunchExe, resolveLinuxInstall } from "../src/platform";
 
 test("inferCodexChannel detects stable and beta metadata", () => {
   assert.equal(inferCodexChannel("com.openai.codex", "Codex"), "stable");
   assert.equal(inferCodexChannel("com.openai.chatgptpp", "ChatGPT++"), "stable");
   assert.equal(inferCodexChannel("com.openai.codex.beta", "Codex (Beta)"), "beta");
   assert.equal(inferCodexChannel(null, "Codex (Beta)"), "beta");
+  assert.equal(inferCodexChannel(null, "ChatGPT"), "stable");
 });
 
 test("locateCodex reads beta bundle metadata from override path on macOS", { skip: process.platform !== "darwin" }, () => {
@@ -180,3 +181,51 @@ test("locateCodex Windows 优先使用已有 store-apps 镜像", () => {
     rmSync(local, { recursive: true, force: true });
   }
 });
+
+test("isWindowsChatGptAppRoot 不把 ChatGPT++ 安装器当成官方应用", () => {
+  const root = mkdtempSync(join(tmpdir(), "codexpp-winroot-"));
+  try {
+    const gui = join(root, "Programs", "ChatGPT++");
+    mkdirSync(join(gui, "resources", "app"), { recursive: true });
+    writeFileSync(join(gui, "resources", "app", "package.json"), "{}");
+    writeFileSync(join(gui, "ChatGPT++.exe"), "x");
+    assert.equal(isWindowsChatGptAppRoot(gui), false);
+
+    const mirror = join(root, "chatgpt-plusplus", "store-apps", "OpenAI.Codex_1", "app");
+    mkdirSync(join(mirror, "resources"), { recursive: true });
+    writeFileSync(join(mirror, "resources", "app.asar"), "x");
+    writeFileSync(join(mirror, "ChatGPT.exe"), "x");
+    assert.equal(isWindowsChatGptAppRoot(mirror), true);
+
+    const owl = join(root, "owl-app");
+    mkdirSync(join(owl, "resources"), { recursive: true });
+    writeFileSync(join(owl, "resources", "app.asar"), "x");
+    writeFileSync(join(owl, "resources", "owl-app.ini"), "[Owl]\n");
+    assert.equal(isWindowsChatGptAppRoot(owl), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("preferredWindowsLaunchExe 优先启动器而不是 ChatGPT.exe", () => {
+  const root = mkdtempSync(join(tmpdir(), "codexpp-launch-"));
+  const prev = process.env.LOCALAPPDATA;
+  try {
+    process.env.LOCALAPPDATA = root;
+    const app = join(root, "store-apps", "app");
+    mkdirSync(app, { recursive: true });
+    writeFileSync(join(app, "ChatGPT.exe"), "official");
+    writeFileSync(join(app, "ChatGPT++.exe"), "branded");
+    assert.equal(preferredWindowsLaunchExe(app), join(app, "ChatGPT++.exe"));
+
+    const stubDir = join(root, "chatgpt-plusplus", "bin");
+    mkdirSync(stubDir, { recursive: true });
+    const stub = join(stubDir, "ChatGPT++.exe");
+    writeFileSync(stub, "stub");
+    assert.equal(preferredWindowsLaunchExe(app), stub);
+  } finally {
+    process.env.LOCALAPPDATA = prev;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+

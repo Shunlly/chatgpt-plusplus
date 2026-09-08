@@ -73,33 +73,43 @@ function spawnDetached(exe: string, args: string[] = []): boolean {
   }
 }
 
-/** Windows 优先用系统方式打开 bin 启动器，避免 Electron spawn/asar 路径拦截。 */
+function winLaunchArgs(userDataDir?: string): string[] {
+  return [
+    `--user-data-dir=${userDataDir || winIsolatedUserDataDir()}`,
+    "--app-user-model-id=com.chatgpt-plusplus.app",
+  ];
+}
+
+/** Windows 只打开 ChatGPT++ 启动器/ChatGPT++.exe，避免再拉起一份官方 ChatGPT。 */
 async function launchWindowsChatgptPlusPlus(): Promise<boolean> {
   const stub = winLauncherStub();
-  if (existsSync(stub)) {
-    try {
-      const err = await shell.openPath(stub);
-      if (!err) return true;
-    } catch {
-      // 下面再尝试 spawn。
-    }
-  }
   if (spawnDetached(stub)) return true;
-  const launchFile = join(dirname(winLauncherStub()), "launch.json");
+  try {
+    const err = await shell.openPath(stub);
+    if (!err) return true;
+  } catch {}
+  const desktop = join(homedir(), "Desktop", "ChatGPT++.lnk");
+  if (existsSync(desktop)) {
+    try {
+      const err = await shell.openPath(desktop);
+      if (!err) return true;
+    } catch {}
+  }
+  const startMenu = join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "ChatGPT++.lnk");
+  if (existsSync(startMenu)) {
+    try {
+      const err = await shell.openPath(startMenu);
+      if (!err) return true;
+    } catch {}
+  }
+  const launchFile = join(dirname(stub), "launch.json");
   const cfg = tryReadJson(launchFile) as { exe?: string; userDataDir?: string } | null;
-  if (cfg?.exe && spawnDetached(cfg.exe, [
-    cfg.userDataDir ? `--user-data-dir=${cfg.userDataDir}` : `--user-data-dir=${winIsolatedUserDataDir()}`,
-    "--app-user-model-id=com.chatgpt-plusplus.app",
-  ])) return true;
+  if (cfg?.exe && /chatgpt\+\+\.exe$/i.test(cfg.exe) && spawnDetached(cfg.exe, winLaunchArgs(cfg.userDataDir))) return true;
   const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
   const root = state?.appRoot;
   if (root) {
-    for (const name of ["ChatGPT++.exe", "ChatGPT.exe", "Codex.exe"]) {
-      if (spawnDetached(join(root, name), [
-        `--user-data-dir=${winIsolatedUserDataDir()}`,
-        "--app-user-model-id=com.chatgpt-plusplus.app",
-      ])) return true;
-    }
+    const branded = join(root, "ChatGPT++.exe");
+    if (spawnDetached(branded, winLaunchArgs())) return true;
   }
   return false;
 }
@@ -285,7 +295,11 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
         } catch {}
         try {
           if (existsSync(errFile)) {
-            const errText = readFileSync(errFile, "utf8").trim();
+            const errText = readFileSync(errFile, "utf8").trim()
+              .split(/\r?\n/)
+              .filter((line) => !/fuse (flip failed|sentinel)|Is this an Electron binary/i.test(line))
+              .join("\n")
+              .trim();
             if (errText) pushLog(win, (code === 0 ? "[警告]\n" : "[错误]\n") + errText);
           }
         } catch {}

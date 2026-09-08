@@ -582,7 +582,11 @@ export function shouldFlipElectronFuse(
   codex: Pick<CodexInstall, "electronBinary">,
   requested: boolean,
 ): boolean {
-  return requested && existsSync(codex.electronBinary) && hasElectronFuses(codex.electronBinary);
+  if (!requested || !existsSync(codex.electronBinary)) return false;
+  // Windows Owl：ChatGPT.exe 不是 Electron Framework。有 owl-app.ini 就跳过 fuse，
+  // 完整性只改 exe 里嵌的 asar 哈希，避免安装界面刷 “Fuse sentinel not found”。
+  if (existsSync(join(dirname(codex.electronBinary), "resources", "owl-app.ini"))) return false;
+  return hasElectronFuses(codex.electronBinary);
 }
 
 export function shouldBackupUnpatchedApp(input: { hasPatchMarker: boolean; signature: ReturnType<typeof signatureInfo> }): boolean {

@@ -170,6 +170,16 @@ test("install flips Electron fuse only when the sentinel exists", () => {
   });
 });
 
+test("install skips Electron fuse flipping for Owl even if sentinel bytes exist", () => {
+  withTempDir((root) => {
+    const electronBinary = join(root, "ChatGPT.exe");
+    writeFileSync(electronBinary, "hdr dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX tail");
+    mkdirSync(join(root, "resources"), { recursive: true });
+    writeFileSync(join(root, "resources", "owl-app.ini"), "[Owl]\n");
+    assert.equal(shouldFlipElectronFuse({ electronBinary }, true), false);
+  });
+});
+
 test("install preflight allows patching when Codex is closed", () => {
   assert.doesNotThrow(() => {
     assertCodexNotRunning(fakeCodex(), {

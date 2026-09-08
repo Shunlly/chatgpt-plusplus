@@ -150,6 +150,39 @@ function unique(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+/** ChatGPT++ 安装器自身的 Electron 目录，不能当成官方 ChatGPT 来打补丁。 */
+function isChatGptPlusPlusSelf(path: string): boolean {
+  const n = path.replace(/\\/g, "/").toLowerCase();
+  if (n.includes("/chatgpt-plusplus/store-apps/") || n.includes("/codex-plusplus/store-apps/")) return false;
+  return n.includes("/chatgpt-plusplus/") || n.includes("/programs/chatgpt++") || /chatgpt\+\+/i.test(path);
+}
+
+/** 官方/镜像 ChatGPT：有 app.asar，且是 Owl 或 ChatGPT.exe/Codex.exe。 */
+export function isWindowsChatGptAppRoot(appRoot: string): boolean {
+  if (!appRoot || isChatGptPlusPlusSelf(appRoot)) return false;
+  if (!existsSync(join(appRoot, "resources", "app.asar"))) return false;
+  if (existsSync(join(appRoot, "resources", "owl-app.ini"))) return true;
+  return existsSync(join(appRoot, "ChatGPT.exe"))
+    || existsSync(join(appRoot, "Codex.exe"))
+    || existsSync(join(appRoot, "ChatGPT++.exe"));
+}
+
+/** 桌面/开始菜单用的 ChatGPT++ 启动器。 */
+export function windowsPlusPlusLauncherStub(): string {
+  return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "chatgpt-plusplus", "bin", "ChatGPT++.exe");
+}
+
+/** Windows 打开补丁应用：启动器 > ChatGPT++.exe，避免再拉起一份官方 ChatGPT.exe。 */
+export function preferredWindowsLaunchExe(appRoot: string): string | null {
+  const stub = windowsPlusPlusLauncherStub();
+  if (existsSync(stub)) return stub;
+  for (const name of ["ChatGPT++.exe", "ChatGPT.exe", "Codex.exe"]) {
+    const exe = join(appRoot, name);
+    if (existsSync(exe)) return exe;
+  }
+  return null;
+}
+
 function readMacAppInfo(appRoot: string): { name: string; executable: string; bundleId: string | null } {
   const metaPath = join(appRoot, "Contents", "Info.plist");
   try {
@@ -168,7 +201,8 @@ export function inferCodexChannel(bundleId: string | null, appName?: string): Co
   if (bundleId === "com.openai.codex" || bundleId === "com.openai.chatgptpp") return "stable";
   if (bundleId === "com.openai.codex.beta") return "beta";
   if (/\bbeta\b/i.test(appName ?? "")) return "beta";
-  if (/\bcodex\b/i.test(appName ?? "")) return "stable";
+  if (/\b(codex|chatgpt)\b/i.test(appName ?? "") && !/plusplus|\+\+/i.test(appName ?? "")) return "stable";
+  if (/chatgpt\+\+|plusplus/i.test(appName ?? "")) return "stable";
   return "unknown";
 }
 
@@ -294,6 +328,7 @@ function windowsCodexCandidates(root: string): string[] {
   try {
     for (const entry of readdirSync(root)) {
       if (!/\b(codex|chatgpt)\b/i.test(entry)) continue;
+      if (/plusplus|\+\+/i.test(entry)) continue;
       const dir = join(root, entry);
       try {
         if (!statSync(dir).isDirectory()) continue;
@@ -450,7 +485,7 @@ function latestWindowsSquirrelAppDir(root: string): string | null {
 }
 
 function isWinCodexRoot(appRoot: string): boolean {
-  return existsSync(join(appRoot, "resources", "app.asar"));
+  return isWindowsChatGptAppRoot(appRoot);
 }
 
 function findWinExecutable(appRoot: string): string {
@@ -461,7 +496,8 @@ function findWinExecutable(appRoot: string): string {
       return [] as string[];
     }
   })();
-  const preferred = names.find((name) => name.toLowerCase() === "chatgpt.exe")
+  const preferred = names.find((name) => name.toLowerCase() === "chatgpt++.exe")
+    ?? names.find((name) => name.toLowerCase() === "chatgpt.exe")
     ?? names.find((name) => name.toLowerCase() === "codex.exe")
     ?? names[0];
   if (preferred) return join(appRoot, preferred);
@@ -502,7 +538,7 @@ function findWindowsStoreCodexInstalls(): { name: string; installLocation: strin
             : null;
         return { name, installLocation };
       })
-      .filter((row) => row.installLocation !== null);
+      .filter((row) => row.installLocation !== null && !/plusplus|\+\+/i.test(row.name));
   } catch {
     return [];
   }

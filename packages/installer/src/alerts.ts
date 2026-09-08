@@ -1,9 +1,9 @@
 import { execFileSync, spawn } from "node:child_process";
 import { platform } from "node:os";
 import { join } from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readPlist } from "./plist.js";
-import { locateCodex } from "./platform.js";
+import { locateCodex, preferredWindowsLaunchExe } from "./platform.js";
 import { getOpenReport, type OpenReport } from "./commands/debug.js";
 import { buildPatchFailureIssueUrl } from "./issue-url.js";
 
@@ -169,19 +169,7 @@ export function openCodex(appRoot: string, opts: OpenCodexOptions = {}): void {
 }
 
 function winAppExecutable(appRoot: string): string | null {
-  try {
-    const names = readdirSync(appRoot).filter(
-      (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
-    );
-    const preferred = names.find((name) => name.toLowerCase() === "chatgpt.exe")
-      ?? names.find((name) => name.toLowerCase() === "codex.exe")
-      ?? names[0];
-    if (preferred) return join(appRoot, preferred);
-  } catch {}
-  for (const name of ["ChatGPT.exe", "Codex.exe"]) {
-    if (existsSync(join(appRoot, name))) return join(appRoot, name);
-  }
-  return null;
+  return preferredWindowsLaunchExe(appRoot);
 }
 
 export function isCodexRunning(appRoot: string): boolean {
