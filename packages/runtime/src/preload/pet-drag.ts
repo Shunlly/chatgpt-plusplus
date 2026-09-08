@@ -18,10 +18,13 @@ export function isPetDragHandle(target: EventTarget | null): boolean {
 }
 
 function installCrispPetText(): void {
-  if (document.getElementById("codexpp-pet-crisp-text")) return;
-  const style = document.createElement("style");
-  style.id = "codexpp-pet-crisp-text";
-  style.textContent = `
+  const mount = (): void => {
+    if (document.getElementById("codexpp-pet-crisp-text")) return;
+    const parent = document.head || document.documentElement;
+    if (!parent) return;
+    const style = document.createElement("style");
+    style.id = "codexpp-pet-crisp-text";
+    style.textContent = `
 html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
@@ -33,7 +36,10 @@ html, body {
   text-rendering: geometricPrecision;
 }
 `;
-  (document.head || document.documentElement).appendChild(style);
+    parent.appendChild(style);
+  };
+  if (document.head || document.documentElement) mount();
+  else document.addEventListener("DOMContentLoaded", mount, { once: true });
 }
 
 export function installPetWindowDrag(): void {

@@ -247,6 +247,8 @@ function locateWin(override?: string): CodexInstall {
     );
   }
   const writableAppRoot = isWindowsAppsPath(appRoot) ? ensureWindowsStoreMirror(appRoot) : appRoot;
+  // --app 指向已有镜像时不会走 ensureWindowsStoreMirror，这里补一次隔离。
+  if (!isWindowsAppsPath(writableAppRoot)) isolateWindowsOwlUserData(writableAppRoot);
   const resourcesDir = join(writableAppRoot, "resources");
   const executable = findWinExecutable(writableAppRoot);
   const appName = basename(executable, ".exe");
@@ -355,40 +357,61 @@ export function isolateWindowsOwlUserData(appRoot: string): boolean {
   const iniPath = join(appRoot, "resources", "owl-app.ini");
   if (!existsSync(iniPath)) return false;
   const original = readFileSync(iniPath, "utf8");
+  const nl = original.includes("\r\n") ? "\r\n" : "\n";
   const line = `UserDataDirectoryName=${WINDOWS_ISOLATED_USER_DATA_NAME}`;
-  let updated = original.replace(/^UserDataDirectoryName\s*=\s*.*$/im, line);
-  if (updated === original) {
-    if (/^\s*\[Owl\]/im.test(original)) {
-      updated = original.replace(/^\s*\[Owl\]\s*$/im, `[Owl]\n${line}`);
-    } else {
-      const nl = original.includes("\r\n") ? "\r\n" : "\n";
-      updated = `${original.trimEnd()}${nl}[Owl]${nl}${line}${nl}`;
+  const parts = original.split(/\r?\n/);
+  let seen = false;
+  const out: string[] = [];
+  for (const part of parts) {
+    if (/^\s*UserDataDirectoryName\s*=/.test(part)) {
+      if (seen) continue;
+      out.push(line);
+      seen = true;
+      continue;
     }
+    out.push(part);
   }
+  if (!seen) {
+    const owl = out.findIndex((item) => /^\s*\[Owl\]\s*$/.test(item));
+    if (owl >= 0) out.splice(owl + 1, 0, line);
+    else out.push("[Owl]", line);
+  }
+  const updated = out.join(nl);
   if (updated !== original) writeFileSync(iniPath, updated);
   return true;
 }
 
-function mirrorDirectory(source: string, target: string): void {
-  mkdirSync(dirname(target), { recursive: true });
+function robocopyTo(source: string, target: string, extra: string[]): number | null {
   const result = spawnSync(
-    // /B 备份模式：管理员可用 SeBackupPrivilege 绕过 WindowsApps 的 ACL 拒绝。
     "robocopy.exe",
-    [source, target, "/MIR", "/B", "/NFL", "/NDL", "/NJH", "/NJS", "/NP"],
+    [source, target, "/E", "/COPY:DAT", "/R:1", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", ...extra],
     { stdio: "ignore" },
   );
-  // Robocopy uses 0-7 for success / non-fatal copy states.
-  if (typeof result.status === "number" && result.status <= 7) return;
+  return typeof result.status === "number" ? result.status : null;
+}
 
-  rmSync(target, { recursive: true, force: true });
+function mirrorDirectory(source: string, target: string): void {
+  mkdirSync(dirname(target), { recursive: true });
+  const copied = (status: number | null): boolean =>
+    typeof status === "number" && status <= 7 && isWinCodexRoot(target);
+  // 先普通复制：WindowsApps 经常可读，不必管理员。
+  if (copied(robocopyTo(source, target, []))) return;
+  // 再试备份模式，给管理员绕过 ACL。
+  if (copied(robocopyTo(source, target, ["/B"]))) return;
+  try {
+    cpSync(source, target, { recursive: true });
+    if (isWinCodexRoot(target)) return;
+  } catch {
+    // 下面按来源给出明确错误。
+  }
   if (isWindowsAppsPath(source)) {
     throw new Error(
       `[!] 无法读取 Microsoft Store 版 ChatGPT/Codex 安装目录\n\n` +
-        `Windows 系统保护了 ${source} 的访问权限，备份模式复制失败（robocopy 退出码 ${result.status ?? "?"}）。\n\n` +
-        `请确认安装命令以管理员身份运行（安装器会自动请求提权），然后重试。`,
+        `Windows 系统保护了 ${source} 的访问权限，复制失败。\n\n` +
+        `请以管理员身份重试，或用 --app 指向一份已复制好的可写安装目录。`,
     );
   }
-  cpSync(source, target, { recursive: true });
+  throw new Error(`[!] 无法复制 ${source} 到 ${target}`);
 }
 
 function latestWindowsSquirrelAppDir(root: string): string | null {

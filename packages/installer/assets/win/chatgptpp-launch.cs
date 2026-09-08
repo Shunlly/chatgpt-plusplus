@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 internal static class Program
 {
@@ -24,6 +25,8 @@ internal static class Program
                 Log(baseDir, "missing exe: " + exe);
                 return 1;
             }
+            // 先关掉商店官方 ChatGPT，否则 Owl 单实例会把窗口交给官方进程并立刻退出。
+            QuitOfficialChatGpt(baseDir);
             var psi = new ProcessStartInfo();
             psi.FileName = exe;
             psi.WorkingDirectory = Path.GetDirectoryName(exe) ?? "";
@@ -37,6 +40,52 @@ internal static class Program
             Log(baseDir, ex.ToString());
             return 1;
         }
+    }
+
+    private static void QuitOfficialChatGpt(string baseDir)
+    {
+        int killed = 0;
+        foreach (string name in new[] { "ChatGPT", "Codex" })
+        {
+            Process[] processes;
+            try { processes = Process.GetProcessesByName(name); }
+            catch { continue; }
+            foreach (Process p in processes)
+            {
+                try
+                {
+                    if (ShouldQuitForeign(p))
+                    {
+                        p.Kill();
+                        killed++;
+                    }
+                }
+                catch { }
+                finally
+                {
+                    try { p.Dispose(); } catch { }
+                }
+            }
+        }
+        if (killed > 0)
+        {
+            Log(baseDir, "quit official chatgpt processes: " + killed);
+            Thread.Sleep(800);
+        }
+    }
+
+    private static bool ShouldQuitForeign(Process p)
+    {
+        string path = "";
+        try
+        {
+            if (p.MainModule != null) path = p.MainModule.FileName ?? "";
+        }
+        catch { }
+        string lower = (path ?? "").ToLowerInvariant().Replace('/', '\\');
+        if (lower.Contains("\\chatgpt-plusplus\\")) return false;
+        if (string.IsNullOrWhiteSpace(path)) return true;
+        return lower.Contains("\\windowsapps\\");
     }
 
     private static string BuildChildArgs(string userData)

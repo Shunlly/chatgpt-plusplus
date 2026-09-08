@@ -4,7 +4,7 @@ import { cpSync, existsSync, readFileSync, writeFileSync, mkdirSync, openSync, c
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isDedicatedMacApp, locateCodex, MAC_CHATGPTPP_DEFAULT, windowsIsolatedUserDataDir, type CodexInstall } from "../platform.js";
+import { isDedicatedMacApp, locateCodex, MAC_CHATGPTPP_DEFAULT, isolateWindowsOwlUserData, windowsIsolatedUserDataDir, type CodexInstall } from "../platform.js";
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity, replaceWindowsEmbeddedAsarHash } from "../integrity.js";
@@ -224,6 +224,7 @@ export async function install(opts: Opts = {}): Promise<void> {
     if (persistentCli) step(`CLI: ${kleur.cyan(persistentCli)}`);
   }
   const codex = ensureDedicatedApp(locateCodex(opts.app), step);
+  if (codex.platform === "win32") isolateWindowsOwlUserData(codex.appRoot);
   const fuseFlip = shouldFlipElectronFuse(codex, wantsFuseFlip);
   const codexVersion = readCodexVersion(codex.metaPath);
   step(`${codex.appName}: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
@@ -1221,23 +1222,9 @@ function ensureWindowsBrandedExecutable(executable: string): string {
 }
 
 function brandWindowsExecutableResources(exePath: string): void {
-  const rcedit = join(resolveAssetsDir(), "win", "rcedit-x64.exe");
-  if (!existsSync(rcedit) || !existsSync(exePath)) return;
-  try {
-    execFileSync(
-      rcedit,
-      [
-        exePath,
-        "--set-version-string", "FileDescription", "ChatGPT++",
-        "--set-version-string", "ProductName", "ChatGPT++",
-        "--set-version-string", "InternalName", "ChatGPT++",
-        "--set-version-string", "OriginalFilename", "ChatGPT++.exe",
-      ],
-      { stdio: "ignore" },
-    );
-  } catch {
-    // 改版本资源失败不影响启动，任务栏仍可能显示 ChatGPT。
-  }
+  // rcedit 会弄坏 Owl 的 SxS 清单，ChatGPT++.exe 直接无法启动。
+  // 名称改由启动器和 AUMID 负责。
+  void exePath;
 }
 
 function installWindowsManagedAppLauncher(codex: CodexInstall): { shortcutPaths: string[] } | null {
