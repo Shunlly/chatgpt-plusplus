@@ -417,11 +417,13 @@ function buildExe(binary) {
 
 function run(command, args, cwd) {
   console.log(`$ ${command} ${args.join(" ")}`);
-  const result = spawnSync(command, args, {
+  const win = process.platform === "win32";
+  const cmd = win && /[ \s]/.test(command) ? `"${command}"` : command;
+  const result = spawnSync(cmd, args, {
     cwd,
     encoding: "utf8",
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: win,
   });
   if (result.status !== 0) {
     const detail = result.error ? `: ${result.error.message}` : `（退出码 ${result.status}）`;
