@@ -371,8 +371,12 @@ function findIscc() {
     candidates.push(join(localPrograms, sub, "ISCC.exe"));
   }
   for (const c of candidates) {
+    if (c.includes("\\") || c.includes("/")) {
+      if (existsSync(c)) return c;
+      continue;
+    }
     const r = spawnSync(process.platform === "win32" ? "where" : "which", [c], { encoding: "utf8" });
-    if (r.status === 0) return c;
+    if (r.status === 0) return c.trim().split(/\r?\n/)[0];
   }
   return null;
 }
