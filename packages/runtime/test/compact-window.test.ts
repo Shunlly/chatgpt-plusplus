@@ -23,6 +23,7 @@ test("宠物窗启动中断会话条，但不跑 tweak 宿主", () => {
   assert.match(src, /if \(shouldSkipTweaks\(\)\)/);
   assert.match(src, /shouldStartInterruptedPetOverlay/);
   assert.match(src, /isAvatarOverlayWindow/);
+  assert.match(src, /installPetWindowDrag/);
 });
 
 test("打开中断会话不会把宠物窗当主窗", () => {

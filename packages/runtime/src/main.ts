@@ -72,6 +72,7 @@ import {
 import { maybeStartBrowserUiServer } from "./browser-ui";
 import { installWindowBranding } from "./window-branding";
 import { installWindowsTrayFallback } from "./windows-tray";
+import { installWindowsPetDrag } from "./windows-pet-drag";
 import { parseProcessTable, parsePsLstart, sweepOrphanHelpers } from "./orphan-helpers";
 import { compactOversizedCodexLogs } from "./codex-logs-compact";
 
@@ -632,6 +633,7 @@ installWindowBranding({
   log: (msg) => log("info", msg),
 });
 installWindowsTrayFallback((msg) => log("info", msg));
+installWindowsPetDrag((msg) => log("info", msg));
 log("info", "main.ts evaluated; app.isReady=" + app.isReady());
 if (isChatgptPlusPlusSafeModeEnabled()) {
   log("warn", "safe mode is enabled; tweaks will not be loaded");

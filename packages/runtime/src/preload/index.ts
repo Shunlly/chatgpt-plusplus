@@ -19,6 +19,7 @@ import { startSettingsInjector, stopSettingsInjector } from "./settings-injector
 import { startTweakHost, teardownTweakHost } from "./tweak-host";
 import { mountManager } from "./manager";
 import { isAvatarOverlayWindow, isCompactPetWindow, shouldSkipTweaks } from "./compact-window";
+import { installPetWindowDrag } from "./pet-drag";
 import { brandedWindowTitle } from "../window-branding";
 import {
   installRunningThreadCapture,
@@ -119,6 +120,7 @@ startDocumentTitleBranding();
 let statsigPatchResult: { matched: number; changed: number; skipped: number } | null = null;
 if (isAvatarOverlayWindow()) {
   fileLog("skip host hooks: avatar overlay");
+  installPetWindowDrag();
 } else {
   try {
     statsigPatchResult = applyStatsigModelVisibilityPatch();
