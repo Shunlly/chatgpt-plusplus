@@ -42,7 +42,7 @@ Name: "chinesetraditional"; MessagesFile: "languages\ChineseTraditional.isl"
 Source: "{#STAGEDIR}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\{#APP_NAME}"; Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Flags: skipifdoesntexist
+Name: "{group}\{#APP_NAME}"; Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Flags: createonlyiffileexists
 Name: "{group}\{#APP_NAME} 修复工具"; Filename: "{app}\{#APP_NAME}.exe"; Parameters: "--panel"; IconFilename: "{app}\{#APP_NAME}.exe"
 
 [Run]
