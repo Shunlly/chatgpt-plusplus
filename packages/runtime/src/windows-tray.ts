@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { isCompactBrandingWindow } from "./window-branding";
+import { killChatgptPlusPlusCompanions } from "./windows-quit";
 
 export const CHATGPT_PLUSPLUS_TRAY_TOOLTIP = "ChatGPT++";
 
@@ -24,6 +25,7 @@ export function showMainWindow(): void {
 }
 
 export function quitFromTray(): void {
+  try { killChatgptPlusPlusCompanions(process.pid); } catch {}
   try {
     for (const win of BrowserWindow.getAllWindows()) {
       try {
@@ -39,7 +41,7 @@ export function quitFromTray(): void {
       app.exit(0);
     } catch {}
     process.exit(0);
-  }, 1500);
+  }, 800);
 }
 
 const requireElectron = createRequire(__filename);
@@ -123,6 +125,11 @@ function createFallbackTray(log: (msg: string) => void): void {
 
 export function installWindowsTrayFallback(log: (msg: string) => void): void {
   if (process.platform !== "win32") return;
+  try {
+    app.on("before-quit", () => {
+      try { killChatgptPlusPlusCompanions(process.pid); } catch {}
+    });
+  } catch {}
   try { patchElectronTray(); } catch (e) {
     log(`windows tray patch skipped: ${e instanceof Error ? e.message : String(e)}`);
   }
