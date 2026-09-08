@@ -263,13 +263,15 @@ function runCli(args: string[], win: BrowserWindow): Promise<{ code: number | nu
       child.stderr?.on("data", (d) => pushLog(win, d.toString()));
       child.on("error", (e) => pushLog(win, String(e)));
       child.on("close", async (code) => {
-        for (const f of [outFile, errFile]) {
-          try {
-            if (existsSync(f)) pushLog(win, readFileSync(f, "utf8"));
-          } catch {
-            // 读不到重定向文件不阻塞结果返回
+        try {
+          if (existsSync(outFile)) pushLog(win, readFileSync(outFile, "utf8"));
+        } catch {}
+        try {
+          if (existsSync(errFile)) {
+            const errText = readFileSync(errFile, "utf8").trim();
+            if (errText) pushLog(win, (code === 0 ? "[警告]\n" : "[错误]\n") + errText);
           }
-        }
+        } catch {}
         if (code !== 0) {
           // CLI 失败时会写 <userRoot>/log/installer.log，把它尾部带出来定位根因。
           try {

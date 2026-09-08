@@ -156,6 +156,15 @@ test("install skips Electron fuse flipping when the framework binary is missing"
     const electronBinary = join(root, "Electron Framework");
     assert.equal(shouldFlipElectronFuse({ electronBinary }, true), false);
     writeFileSync(electronBinary, "");
+    assert.equal(shouldFlipElectronFuse({ electronBinary }, true), false);
+    assert.equal(shouldFlipElectronFuse({ electronBinary }, false), false);
+  });
+});
+
+test("install flips Electron fuse only when the sentinel exists", () => {
+  withTempDir((root) => {
+    const electronBinary = join(root, "Electron Framework");
+    writeFileSync(electronBinary, "hdr dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX tail");
     assert.equal(shouldFlipElectronFuse({ electronBinary }, true), true);
     assert.equal(shouldFlipElectronFuse({ electronBinary }, false), false);
   });

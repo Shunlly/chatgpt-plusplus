@@ -53,6 +53,14 @@ export interface FuseSnapshot {
   offset: number;
 }
 
+export function hasElectronFuses(binaryPath: string): boolean {
+  try {
+    return readFileSync(binaryPath).includes(SENTINEL);
+  } catch {
+    return false;
+  }
+}
+
 export function readFuses(binaryPath: string): FuseSnapshot {
   const buf = readFileSync(binaryPath);
   const sentIdx = buf.indexOf(SENTINEL);

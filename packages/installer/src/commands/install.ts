@@ -8,7 +8,7 @@ import { isDedicatedMacApp, locateCodex, MAC_CHATGPTPP_DEFAULT, isolateWindowsOw
 import { ensureUserPaths } from "../paths.js";
 import { backupOnce, patchAsar, readFileInAsar, readHeaderHash } from "../asar.js";
 import { setIntegrity, getIntegrity, replaceWindowsEmbeddedAsarHash } from "../integrity.js";
-import { writeFuse } from "../fuses.js";
+import { hasElectronFuses, writeFuse } from "../fuses.js";
 import { clearQuarantine, prepareCodeSigning, signCodexApp, signatureInfo } from "../codesign.js";
 import { readPlist, writePlist } from "../plist.js";
 import { writeState } from "../state.js";
@@ -229,7 +229,7 @@ export async function install(opts: Opts = {}): Promise<void> {
   const codexVersion = readCodexVersion(codex.metaPath);
   step(`${codex.appName}: ${kleur.cyan(codex.appRoot)}${codexVersion ? ` (${kleur.cyan(codexVersion)}, ${codex.channel})` : ` (${codex.channel})`}`);
   if (wantsFuseFlip && !fuseFlip) {
-    step.detail("Skipping Electron fuse flip; Electron Framework binary was not found");
+    step.detail("跳过 Electron fuse：当前是 Owl/Chromium 内核，完整性改走 exe 内 asar 哈希");
   }
   preflightSystemTools(codex.platform, resign, codex.metaPath !== null);
   const reopenAfterPatch = preflightAppClosed(codex, step);
@@ -323,7 +323,7 @@ export async function install(opts: Opts = {}): Promise<void> {
       step.detail(`Fuse EnableEmbeddedAsarIntegrityValidation: ${r.from} → ${r.to}`);
       fuseFlipped = true;
     } catch (e) {
-      console.warn(kleur.yellow(`Fuse flip failed: ${(e as Error).message}`));
+      step.detail(`跳过 Electron fuse：${(e as Error).message}`);
     }
   }
   step("App patched");
@@ -582,7 +582,7 @@ export function shouldFlipElectronFuse(
   codex: Pick<CodexInstall, "electronBinary">,
   requested: boolean,
 ): boolean {
-  return requested && existsSync(codex.electronBinary);
+  return requested && existsSync(codex.electronBinary) && hasElectronFuses(codex.electronBinary);
 }
 
 export function shouldBackupUnpatchedApp(input: { hasPatchMarker: boolean; signature: ReturnType<typeof signatureInfo> }): boolean {

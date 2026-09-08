@@ -324,7 +324,8 @@ function bindEvents(): void {
     setBusy(true);
     window.cppp.onCliLog((line) => log(line));
     const r = await window.cppp.runCli(cmd);
-    log("=== 退出码 " + r.code + " ===");
+    if (r.code === 0) log("=== 完成 ===");
+    else log("=== 失败，退出码 " + r.code + " ===");
     setBusy(false);
     await refresh();
   }
