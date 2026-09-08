@@ -35,52 +35,16 @@ function winIsolatedUserDataDir(): string {
   return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "ChatGPT++");
 }
 
-function winPreferredPatchedExe(root: string): string | null {
-  try {
-    const names = readdirSync(root).filter(
-      (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
-    );
-    const preferred =
-      names.find((name) => name.toLowerCase() === "chatgpt++.exe") ??
-      names.find((name) => name.toLowerCase() === "chatgpt.exe") ??
-      names.find((name) => name.toLowerCase() === "codex.exe") ??
-      names[0];
-    return preferred ? join(root, preferred) : null;
-  } catch {
-    return null;
-  }
-}
-
 async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> {
+  if (process.platform === "win32") {
+    const launched = launchWindowsChatgptPlusPlus();
+    if (launched) return { ok: true, error: null };
+    return { ok: false, error: "未找到已补丁的 ChatGPT++，请先点安装。也可以直接点桌面的 ChatGPT++ 快捷方式。" };
+  }
   const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
   const candidates: string[] = [];
-  if (process.platform === "win32") {
-    // Windows 的 state.appRoot 是镜像目录，必须启动目录里的主程序 exe，
-    // 直接 openPath 目录只会打开资源管理器窗口（看起来像"又弹了一个安装器"）。
-    // 商店镜像必须带 --user-data-dir，否则和官方 ChatGPT 抢同一份 Codex 用户数据，
-    // 单实例锁会把窗口交给已打开的原版，表现为“安装完打不开”。
-    const root = state?.appRoot;
-    if (root && existsSync(root)) {
-      const exe = winPreferredPatchedExe(root);
-      if (exe && existsSync(exe)) {
-        const args: string[] = [];
-        if (/\\chatgpt-plusplus\\store-apps\\/i.test(root.replace(/\//g, "\\"))) {
-          args.push(`--user-data-dir=${winIsolatedUserDataDir()}`);
-        }
-        const child = spawn(exe, args, {
-          detached: true,
-          stdio: "ignore",
-          cwd: dirname(exe),
-          windowsHide: false,
-        });
-        child.unref();
-        return { ok: true, error: null };
-      }
-    }
-  } else {
-    if (state?.appRoot && existsSync(state.appRoot)) candidates.push(state.appRoot);
-    candidates.push("/Applications/ChatGPT.app", "/Applications/Codex.app");
-  }
+  if (state?.appRoot && existsSync(state.appRoot)) candidates.push(state.appRoot);
+  candidates.push("/Applications/ChatGPT.app", "/Applications/Codex.app");
   for (const appPath of candidates) {
     if (!existsSync(appPath)) continue;
     const err = await shell.openPath(appPath);
@@ -89,17 +53,61 @@ async function openPatchedApp(): Promise<{ ok: boolean; error: string | null }> 
   return { ok: false, error: "未找到已补丁的 ChatGPT/Codex 应用，请先安装" };
 }
 
+function winLauncherStub(): string {
+  return join(process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "chatgpt-plusplus", "bin", "ChatGPT++.exe");
+}
+
+function spawnDetached(exe: string, args: string[] = []): boolean {
+  try {
+    if (!exe || !existsSync(exe)) return false;
+    const child = spawn(exe, args, {
+      detached: true,
+      stdio: "ignore",
+      cwd: dirname(exe),
+      windowsHide: false,
+    });
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Windows 优先走 bin 启动器，避免 Electron 把镜像目录里的 \\app\\ 误当成自己的 app.asar。 */
+function launchWindowsChatgptPlusPlus(): boolean {
+  if (spawnDetached(winLauncherStub())) return true;
+  const launchFile = join(dirname(winLauncherStub()), "launch.json");
+  const cfg = tryReadJson(launchFile) as { exe?: string; userDataDir?: string } | null;
+  if (cfg?.exe && spawnDetached(cfg.exe, [
+    cfg.userDataDir ? `--user-data-dir=${cfg.userDataDir}` : `--user-data-dir=${winIsolatedUserDataDir()}`,
+    "--app-user-model-id=com.chatgpt-plusplus.app",
+  ])) return true;
+  const state = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
+  const root = state?.appRoot;
+  if (root) {
+    for (const name of ["ChatGPT++.exe", "ChatGPT.exe", "Codex.exe"]) {
+      if (spawnDetached(join(root, name), [
+        `--user-data-dir=${winIsolatedUserDataDir()}`,
+        "--app-user-model-id=com.chatgpt-plusplus.app",
+      ])) return true;
+    }
+  }
+  return false;
+}
+
 function status() {
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string; appRoot?: string } | null;
   const apps =
     process.platform === "win32"
       ? (() => {
+          const stub = winLauncherStub();
+          if (existsSync(stub)) return [stub];
           const root = state?.appRoot;
-          if (root && existsSync(root)) {
-            const exe = readdirSync(root).find(
-              (name) => /\.exe$/i.test(name) && /\b(codex|chatgpt)\b/i.test(name),
-            );
-            if (exe) return [join(root, exe)];
+          if (root) {
+            for (const name of ["ChatGPT++.exe", "ChatGPT.exe", "Codex.exe"]) {
+              const exe = join(root, name);
+              if (existsSync(exe)) return [exe];
+            }
           }
           return [];
         })()

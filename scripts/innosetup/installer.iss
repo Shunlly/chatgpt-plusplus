@@ -42,10 +42,12 @@ Name: "chinesetraditional"; MessagesFile: "languages\ChineseTraditional.isl"
 Source: "{#STAGEDIR}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
+Name: "{group}\{#APP_NAME}"; Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Flags: skipifdoesntexist
 Name: "{group}\{#APP_NAME} 修复工具"; Filename: "{app}\{#APP_NAME}.exe"; Parameters: "--panel"; IconFilename: "{app}\{#APP_NAME}.exe"
 
 [Run]
-Filename: "{app}\{#APP_NAME}.exe"; Description: "启动 {#APP_NAME}"; Flags: nowait skipifsilent
+Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Description: "启动 ChatGPT++"; Flags: nowait skipifsilent skipifdoesntexist
+Filename: "{app}\{#APP_NAME}.exe"; Parameters: "--panel"; Description: "打开修复工具"; Flags: nowait skipifsilent unchecked
 
 [UninstallRun]
 Filename: "taskkill.exe"; Parameters: "/f /im {#APP_NAME}.exe"; Flags: runhidden
