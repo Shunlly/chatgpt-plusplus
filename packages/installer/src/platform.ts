@@ -212,8 +212,12 @@ function locateWin(override?: string): CodexInstall {
   const local = process.env.LOCALAPPDATA;
   const programFiles = process.env.ProgramFiles;
   const programFilesX86 = process.env["ProgramFiles(x86)"];
+  const storeInstalls = findWindowsStoreCodexInstalls();
+  const currentStorePackages = storePackageFolderNames(storeInstalls);
   const candidates: string[] = [];
-  if (override) candidates.push(override);
+  if (override && !isStaleWindowsStoreMirror(override, currentStorePackages)) {
+    candidates.push(override);
+  }
   if (local) {
     candidates.push(...windowsManagedStoreMirrors(local));
     candidates.push(...windowsCodexCandidates(local));
@@ -252,7 +256,6 @@ function locateWin(override?: string): CodexInstall {
       ...windowsCodexCandidates(programFilesX86),
     );
   }
-  const storeInstalls = findWindowsStoreCodexInstalls();
   for (const storeInstall of storeInstalls) {
     if (storeInstall.installLocation) {
       candidates.push(...windowsStoreCodexCandidates(storeInstall.installLocation));
@@ -302,7 +305,54 @@ function locateWin(override?: string): CodexInstall {
 }
 
 
-/** 已有的商店镜像优先于再去碰 WindowsApps。 */
+export function windowsStoreMirrorPackageName(appRoot: string): string | null {
+  const n = appRoot.replace(/\\/g, "/").replace(/\/+$/, "");
+  const m = n.match(/store-apps\/([^/]+)\/app$/i);
+  return m ? m[1] : null;
+}
+
+export function pickWindowsManagedMirror(mirrors: string[], currentPackageNames: string[]): string | null {
+  const current = new Set(currentPackageNames.filter(Boolean));
+  const named = mirrors
+    .map((app) => ({ app, name: windowsStoreMirrorPackageName(app) }))
+    .filter((item): item is { app: string; name: string } => !!item.name);
+  const matching = current.size > 0 ? named.filter((item) => current.has(item.name)) : named;
+  const pool = matching.length > 0 ? matching : current.size > 0 ? [] : named;
+  if (pool.length === 0) return null;
+  pool.sort((a, b) => compareStorePackageName(b.name, a.name));
+  return pool[0]?.app ?? null;
+}
+
+function compareStorePackageName(a: string, b: string): number {
+  const pa = (a.split("_")[1] ?? "").split(".").map((part) => Number(part) || 0);
+  const pb = (b.split("_")[1] ?? "").split(".").map((part) => Number(part) || 0);
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    const da = pa[i] ?? 0;
+    const db = pb[i] ?? 0;
+    if (da !== db) return da - db;
+  }
+  return a.localeCompare(b);
+}
+
+function storePackageFolderNames(storeInstalls: { installLocation: string | null }[]): string[] {
+  return storeInstalls
+    .map((item) => (item.installLocation ? basename(item.installLocation) : ""))
+    .filter(Boolean);
+}
+
+function isStaleWindowsStoreMirror(appRoot: string, currentPackageNames: string[]): boolean {
+  if (currentPackageNames.length === 0) return false;
+  const name = windowsStoreMirrorPackageName(appRoot);
+  return !!name && !currentPackageNames.includes(name);
+}
+
+function isManagedStoreMirrorPath(path: string): boolean {
+  const n = path.replace(/\//g, "\\");
+  return /\\chatgpt-plusplus\\store-apps\\/i.test(n) || /\\codex-plusplus\\store-apps\\/i.test(n);
+}
+
+/** 已有的商店镜像：仅在没有当前商店包时作为兜底，避免卸载残留挡住更新。 */
 function windowsManagedStoreMirrors(local: string): string[] {
   const roots = [
     join(local, "chatgpt-plusplus", "store-apps"),
@@ -350,18 +400,25 @@ function findWindowsAppRoot(
   tried: string[],
   storeInstalls: { name: string; installLocation: string | null }[],
 ): string | null {
-  const plain = tried.find((p) => !isWindowsAppsPath(p) && isWinCodexRoot(p));
-  if (plain) return plain;
-  if (storeInstalls.length === 0) return null;
-  for (const candidate of tried.filter(isWindowsAppsPath)) {
-    try {
-      const mirrored = ensureWindowsStoreMirror(candidate);
-      if (isWinCodexRoot(mirrored)) return mirrored;
-    } catch {
-      // 该候选镜像失败（无权限/布局不符），继续尝试下一个 Store 包。
+  const plains = tried.filter((p) => !isWindowsAppsPath(p) && isWinCodexRoot(p));
+  const currentNames = storePackageFolderNames(storeInstalls);
+  // 商店现包优先：卸载残留的旧 OpenAI.Codex_* 镜像不能挡住更新。
+  if (storeInstalls.length > 0) {
+    for (const candidate of tried.filter(isWindowsAppsPath)) {
+      try {
+        const mirrored = ensureWindowsStoreMirror(candidate);
+        if (isWinCodexRoot(mirrored)) return mirrored;
+      } catch {
+        // 该候选镜像失败（无权限/布局不符），继续尝试下一个 Store 包。
+      }
     }
+    const matching = pickWindowsManagedMirror(plains.filter(isManagedStoreMirrorPath), currentNames);
+    if (matching) return matching;
+    return plains.find((p) => !isManagedStoreMirrorPath(p)) ?? null;
   }
-  return null;
+  return pickWindowsManagedMirror(plains.filter(isManagedStoreMirrorPath), [])
+    ?? plains[0]
+    ?? null;
 }
 
 function windowsStoreCodexCandidates(packageRoot: string): string[] {
@@ -399,7 +456,33 @@ function ensureWindowsStoreMirror(storeAppRoot: string): string {
   // Owl 默认 UserDataDirectoryName=Codex，和商店原版抢同一份用户数据/单实例锁，
   // 启动镜像会把窗口交给已打开的官方 ChatGPT，看起来像打不开。
   isolateWindowsOwlUserData(mirrorAppRoot);
+  pruneOlderStoreMirrors(packageName);
   return mirrorAppRoot;
+}
+
+function pruneOlderStoreMirrors(keepPackageName: string): void {
+  const family = keepPackageName.split("_")[0];
+  if (!family) return;
+  const local = process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local");
+  for (const root of [
+    join(local, "chatgpt-plusplus", "store-apps"),
+    join(local, "codex-plusplus", "store-apps"),
+  ]) {
+    let names: string[] = [];
+    try {
+      names = readdirSync(root);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (name === keepPackageName || name.split("_")[0] !== family) continue;
+      try {
+        rmSync(join(root, name), { recursive: true, force: true });
+      } catch {
+        // 占用中的旧镜像下次安装再删。
+      }
+    }
+  }
 }
 
 /** Windows Owl 独立用户数据目录名（%LOCALAPPDATA%\ChatGPT++）。 */

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inferCodexChannel, isolateWindowsOwlUserData, isWindowsChatGptAppRoot, locateCodex, preferredWindowsLaunchExe, resolveLinuxInstall } from "../src/platform";
+import { inferCodexChannel, isolateWindowsOwlUserData, isWindowsChatGptAppRoot, locateCodex, pickWindowsManagedMirror, preferredWindowsLaunchExe, resolveLinuxInstall, windowsStoreMirrorPackageName } from "../src/platform";
 
 test("inferCodexChannel detects stable and beta metadata", () => {
   assert.equal(inferCodexChannel("com.openai.codex", "Codex"), "stable");
@@ -227,5 +227,20 @@ test("preferredWindowsLaunchExe 优先启动器而不是 ChatGPT.exe", () => {
     process.env.LOCALAPPDATA = prev;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("pickWindowsManagedMirror 丢掉卸载残留的旧版本", () => {
+  const oldApp = "C:/Users/x/AppData/Local/chatgpt-plusplus/store-apps/OpenAI.Codex_26.803.10889.0_x64__xx/app";
+  const newApp = "C:/Users/x/AppData/Local/chatgpt-plusplus/store-apps/OpenAI.Codex_26.901.6511.0_x64__xx/app";
+  assert.equal(windowsStoreMirrorPackageName(oldApp), "OpenAI.Codex_26.803.10889.0_x64__xx");
+  assert.equal(pickWindowsManagedMirror([oldApp, newApp], []), newApp);
+  assert.equal(
+    pickWindowsManagedMirror([oldApp, newApp], ["OpenAI.Codex_26.901.6511.0_x64__xx"]),
+    newApp,
+  );
+  assert.equal(
+    pickWindowsManagedMirror([oldApp], ["OpenAI.Codex_26.901.6511.0_x64__xx"]),
+    null,
+  );
 });
 
