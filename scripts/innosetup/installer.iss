@@ -50,7 +50,7 @@ Type: files; Name: "{userprograms}\{#APP_NAME} 修复工具.lnk"
 Name: "{autoprograms}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"
 
 [Run]
-Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Description: "启动 ChatGPT++"; Flags: nowait skipifsilent skipifdoesntexist
+Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Description: "启动 ChatGPT++"; Flags: nowait postinstall skipifsilent skipifdoesntexist
 
 [UninstallRun]
 Filename: "taskkill.exe"; Parameters: "/f /im {#APP_NAME}.exe"; Flags: runhidden
