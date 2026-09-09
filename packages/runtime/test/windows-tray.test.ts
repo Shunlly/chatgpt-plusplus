@@ -37,5 +37,6 @@ test("Windows 托盘只保留 ChatGPT++ 名称，且不覆盖 Owl 右键菜单",
   const src = readFileSync(resolve(process.cwd(), "packages/runtime/src/windows-tray.ts"), "utf8");
   assert.match(src, /CHATGPT_PLUSPLUS_TRAY_TOOLTIP/);
   assert.match(src, /patchElectronTray/);
+  assert.match(src, /kickForeignAtStartup/);
   assert.match(src, /listenerCount\("right-click"\)/);
 });

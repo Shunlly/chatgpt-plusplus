@@ -655,8 +655,8 @@ migrateLegacyDreamSkinCustomThemes();
   if (upgraded.length) log("info", "upgraded bundled tweak(s):", upgraded.join(", "));
 }
 loadAllMainTweaks();
-// Codex 后端会在读完 config.toml 后启动。Windows 上 catalog 常比 app-server 晚写入，
-// 这里拦住 spawn，并在 model_catalog_json 变化后重启后端让它重读。
+// Codex 后端会在读完 config.toml 后启动。启动前先补 catalog；非 Windows 在 catalog 变化后重启后端，
+// Windows 的 Owl 会定期刷新 catalog，不能杀 app-server，否则宿主会把它当成整应用崩溃。
 installAppServerConfigGate({
   configPath: CODEX_CONFIG_FILE,
   log: (msg) => log("info", msg),

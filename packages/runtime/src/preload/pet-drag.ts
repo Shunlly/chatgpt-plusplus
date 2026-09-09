@@ -2,6 +2,7 @@ import { ipcRenderer } from "electron";
 import { isAvatarOverlayWindow } from "./compact-window";
 
 const CHANNEL = "codexpp:pet-drag-by";
+const HIT_CHANNEL = "codexpp:pet-hit-test";
 
 export function isOversizedPetDragRect(width: number, height: number, viewW: number, viewH: number): boolean {
   return width >= viewW - 4 && height >= viewH - 4;
@@ -51,10 +52,25 @@ html, body {
 export function installPetWindowDrag(): void {
   if (!isAvatarOverlayWindow()) return;
   installCrispPetText();
+  let lastHit = false;
+  const syncMouseMode = (target: EventTarget | null): void => {
+    if (!(target instanceof Element)) return;
+    const hit = Boolean(
+      target.closest("#codexpp-interrupted-pet, [data-avatar-overlay-activity-text], [data-avatar-overlay-native-surface-id]") ||
+      isPetDragHandle(target),
+    );
+    if (hit === lastHit) return;
+    lastHit = hit;
+    try { ipcRenderer.send(HIT_CHANNEL, { active: hit }); } catch {}
+  };
+  window.addEventListener("mousemove", (event) => syncMouseMode(event.target), true);
+  window.addEventListener("pointermove", (event) => syncMouseMode(event.target), true);
+  window.addEventListener("mouseleave", () => syncMouseMode(document.documentElement), true);
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
   window.addEventListener("pointerdown", (event) => {
+    syncMouseMode(event.target);
     if (event.button !== 0 || event.ctrlKey) return;
     if (!isPetDragHandle(event.target)) return;
     dragging = true;

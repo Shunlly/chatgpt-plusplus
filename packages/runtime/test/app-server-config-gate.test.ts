@@ -5,6 +5,7 @@ import {
   catalogPathFromToml,
   enableCatalogImageInput,
   isCodexAppServerSpawn,
+  shouldRestartAppServerOnCatalogChange,
 } from "../src/app-server-config-gate";
 
 test("识别 Windows/macOS 的 app-server spawn，放过普通 CLI", () => {
@@ -62,4 +63,9 @@ test("坏 JSON 不改写", () => {
   const out = enableCatalogImageInput(raw);
   assert.equal(out.changed, 0);
   assert.equal(out.json, raw);
+});
+
+test("Windows catalog 更新不杀 app-server，避免 Owl 把后端退出当成整应用重启", () => {
+  assert.equal(shouldRestartAppServerOnCatalogChange("win32"), false);
+  assert.equal(shouldRestartAppServerOnCatalogChange("darwin"), true);
 });

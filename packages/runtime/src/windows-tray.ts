@@ -162,9 +162,14 @@ export function installWindowsTrayFallback(log: (msg: string) => void): void {
   const kickForeign = (): void => {
     try { killForeignChatgptProcesses(process.pid); } catch {}
   };
+  const kickForeignAtStartup = (): void => {
+    kickForeign();
+    // 商店版有时会在启动后补建托盘；短暂重试，避免留下官方 ChatGPT 图标。
+    for (const delay of [1500, 5000]) setTimeout(kickForeign, delay);
+  };
   try {
-    if (app.isReady()) kickForeign();
-    else void app.whenReady().then(kickForeign);
+    if (app.isReady()) kickForeignAtStartup();
+    else void app.whenReady().then(kickForeignAtStartup);
   } catch {}
   const start = (): void => {
     try {

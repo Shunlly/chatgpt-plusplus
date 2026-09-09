@@ -11,8 +11,11 @@ test("Windows 宠物拖动接到主进程和 preload", () => {
   assert.match(main, /installWindowsPetDrag/);
   assert.match(preload, /installPetWindowDrag/);
   assert.match(drag, /codexpp:pet-drag-by/);
+  assert.match(drag, /codexpp:pet-hit-test/);
+  assert.match(host, /codexpp:pet-hit-test/);
   assert.match(drag, /codexpp-interrupted-pet/);
   assert.match(host, /forward:\s*true/);
+  assert.match(host, /setPetMouseMode\(win, false\)/);
   assert.match(host, /avatar-overlay/);
   assert.doesNotMatch(host, /compact-window/);
   assert.doesNotMatch(host, /setTimeout/);

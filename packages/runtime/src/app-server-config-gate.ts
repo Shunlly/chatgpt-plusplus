@@ -5,6 +5,11 @@ import { dirname, isAbsolute, join } from "node:path";
 
 const requireChildProcess = createRequire(__filename);
 
+export function shouldRestartAppServerOnCatalogChange(platformName = process.platform): boolean {
+  // Windows 的 Owl 会定期重写 catalog；杀 app-server 会被宿主当成整应用崩溃并拉起。
+  return platformName !== "win32";
+}
+
 export function isCodexAppServerSpawn(file: unknown, args: unknown): boolean {
   const name = String(file ?? "").replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
   if (name !== "codex" && name !== "codex.exe") return false;
@@ -139,6 +144,7 @@ export function installAppServerConfigGate(opts: {
   const childProcess = requireChildProcess("node:child_process") as typeof import("node:child_process");
   const origSpawn = childProcess.spawn.bind(childProcess) as typeof SpawnFn;
   let lastRestartAt = 0;
+  const restartOnCatalogChange = shouldRestartAppServerOnCatalogChange();
 
   const wrapChild = (_file: unknown, _args: unknown, child: ChildProcess): ChildProcess => {
     let fp = readCatalogFingerprint(opts.configPath);
@@ -146,7 +152,7 @@ export function installAppServerConfigGate(opts: {
 
     const maybeRestart = () => {
       const next = readCatalogFingerprint(opts.configPath);
-      if (!next || next === fp) return;
+      if (!restartOnCatalogChange || !next || next === fp) return;
       if (child.killed || child.exitCode != null) return;
       const now = Date.now();
       if (now - lastRestartAt < 10_000) return;
