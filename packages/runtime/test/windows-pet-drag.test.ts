@@ -12,9 +12,8 @@ test("Windows 宠物拖动接到主进程和 preload", () => {
   assert.match(preload, /installPetWindowDrag/);
   assert.match(drag, /codexpp:pet-drag-by/);
   assert.match(drag, /isPetDragHandle/);
-  assert.match(drag, /viewW <= 480/);
-  assert.match(host, /setIgnoreMouseEvents/);
-  assert.match(host, /forward:\s*true/);
+  assert.match(drag, /isLikelyPetDragWindow/);
+  assert.match(host, /setIgnoreMouseEvents\(false\)/);
 });
 
 test("铺满窗口的空白层不能当拖动热区，宠物小窗可以整窗拖", () => {

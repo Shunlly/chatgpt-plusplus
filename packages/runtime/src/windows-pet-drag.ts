@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 
 const DRAG_CHANNEL = "codexpp:pet-drag-by";
 
@@ -6,7 +6,7 @@ function isPetDragWindow(win: Electron.BrowserWindow | null | undefined): boolea
   if (!win || win.isDestroyed()) return false;
   try {
     const url = win.webContents.getURL() || "";
-    if (/avatar-overlay/i.test(url)) return true;
+    if (/avatar-overlay|compact-window/i.test(url)) return true;
   } catch {}
   try {
     if (!win.isAlwaysOnTop()) return false;
@@ -26,17 +26,27 @@ export function installWindowsPetDrag(log: (msg: string) => void): void {
   const original = proto.setIgnoreMouseEvents;
   if (typeof original === "function") {
     proto.setIgnoreMouseEvents = function (ignore: boolean, opts?: { forward?: boolean }) {
-      if (isPetDragWindow(this as unknown as Electron.BrowserWindow) && ignore) {
-        // 空白穿透，不透明像素把事件转回窗口，否则宠物本体也点不到、拖不动。
-        return original.call(this, true, { forward: true });
+      // Owl 会把宠物窗设成点透，鼠标到不了渲染进程，拖动监听永远不着火。
+      if (ignore && isPetDragWindow(this as unknown as Electron.BrowserWindow)) {
+        return original.call(this, false);
       }
       return original.call(this, ignore, opts);
     };
   }
 
+  const unlock = (win?: Electron.BrowserWindow | null): void => {
+    const windows = win ? [win] : BrowserWindow.getAllWindows();
+    for (const item of windows) {
+      if (!isPetDragWindow(item)) continue;
+      try { item.setIgnoreMouseEvents(false); } catch {}
+      try { item.setMovable(true); } catch {}
+    }
+  };
+
   ipcMain.on(DRAG_CHANNEL, (event, payload: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win || win.isDestroyed() || !isPetDragWindow(win)) return;
+    if (!win || win.isDestroyed()) return;
+    unlock(win);
     const rec = payload && typeof payload === "object" ? payload as { dx?: unknown; dy?: unknown } : {};
     const dx = typeof rec.dx === "number" ? rec.dx : 0;
     const dy = typeof rec.dy === "number" ? rec.dy : 0;
@@ -47,16 +57,16 @@ export function installWindowsPetDrag(log: (msg: string) => void): void {
     } catch {}
   });
 
-  const unlock = (): void => {
-    try {
-      for (const win of BrowserWindow.getAllWindows()) {
-        if (!isPetDragWindow(win)) continue;
-        try { win.setIgnoreMouseEvents(true, { forward: true }); } catch {}
-        try { win.setMovable(true); } catch {}
-      }
-    } catch {}
-  };
-  try { setTimeout(unlock, 2000); } catch {}
+  app.on("web-contents-created", (_e, wc) => {
+    const arm = (): void => {
+      try { unlock(BrowserWindow.fromWebContents(wc)); } catch {}
+    };
+    wc.on("did-finish-load", arm);
+    wc.on("did-navigate", arm);
+  });
+
+  try { setTimeout(() => unlock(), 500); } catch {}
+  try { setTimeout(() => unlock(), 2000); } catch {}
   log("windows pet drag installed");
 }
 
