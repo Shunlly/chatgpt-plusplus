@@ -18,11 +18,12 @@ test("Windows cleanup removes only ChatGPT++ managed context menu entries", () =
   assert.match(script, /\\chatgpt-plusplus\\store-apps\\/);
   assert.match(script, /Remove-Item -LiteralPath \$key -Recurse -Force/);
   assert.match(script, /chatgpt-plusplus-codex\.cmd/);
-  assert.match(script, /watcher\.cmd/);
   assert.match(script, /ChatGPT\+\+\.lnk/);
-  assert.match(script, /store-apps/);
-  assert.match(script, /chatgpt-plusplus\\bin\\ChatGPT\+\+\.exe/);
-  assert.match(script, /launch\.json/);
+  assert.match(script, /chatgpt-plusplus/);
+  assert.match(script, /ChatGPT\+\+/);
+  assert.match(script, /AppData\\Local[/\\]+chatgpt-plusplus/);
+  assert.match(script, /AppData\\Local[/\\]+ChatGPT\+\+/);
+  assert.match(script, /AppData\\Roaming[/\\]+chatgpt-plusplus/);
   assert.match(script, /Get-ScheduledTask -TaskName \$taskName/);
   assert.match(script, /Unregister-ScheduledTask -InputObject \$_ -Confirm:\$false/);
   assert.match(script, /Stop-Process -Id \$_\.ProcessId -Force/);

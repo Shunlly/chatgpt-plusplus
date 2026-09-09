@@ -57,6 +57,11 @@ Filename: "{app}\resources\cli\chatgpt-plusplus.exe"; Parameters: "uninstall"; F
 ; 通配符删除：兼容旧版 NSIS 乱码快捷方式名，也覆盖主入口和修复工具两个入口
 Type: files; Name: "{group}\*.lnk"
 Type: files; Name: "{userappdata}\Microsoft\Windows\Start Menu\Programs\{#APP_NAME}.lnk"
+Type: filesandordirs; Name: "{localappdata}\chatgpt-plusplus"
+Type: filesandordirs; Name: "{localappdata}\codex-plusplus"
+Type: filesandordirs; Name: "{localappdata}\ChatGPT++"
+Type: filesandordirs; Name: "{userappdata}\chatgpt-plusplus"
+Type: filesandordirs; Name: "{userappdata}\codex-plusplus"
 
 [Code]
 procedure RunPostInstall();

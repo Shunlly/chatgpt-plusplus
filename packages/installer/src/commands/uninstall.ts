@@ -23,7 +23,6 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   // 先清理 watcher 计划任务/LaunchAgent：与备份恢复无关，且不依赖应用是否运行。
   // 若放在后面，ChatGPT 运行中卸载会提前抛错，Windows 计划任务残留导致每 30 分钟弹窗。
   uninstallWatcher();
-  cleanupWindowsManagedArtifacts();
   console.log(kleur.green("Removed watcher."));
 
   const paths = ensureUserPaths();
@@ -34,10 +33,11 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
   } catch {
     cleanupRuntimeAndState(paths);
     console.log(kleur.green("Cleaned up runtime + state."));
-    if (opts.purge) {
+    if (opts.purge || process.platform === "win32") {
       purgeUserData(paths);
       console.log(kleur.green("Removed ChatGPT++ user data."));
     }
+    cleanupWindowsManagedArtifacts();
     console.log(kleur.yellow("未找到官方 ChatGPT/Codex，已只清理 ChatGPT++ 残留。"));
     return;
   }
@@ -84,7 +84,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
 
   cleanupRuntimeAndState(paths);
   console.log(kleur.green("Cleaned up runtime + state."));
-  if (opts.purge) {
+  if (opts.purge || process.platform === "win32") {
     purgeUserData(paths);
     console.log(kleur.green("Removed ChatGPT++ user data."));
   } else {
@@ -92,6 +92,7 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
       kleur.dim(`Your tweaks remain at ${paths.tweaks} (use --purge if you want a clean reset).`),
     );
   }
+  cleanupWindowsManagedArtifacts();
 }
 
 type RestorePlan =

@@ -43,19 +43,16 @@ export function buildWindowsManagedCleanupScript(input: {
 }): string {
   const cleanupPaths = [
     input.localAppData ? join(input.localAppData, "Microsoft", "WindowsApps", "chatgpt-plusplus-codex.cmd") : null,
-    input.localAppData ? join(input.localAppData, "chatgpt-plusplus", "store-apps") : null,
-    input.localAppData ? join(input.localAppData, "chatgpt-plusplus", "bin", "ChatGPT++.exe") : null,
-    input.localAppData ? join(input.localAppData, "chatgpt-plusplus", "bin", "launch.json") : null,
-    input.appData ? join(input.appData, "chatgpt-plusplus", "bin", "watcher.cmd") : null,
-    input.appData ? join(input.appData, "chatgpt-plusplus", "bin", "watcher.vbs") : null,
+    input.localAppData ? join(input.localAppData, "chatgpt-plusplus") : null,
+    input.localAppData ? join(input.localAppData, "codex-plusplus") : null,
+    input.localAppData ? join(input.localAppData, "ChatGPT++") : null,
+    input.appData ? join(input.appData, "chatgpt-plusplus") : null,
+    input.appData ? join(input.appData, "codex-plusplus") : null,
     input.appData ? join(input.appData, "Microsoft", "Windows", "Start Menu", "Programs", "ChatGPT++.lnk") : null,
     join(input.home, "Desktop", "ChatGPT++.lnk"),
   ].filter((path): path is string => path !== null);
 
-  const emptyDirs = [
-    input.appData ? join(input.appData, "chatgpt-plusplus", "bin") : null,
-    input.localAppData ? join(input.localAppData, "chatgpt-plusplus", "bin") : null,
-  ].filter((path): path is string => path !== null);
+  const emptyDirs: string[] = [];
 
   return [
     "$ErrorActionPreference = 'SilentlyContinue'",
