@@ -28,7 +28,19 @@ export async function uninstall(opts: Opts = {}): Promise<void> {
 
   const paths = ensureUserPaths();
   const state = readState(paths.stateFile);
-  const codex = locateCodex(opts.app ?? state?.appRoot);
+  let codex: CodexInstall | null = null;
+  try {
+    codex = locateCodex(opts.app ?? state?.appRoot);
+  } catch {
+    cleanupRuntimeAndState(paths);
+    console.log(kleur.green("Cleaned up runtime + state."));
+    if (opts.purge) {
+      purgeUserData(paths);
+      console.log(kleur.green("Removed ChatGPT++ user data."));
+    }
+    console.log(kleur.yellow("未找到官方 ChatGPT/Codex，已只清理 ChatGPT++ 残留。"));
+    return;
+  }
 
   if (isCodexRunning(codex.appRoot)) {
     throw new Error(

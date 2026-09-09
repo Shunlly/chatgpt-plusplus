@@ -114,8 +114,15 @@ async function launchWindowsChatgptPlusPlus(): Promise<boolean> {
   return false;
 }
 
+function winPatchedReady(): boolean {
+  if (process.platform !== "win32") return false;
+  const stub = winLauncherStub();
+  return existsSync(stub) || existsSync(join(dirname(stub), "launch.json"));
+}
+
 function status() {
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string; appRoot?: string } | null;
+  const stubReady = winPatchedReady();
   const apps =
     process.platform === "win32"
       ? (() => {
@@ -132,11 +139,12 @@ function status() {
         })()
       : ["/Applications/ChatGPT.app", "/Applications/Codex.app"].filter(existsSync);
   return {
-    installed: !!state,
+    installed: !!state || stubReady,
     version: state?.version ?? null,
     appRoot: state?.appRoot ?? null,
     apps,
     cliReady: existsSync(cliPath()),
+    canUninstall: !!state || stubReady || existsSync(userRoot()),
   };
 }
 
@@ -360,7 +368,7 @@ app.whenReady().then(async () => {
   // 未安装：显示引导面板。--panel 打开修复/卸载面板。
   const panelOnly = process.argv.includes("--panel");
   const state = tryReadJson(join(userRoot(), "state.json")) as { version?: string } | null;
-  if (!panelOnly && state) {
+  if (!panelOnly && (state || winPatchedReady())) {
     const opened = await openPatchedApp();
     if (opened.ok) {
       app.quit();

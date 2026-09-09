@@ -24,6 +24,7 @@ interface CpppApi {
     version: string | null;
     apps: string[];
     appRoot: string | null;
+    canUninstall?: boolean;
   }>;
   themes(): Promise<ThemesPayload>;
   themeArt(type: "preset" | "custom", id: string): Promise<string | null>;
@@ -307,7 +308,7 @@ async function refresh(): Promise<void> {
   $("appRoot").textContent = s.appRoot ?? "—";
   $("installBtn").textContent = ok ? "重新安装" : "安装";
   $("repairBtn").disabled = !ok;
-  $("uninstallBtn").disabled = !ok;
+  $("uninstallBtn").disabled = !(s.canUninstall ?? ok);
   await refreshThemes();
 }
 
