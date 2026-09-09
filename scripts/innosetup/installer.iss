@@ -45,7 +45,6 @@ Source: "{#STAGEDIR}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdir
 Type: files; Name: "{group}\{#APP_NAME} 修复工具.lnk"
 Type: files; Name: "{autoprograms}\{#APP_NAME} 修复工具.lnk"
 Type: files; Name: "{userprograms}\{#APP_NAME} 修复工具.lnk"
-Type: filesandordirs; Name: "{userappdata}\chatgpt-plusplus\tweak-data"
 
 [Icons]
 Name: "{autoprograms}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"
@@ -90,8 +89,7 @@ procedure RunPostInstall();
 var
   ResultCode: Integer;
 begin
-  // --fresh：清掉旧主题数据，避免 IU/五条悟 等自定义残留还在。
-  Exec(ExpandConstant('{app}\resources\cli\chatgpt-plusplus.exe'), 'install --fresh', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{app}\resources\cli\chatgpt-plusplus.exe'), 'install', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   CreateChatGptPlusPlusShortcuts();
 end;
 

@@ -41,7 +41,6 @@ interface Opts {
   watcherKind?: WatcherKind;
   quiet?: boolean;
   verbose?: boolean;
-  fresh?: boolean;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -106,7 +105,6 @@ function buildInstallArgs(opts: Opts): string[] {
   if (opts.watcherKind) args.push("--watcher-kind", opts.watcherKind);
   if (opts.quiet) args.push("--quiet");
   if (opts.verbose) args.push("--verbose");
-  if (opts.fresh) args.push("--fresh");
   return args;
 }
 
@@ -257,11 +255,6 @@ export async function install(opts: Opts = {}): Promise<void> {
   }
 
   const paths = ensureUserPaths();
-  if (opts.fresh) {
-    try {
-      rmSync(join(paths.root, "tweak-data"), { recursive: true, force: true });
-    } catch {}
-  }
   step.detail(`User dir: ${kleur.cyan(paths.root)}`);
   step(formatCliStep(formatCliShimResult(installCliShims(paths.binDir))));
 

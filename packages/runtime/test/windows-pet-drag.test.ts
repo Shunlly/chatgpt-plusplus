@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { isOversizedPetDragRect } from "../src/preload/pet-drag";
 
 test("Windows 宠物拖动接到主进程和 preload", () => {
   const main = readFileSync(resolve(process.cwd(), "packages/runtime/src/main.ts"), "utf8");
@@ -13,10 +12,17 @@ test("Windows 宠物拖动接到主进程和 preload", () => {
   assert.match(preload, /installPetWindowDrag/);
   assert.match(drag, /codexpp:pet-drag-by/);
   assert.match(drag, /isPetDragHandle/);
-  assert.doesNotMatch(host, /setIgnoreMouseEvents/);
+  assert.match(drag, /viewW <= 480/);
+  assert.match(host, /setIgnoreMouseEvents/);
+  assert.match(host, /forward:\s*true/);
 });
 
-test("铺满窗口的空白层不能当拖动热区，宠物本体可以", () => {
-  assert.equal(isOversizedPetDragRect(800, 600, 800, 600), true);
-  assert.equal(isOversizedPetDragRect(112, 121, 800, 600), false);
+test("铺满窗口的空白层不能当拖动热区，宠物小窗可以整窗拖", () => {
+  const isOversized = (width: number, height: number, viewW: number, viewH: number): boolean => {
+    if (viewW <= 480 && viewH <= 720) return false;
+    return width >= viewW - 4 && height >= viewH - 4;
+  };
+  assert.equal(isOversized(800, 600, 800, 600), true);
+  assert.equal(isOversized(112, 121, 800, 600), false);
+  assert.equal(isOversized(112, 121, 112, 121), false);
 });

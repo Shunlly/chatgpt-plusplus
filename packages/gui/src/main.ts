@@ -393,7 +393,6 @@ app.whenReady().then(async () => {
     if ((cmd === "install" || cmd === "repair") && process.platform === "win32") {
       const st = tryReadJson(join(userRoot(), "state.json")) as { appRoot?: string } | null;
       if (st?.appRoot && existsSync(st.appRoot)) args.push("--app", st.appRoot);
-      if (cmd === "install") args.push("--fresh");
     }
     return runCli(args, target);
   });

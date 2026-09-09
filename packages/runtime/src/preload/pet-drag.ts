@@ -4,6 +4,8 @@ import { isAvatarOverlayWindow } from "./compact-window";
 const CHANNEL = "codexpp:pet-drag-by";
 
 export function isOversizedPetDragRect(width: number, height: number, viewW: number, viewH: number): boolean {
+  // 宠物小窗几乎被本体铺满，整窗都该能拖；只拒绝大浮层里的铺满空白层。
+  if (viewW <= 480 && viewH <= 720) return false;
   return width >= viewW - 4 && height >= viewH - 4;
 }
 
