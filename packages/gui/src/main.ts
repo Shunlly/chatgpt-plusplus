@@ -371,7 +371,7 @@ app.whenReady().then(async () => {
   if (!panelOnly && (state || winPatchedReady())) {
     const opened = await openPatchedApp();
     if (opened.ok) {
-      app.quit();
+      setTimeout(() => app.exit(0), 200);
       return;
     }
   }

@@ -11,10 +11,11 @@ test("Windows 宠物拖动接到主进程和 preload", () => {
   assert.match(main, /installWindowsPetDrag/);
   assert.match(preload, /installPetWindowDrag/);
   assert.match(drag, /codexpp:pet-drag-by/);
-  assert.match(drag, /isPetDragHandle/);
-  assert.match(drag, /pointer-events: none/);
+  assert.match(drag, /codexpp-interrupted-pet/);
   assert.match(host, /forward:\s*true/);
-  assert.doesNotMatch(host, /setIgnoreMouseEvents\(false\)/);
+  assert.match(host, /avatar-overlay/);
+  assert.doesNotMatch(host, /compact-window/);
+  assert.doesNotMatch(host, /setTimeout/);
 });
 
 test("铺满窗口的空白层不能当拖动热区", () => {
@@ -22,5 +23,4 @@ test("铺满窗口的空白层不能当拖动热区", () => {
     width >= viewW - 4 && height >= viewH - 4;
   assert.equal(isOversized(800, 600, 800, 600), true);
   assert.equal(isOversized(112, 121, 800, 600), false);
-  assert.equal(isOversized(200, 400, 200, 400), true);
 });

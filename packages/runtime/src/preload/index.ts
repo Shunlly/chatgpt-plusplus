@@ -118,9 +118,9 @@ startDocumentTitleBranding();
 // 在 Codex 页面脚本执行前，把 Statsig 缓存里的 use_hidden_models 改为 false，
 // 否则官方 UI 会隐藏 model_catalog_json 自定义模型（表现为模型目录加载不出来）。
 let statsigPatchResult: { matched: number; changed: number; skipped: number } | null = null;
-installPetWindowDrag();
 if (isAvatarOverlayWindow()) {
   fileLog("skip host hooks: avatar overlay");
+  installPetWindowDrag();
 } else {
   try {
     statsigPatchResult = applyStatsigModelVisibilityPatch();

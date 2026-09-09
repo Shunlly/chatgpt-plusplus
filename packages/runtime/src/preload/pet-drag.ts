@@ -7,17 +7,11 @@ export function isOversizedPetDragRect(width: number, height: number, viewW: num
   return width >= viewW - 4 && height >= viewH - 4;
 }
 
-export function isLikelyPetDragWindow(): boolean {
-  if (isAvatarOverlayWindow()) return true;
-  return window.innerWidth <= 480 && window.innerHeight <= 720;
-}
-
-/** 只拖宠物本体。铺满窗口的空白框既不能拖，也不该吃鼠标。 */
 export function isPetDragHandle(target: EventTarget | null): boolean {
-  if (!isLikelyPetDragWindow()) return false;
+  if (!isAvatarOverlayWindow()) return false;
   if (!(target instanceof Element)) return false;
   if (target === document.documentElement || target === document.body) return false;
-  if (target.closest(".no-drag, button, a, input, textarea")) return false;
+  if (target.closest(".no-drag, button, a, input, textarea, #codexpp-interrupted-pet")) return false;
   const rect = target.getBoundingClientRect();
   if (isOversizedPetDragRect(rect.width, rect.height, window.innerWidth, window.innerHeight)) return false;
   return true;
@@ -33,13 +27,13 @@ function installCrispPetText(): void {
     style.textContent = `
 html, body {
   background: transparent !important;
-  pointer-events: none !important;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
-[data-avatar-overlay-hit-region] {
-  pointer-events: none !important;
-  background: transparent !important;
+#codexpp-interrupted-pet,
+#codexpp-interrupted-pet * {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag;
 }
 [data-avatar-overlay-activity-text],
 [data-avatar-overlay-native-surface-id] {
@@ -55,6 +49,7 @@ html, body {
 }
 
 export function installPetWindowDrag(): void {
+  if (!isAvatarOverlayWindow()) return;
   installCrispPetText();
   let dragging = false;
   let lastX = 0;
