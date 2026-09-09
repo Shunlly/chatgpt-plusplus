@@ -15,6 +15,7 @@ interface InstallCliOpts {
   "local-signing"?: boolean;
   watcher?: boolean;
   verbose?: boolean;
+  fresh?: boolean;
 }
 
 interface RepairCliOpts {
@@ -158,6 +159,7 @@ prog
   .option("--local-signing", "Alias for --local")
   .option("--watcher", "Install the auto-repair watcher", true)
   .option("--verbose", "Show low-level patching details")
+  .option("--fresh", "Reset ChatGPT++ theme data before patching")
   .action(wrap(runInstall));
 
 prog

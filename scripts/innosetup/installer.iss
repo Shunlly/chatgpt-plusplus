@@ -41,13 +41,17 @@ Name: "chinesetraditional"; MessagesFile: "languages\ChineseTraditional.isl"
 [Files]
 Source: "{#STAGEDIR}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
+[InstallDelete]
+Type: files; Name: "{group}\{#APP_NAME} 修复工具.lnk"
+Type: files; Name: "{autoprograms}\{#APP_NAME} 修复工具.lnk"
+Type: files; Name: "{userprograms}\{#APP_NAME} 修复工具.lnk"
+Type: filesandordirs; Name: "{userappdata}\chatgpt-plusplus\tweak-data"
+
 [Icons]
-Name: "{group}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"
-Name: "{group}\{#APP_NAME} 修复工具"; Filename: "{app}\{#APP_NAME}.exe"; Parameters: "--panel"; IconFilename: "{app}\{#APP_NAME}.exe"
+Name: "{autoprograms}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"
 
 [Run]
-Filename: "{app}\{#APP_NAME}.exe"; Description: "启动 ChatGPT++"; Flags: nowait skipifsilent
-Filename: "{app}\{#APP_NAME}.exe"; Parameters: "--panel"; Description: "打开修复工具"; Flags: nowait skipifsilent unchecked
+Filename: "{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe"; Description: "启动 ChatGPT++"; Flags: nowait skipifsilent skipifdoesntexist
 
 [UninstallRun]
 Filename: "taskkill.exe"; Parameters: "/f /im {#APP_NAME}.exe"; Flags: runhidden
@@ -64,12 +68,31 @@ Type: filesandordirs; Name: "{userappdata}\chatgpt-plusplus"
 Type: filesandordirs; Name: "{userappdata}\codex-plusplus"
 
 [Code]
+procedure CreateChatGptPlusPlusShortcuts();
+var
+  Stub, Target, StartMenuLnk, DesktopLnk: String;
+begin
+  DeleteFile(ExpandConstant('{group}\{#APP_NAME} 修复工具.lnk'));
+  DeleteFile(ExpandConstant('{autoprograms}\{#APP_NAME} 修复工具.lnk'));
+  DeleteFile(ExpandConstant('{userprograms}\{#APP_NAME} 修复工具.lnk'));
+  Stub := ExpandConstant('{localappdata}\chatgpt-plusplus\bin\ChatGPT++.exe');
+  if FileExists(Stub) then
+    Target := Stub
+  else
+    Target := ExpandConstant('{app}\{#APP_NAME}.exe');
+  StartMenuLnk := ExpandConstant('{autoprograms}\{#APP_NAME}.lnk');
+  DesktopLnk := ExpandConstant('{userdesktop}\{#APP_NAME}.lnk');
+  CreateShellLink(StartMenuLnk, 'ChatGPT++', Target, '', ExtractFilePath(Target), Target, 0, SW_SHOWNORMAL);
+  CreateShellLink(DesktopLnk, 'ChatGPT++', Target, '', ExtractFilePath(Target), Target, 0, SW_SHOWNORMAL);
+end;
+
 procedure RunPostInstall();
 var
   ResultCode: Integer;
 begin
-  // 自动打补丁：官方 ChatGPT 已安装时装完即用；失败不阻塞安装（打开应用时面板会引导修复）
-  Exec(ExpandConstant('{app}\resources\cli\chatgpt-plusplus.exe'), 'install', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // --fresh：清掉旧主题数据，避免 IU/五条悟 等自定义残留还在。
+  Exec(ExpandConstant('{app}\resources\cli\chatgpt-plusplus.exe'), 'install --fresh', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  CreateChatGptPlusPlusShortcuts();
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
