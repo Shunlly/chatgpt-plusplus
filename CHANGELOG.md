@@ -15,6 +15,7 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 
 - macOS 拖入 DMG 后主题/插件全部消失：loader 只认用户目录里的 runtime。启动时从应用包 Resources 同步 runtime、tweaks，并补齐四套内置主题（已有自定义主题不覆盖）
 - 打包 DMG 时刷新暂存副本里的 loader，不再沿用本机正在运行的旧 asar
+- 改 asar/Info.plist 后未签完整名会导致 macOS 双击打不开；打包后强制 codesign --verify
 - Windows 宠物拖动更稳，空白处点透；安装完成页可勾选启动 ChatGPT++
 - 长时间运行后的渲染器卡顿
 

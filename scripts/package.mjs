@@ -208,6 +208,16 @@ async function refreshStagedLoader(appRoot) {
   );
   const asarMod = await import("@electron/asar");
   const asar = asarMod.default ?? asarMod;
+  try {
+    const loader = asar.extractFile(asarPath, "chatgpt-plusplus-loader.cjs").toString("utf8");
+    asar.extractFile(asarPath, "bootstrap-user-data.cjs");
+    if (loader.includes("bootstrap-user-data.cjs")) {
+      console.log("staged app.asar 已含主题 bootstrap，跳过重打包");
+      return;
+    }
+  } catch {
+    // 旧 asar 没有 bootstrap，继续灌入。
+  }
   console.log("刷新安装包内 loader（启动时同步主题）…");
   await patchAsar(asarPath, (dir) => {
     cpSync(join(ROOT, "packages", "loader", "loader.cjs"), join(dir, "chatgpt-plusplus-loader.cjs"));
@@ -226,7 +236,20 @@ async function refreshStagedLoader(appRoot) {
   console.log(`已更新 asar integrity ${headerHash.slice(0, 12)}…`);
 }
 
+function signStagedApp(appRoot) {
+  run("xattr", ["-cr", appRoot], ROOT);
+  run("codesign", ["--force", "--deep", "--sign", "-", appRoot], ROOT);
+  const verify = spawnSync("codesign", ["--verify", "--deep", "--strict", appRoot], {
+    encoding: "utf8",
+  });
+  if (verify.status !== 0) {
+    throw new Error(`staged app 签名校验失败：${(verify.stderr || verify.stdout || "").trim()}`);
+  }
+  console.log("staged app 签名校验通过");
+}
+
 async function buildDmg(binary) {
+
   const ver = version();
   const arch = process.arch === "arm64" ? "arm64" : "x64";
 
@@ -242,8 +265,8 @@ async function buildDmg(binary) {
   stageRepairCli(app, binary, ver);
   // 现有 ChatGPT++.app 的 asar 可能还是旧 loader；只改暂存副本，不碰正在运行的应用。
   await refreshStagedLoader(app);
-  // --deep 递归签名嵌套的 Helper 等子 app（符号链接已 verbatim 保留，不再报 unsealed）
-  run("codesign", ["--force", "--deep", "--sign", "-", app], ROOT);
+  // 改 asar / Info.plist 后必须重签并校验，否则 Gatekeeper 报 Info.plist 被改、双击打不开。
+  signStagedApp(app);
 
   writeFileSync(join(stage, "安装说明.txt"), installNotes(ver));
   try {
