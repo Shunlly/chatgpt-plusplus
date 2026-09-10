@@ -25,4 +25,5 @@ coverage
 # 运行时生成产物（copy-assets 自动重建，不入库）
 packages/installer/assets/runtime/
 packages/installer/assets/loader.cjs
+packages/installer/assets/bootstrap-user-data.cjs
 exe/

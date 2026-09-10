@@ -57,7 +57,7 @@ async function main() {
   rmSync(join(BUILD, "node"), { recursive: true, force: true });
   await buildGuiAssets();
   if (platform === "darwin") {
-    buildDmg(binary);
+    await buildDmg(binary);
     // dmg 已包含 app；删除暂存目录，裸二进制仅 CI 上删除（本地保留便于直接使用）
     rmSync(join(OUT, "dmg"), { recursive: true, force: true });
     if (process.env.CI) rmSync(binary, { force: true });
@@ -195,7 +195,37 @@ async function fetchBytes(url) {
   }
 }
 
-function buildDmg(binary) {
+async function refreshStagedLoader(appRoot) {
+  const { pathToFileURL } = await import("node:url");
+  const asarPath = join(appRoot, "Contents", "Resources", "app.asar");
+  const plistPath = join(appRoot, "Contents", "Info.plist");
+  const { patchAsar, readHeaderHash } = await import(
+    pathToFileURL(join(ROOT, "packages", "installer", "dist", "asar.js")).href
+  );
+  const { setIntegrity } = await import(
+    pathToFileURL(join(ROOT, "packages", "installer", "dist", "integrity.js")).href
+  );
+  const asarMod = await import("@electron/asar");
+  const asar = asarMod.default ?? asarMod;
+  console.log("刷新安装包内 loader（启动时同步主题）…");
+  await patchAsar(asarPath, (dir) => {
+    cpSync(join(ROOT, "packages", "loader", "loader.cjs"), join(dir, "chatgpt-plusplus-loader.cjs"));
+    cpSync(
+      join(ROOT, "packages", "loader", "bootstrap-user-data.cjs"),
+      join(dir, "bootstrap-user-data.cjs"),
+    );
+  });
+  const { headerHash } = readHeaderHash(asarPath);
+  setIntegrity({ platform: "darwin", metaPath: plistPath }, headerHash);
+  const loader = asar.extractFile(asarPath, "chatgpt-plusplus-loader.cjs").toString("utf8");
+  if (!loader.includes("bootstrap-user-data.cjs")) {
+    throw new Error("staged app.asar 的 loader 未引用 bootstrap-user-data.cjs");
+  }
+  asar.extractFile(asarPath, "bootstrap-user-data.cjs");
+  console.log(`已更新 asar integrity ${headerHash.slice(0, 12)}…`);
+}
+
+async function buildDmg(binary) {
   const ver = version();
   const arch = process.arch === "arm64" ? "arm64" : "x64";
 
@@ -209,6 +239,8 @@ function buildDmg(binary) {
   cpSync(patched, app, { recursive: true, verbatimSymlinks: true });
   // 副本内附带修复/卸载入口（CLI + 旁置资源），避免重新打补丁还要找安装包。
   stageRepairCli(app, binary, ver);
+  // 现有 ChatGPT++.app 的 asar 可能还是旧 loader；只改暂存副本，不碰正在运行的应用。
+  await refreshStagedLoader(app);
   // --deep 递归签名嵌套的 Helper 等子 app（符号链接已 verbatim 保留，不再报 unsealed）
   run("codesign", ["--force", "--deep", "--sign", "-", app], ROOT);
 

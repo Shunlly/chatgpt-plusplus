@@ -624,6 +624,21 @@ export function hasChatgptPlusPlusAsarMarker(asarPath: string): boolean {
   }
 }
 
+function resolveLoaderFile(name: string): string {
+  const fromAssets = join(resolveAssetsDir(), name);
+  const fromRepo = resolve(here, "..", "..", "..", "loader", name);
+  // 独立包装好的 CLI 必须用包内 assets；开发/测试优先仓库源文件，避免 assets 副本过期。
+  const ordered = isStandalone() ? [fromAssets, fromRepo] : [fromRepo, fromAssets];
+  const hit = ordered.find(existsSync);
+  if (hit) return hit;
+  throw new Error(`${name} not found at ${fromAssets} or ${fromRepo}`);
+}
+
+export function copyLoaderStub(dir: string): void {
+  cpSync(resolveLoaderFile("loader.cjs"), join(dir, "chatgpt-plusplus-loader.cjs"));
+  cpSync(resolveLoaderFile("bootstrap-user-data.cjs"), join(dir, "bootstrap-user-data.cjs"));
+}
+
 /**
  * Replace app.asar's package.json `main` with our loader, copying the
  * loader.cjs into the asar so it can resolve. Returns the original entry path.
@@ -655,18 +670,9 @@ async function injectLoader(
     pkg.main = "chatgpt-plusplus-loader.cjs";
     writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
-    // Copy our loader stub into the asar root.
-    const loaderSrc = join(resolveAssetsDir(), "loader.cjs");
-    if (!existsSync(loaderSrc)) {
-      // Fall back to the in-repo path during development.
-      const devLoader = resolve(here, "..", "..", "..", "..", "loader", "loader.cjs");
-      if (!existsSync(devLoader)) {
-        throw new Error(`loader.cjs not found at ${loaderSrc} or ${devLoader}`);
-      }
-      cpSync(devLoader, join(dir, "chatgpt-plusplus-loader.cjs"));
-    } else {
-      cpSync(loaderSrc, join(dir, "chatgpt-plusplus-loader.cjs"));
-    }
+    // 把 loader 和首次启动 bootstrap 拷进 asar 根目录。
+    // bootstrap-user-data.cjs 必须和 loader 同目录，loader 用相对路径 require。
+    copyLoaderStub(dir);
 
     patchCodexWindowServices(dir, originalMain, step);
   });
@@ -830,6 +836,7 @@ function formatWindowServicesHookFailure(
 
 /**
  * 把安装包内置的 tweaks（如 Dream Skin 皮肤）复制到用户 tweaks 目录；
+ * 首次启动的平行实现见 packages/loader/bootstrap-user-data.cjs。
  * 已存在同名目录时保留不动，仅当内置 tweak 的 manifest 版本号高于已装
  * 版本时覆盖升级（用户自定义 tweak 或同版本本地修改不被覆盖）。
  * 非独立安装且有仓库 tweaks 时同样生效。

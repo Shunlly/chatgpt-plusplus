@@ -7,6 +7,17 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.9
+
+拖入最新 DMG 后主题和插件会全部消失：开箱即用包没有把 runtime 灌进用户目录。启动时从应用包同步 runtime、tweaks 和四套内置主题。Windows 宠物拖动和安装完成页也一并修好。
+
+### Fixed
+
+- macOS 拖入 DMG 后主题/插件全部消失：loader 只认用户目录里的 runtime。启动时从应用包 Resources 同步 runtime、tweaks，并补齐四套内置主题（已有自定义主题不覆盖）
+- 打包 DMG 时刷新暂存副本里的 loader，不再沿用本机正在运行的旧 asar
+- Windows 宠物拖动更稳，空白处点透；安装完成页可勾选启动 ChatGPT++
+- 长时间运行后的渲染器卡顿
+
 ## 1.1.8
 
 Windows 26.825 起官方窗口标题变成 ChatGPT，打开 ChatGPT++ 看起来像进了官方 ChatGPT。现在标题和任务栏标识改回 ChatGPT++，启动器也优先打开真正的桌面主程序。长会话侧栏能滑不能点，是 Dream Skin 旧副本还在观察 main 尺寸。

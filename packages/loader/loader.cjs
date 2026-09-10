@@ -8,10 +8,12 @@
  *      package.json#__codexpp.originalMain). The user runtime location is
  *      derived from the CURRENT user at launch (never the path baked into
  *      the installer), so the same DMG/EXE works on any machine.
- *   2. Hook `require` so renderer preloads can find our runtime.
- *   3. Load the runtime's main-process entry BEFORE the original main entry.
+ *   2. 首次启动把应用包内的 runtime / tweaks / 内置主题灌进当前用户目录，
+ *      这样拖入 DMG 就能用，不必再跑一次 install。
+ *   3. Hook `require` so renderer preloads can find our runtime.
+ *   4. Load the runtime's main-process entry BEFORE the original main entry.
  *      The runtime patches Electron's BrowserWindow to inject our preload script.
- *   4. Load the original main entry. If anything in our pipeline throws, log
+ *   5. Load the original main entry. If anything in our pipeline throws, log
  *      it but always fall through to the original main so Codex still launches
  *      (broken tweak system > broken Codex).
  */
@@ -89,6 +91,20 @@ safe("aumid", () => {
   }
 });
 
+// DMG/EXE 开箱即用：把包内 runtime / tweaks / 内置主题灌进当前用户目录。
+// 旧 asar 没有 bootstrap 文件时跳过，保持“runtime 已在用户目录则加载”的原行为。
+safe("bootstrap", () => {
+  let bootstrapUserData;
+  let resolveBundledResources;
+  try {
+    ({ bootstrapUserData, resolveBundledResources } = require("./bootstrap-user-data.cjs"));
+  } catch {
+    return;
+  }
+  const bundled = resolveBundledResources();
+  if (bundled) bootstrapUserData(userRoot, bundled);
+});
+
 safe("init", () => {
   if (!originalMain) {
     throw new Error("loader: package.json missing __codexpp.originalMain");
@@ -96,7 +112,7 @@ safe("init", () => {
 
   // Allow user-installed runtime modules to be require()d from anywhere.
   const runtimeDir = path.join(userRoot, "runtime");
-  if (fs.existsSync(runtimeDir)) {
+  if (fs.existsSync(path.join(runtimeDir, "main.js"))) {
     Module.globalPaths.push(path.join(runtimeDir, "node_modules"));
     process.env.CHATGPT_PLUSPLUS_USER_ROOT = userRoot;
     process.env.CHATGPT_PLUSPLUS_RUNTIME = runtimeDir;

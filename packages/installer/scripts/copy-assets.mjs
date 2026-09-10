@@ -11,12 +11,14 @@ const runtimeDest = resolve(out, "runtime");
 
 mkdirSync(out, { recursive: true });
 
-const loaderSrc = resolve(root, "packages/loader/loader.cjs");
-if (!existsSync(loaderSrc)) {
-  throw new Error(`[copy-assets] missing ${loaderSrc}`);
+for (const name of ["loader.cjs", "bootstrap-user-data.cjs"]) {
+  const src = resolve(root, "packages/loader", name);
+  if (!existsSync(src)) {
+    throw new Error(`[copy-assets] missing ${src}`);
+  }
+  cpSync(src, resolve(out, name));
+  console.log(`[copy-assets] packages/loader/${name} -> assets/${name}`);
 }
-cpSync(loaderSrc, resolve(out, "loader.cjs"));
-console.log("[copy-assets] packages/loader/loader.cjs -> assets/loader.cjs");
 
 // 只拷宿主实际加载的 bundle + native，丢掉 tsc 碎文件和 sourcemap。
 rmSync(runtimeDest, { recursive: true, force: true });

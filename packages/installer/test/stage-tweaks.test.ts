@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { seedCustomThemes, syncPresets } from "../src/commands/install.js";
+import { copyLoaderStub, seedCustomThemes, syncPresets } from "../src/commands/install.js";
 
 test("syncPresets 补齐缺失预设、覆盖同名旧预设，并保留用户自定义文件", () => {
   const root = mkdtempSync(join(tmpdir(), "sync-presets-"));
@@ -101,6 +101,19 @@ test("内置无 custom-seed 时 seedCustomThemes 不影响目标目录", () => {
     seedCustomThemes(fromTweak, tweakDataRoot);
 
     assert.equal(existsSync(join(tweakDataRoot, "com.codexplusplus.dream-skin", "custom")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("copyLoaderStub 会把 loader 和 bootstrap 一起放进 asar 根目录", () => {
+  const root = mkdtempSync(join(tmpdir(), "copy-loader-"));
+  try {
+    copyLoaderStub(root);
+    assert.equal(existsSync(join(root, "chatgpt-plusplus-loader.cjs")), true);
+    assert.equal(existsSync(join(root, "bootstrap-user-data.cjs")), true);
+    const loader = readFileSync(join(root, "chatgpt-plusplus-loader.cjs"), "utf8");
+    assert.match(loader, /bootstrap-user-data\.cjs/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
