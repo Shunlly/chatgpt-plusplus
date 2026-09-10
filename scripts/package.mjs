@@ -115,9 +115,10 @@ async function buildSea(cli, platform) {
     JSON.stringify({ main: "cli.cjs", output: blob, disableExperimentalSEAWarning: true }),
   );
 
-  // 本机 Node 为 22.x 且平台一致时直接用本机运行时（CI 场景），否则下载官方 LTS。
+  // 本机 Node 22–24 且平台一致时直接用本机运行时（CI 的 Node 22）。
+  // Node 25+ 默认关掉 SEA（报 Single executable application is disabled），改下官方 LTS。
   const major = Number(process.versions.node.split(".")[0]);
-  const localOk = process.platform === platform && Number.isFinite(major) && major >= 22;
+  const localOk = process.platform === platform && Number.isFinite(major) && major >= 22 && major <= 24;
   const nodeBin = localOk ? process.execPath : await ensureNodeBinary(platform);
 
   // Node SEA 要求 main/output 相对于 sea-config 所在目录。
