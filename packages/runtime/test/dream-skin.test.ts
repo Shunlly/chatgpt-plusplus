@@ -83,12 +83,29 @@ test("dream-skin 新版首页识别会清除欢迎区白色面板", () => {
   assert.match(css, /\[data-app-shell-main-content-top-fade\]\s*\{\s*background-image: none !important;/);
 });
 
+test("dream-skin 重套主题会清理旧观察器，Canvas resize 不累加缩放", () => {
+  const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
+  const core = readFileSync(join(tweakRoot, "assets/engine/core.js"), "utf8");
+  assert.match(template, /previous\?\.compactObserver\) previous\.compactObserver\.disconnect/);
+  assert.match(template, /state\?\.compactObserver\?\.disconnect/);
+  assert.match(core, /removeEventListener\("visibilitychange", this\.visibilityHandler\)/);
+  assert.match(core, /qualityChangeOff = this\.performance\.on/);
+  assert.match(core, /qualityChangeOff\(\)/);
+});
+
 test("dream-skin 隐藏窗口不空转，回前台立即恢复", () => {
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
   assert.match(template, /const ensure = .*if \(document\.hidden\) return;/s);
   assert.match(template, /document\.addEventListener\("visibilitychange", visibilityHandler\)/);
   assert.match(template, /document\.removeEventListener\("visibilitychange", state\.visibilityHandler\)/);
   assert.match(template, /if \(!document\.hidden\) ensure\(\{ root: true, route: true, layout: true \}\)/);
+});
+
+test("settings injector 停止时清理轮询、导航监听和 history 包装", () => {
+  const src = readFileSync(resolve(process.cwd(), "packages/runtime/src/preload/settings-injector.ts"), "utf8");
+  assert.match(src, /clearInterval\(state\.scanInterval\)/);
+  assert.match(src, /window\.removeEventListener\("popstate", onNav\)/);
+  assert.match(src, /history\[m\] = original/);
 });
 
 test("dream-skin 侧边栏观察器隐藏不扫描且 200ms 合并", () => {
@@ -101,7 +118,7 @@ test("dream-skin 侧边栏观察器隐藏不扫描且 200ms 合并", () => {
 
 test("dream-skin 卡死修复随版本号发出，避免同版本跳过覆盖", () => {
   const manifest = JSON.parse(readFileSync(join(tweakRoot, "manifest.json"), "utf8"));
-  assert.equal(manifest.version, "2.0.1");
+  assert.equal(manifest.version, "2.0.2");
   const template = readFileSync(join(tweakRoot, "assets/renderer-inject.js"), "utf8");
   assert.equal(template.includes("resizeObserver?.observe(shellMain)"), false);
 });

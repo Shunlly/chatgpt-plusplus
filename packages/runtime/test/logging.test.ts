@@ -12,8 +12,8 @@ test("appendCappedLog keeps log files at or below the byte cap", () => {
     writeFileSync(file, "a".repeat(95));
     appendCappedLog(file, "b".repeat(20), 100);
     const data = readFileSync(file, "utf8");
-    assert.equal(Buffer.byteLength(data), 100);
-    assert.equal(data, `${"a".repeat(80)}${"b".repeat(20)}`);
+    assert.equal(Buffer.byteLength(data), 70);
+    assert.equal(data, `${"a".repeat(50)}${"b".repeat(20)}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -107,6 +107,7 @@
     return URL.createObjectURL(new Blob([bytes], { type: mime }));
   })();
 
+  if (previous?.compactObserver) previous.compactObserver.disconnect();
   if (previous?.observer) previous.observer.disconnect();
   if (previous?.rootObserver) previous.rootObserver.disconnect();
   if (previous?.resizeObserver) previous.resizeObserver.disconnect();
@@ -707,6 +708,7 @@
     document.querySelectorAll(".dream-skin-home-utility").forEach((node) => node.classList.remove("dream-skin-home-utility"));
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(CHROME_ID)?.remove();
+    state?.compactObserver?.disconnect();
     state?.observer?.disconnect();
     state?.rootObserver?.disconnect();
     state?.resizeObserver?.disconnect();
@@ -790,6 +792,7 @@
   window[STATE_KEY] = {
     ensure,
     cleanup,
+    compactObserver,
     observer,
     rootObserver,
     resizeObserver,

@@ -39,3 +39,17 @@ function writeTweak(dir: string, version: string, marker: string): void {
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({ id: "x", version }));
   writeFileSync(join(dir, "marker.txt"), marker);
 }
+
+test("内置修复版本升级时会把旧用户副本替换掉", () => {
+  const root = mkdtempSync(join(tmpdir(), "sync-bundled-tweaks-fix-"));
+  try {
+    const src = join(root, "src");
+    const dest = join(root, "dest");
+    writeTweak(join(src, "dream-skin"), "2.0.2", "fixed");
+    writeTweak(join(dest, "dream-skin"), "2.0.1", "leaky");
+    assert.deepEqual(syncBundledTweaks(src, dest), ["dream-skin"]);
+    assert.equal(readFileSync(join(dest, "dream-skin", "marker.txt"), "utf8"), "fixed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

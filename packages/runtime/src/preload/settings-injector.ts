@@ -195,6 +195,9 @@ interface InjectorState {
   sidebarRestoreHandler: ((e: Event) => void) | null;
   settingsSurfaceVisible: boolean;
   settingsSurfaceHideTimer: ReturnType<typeof setTimeout> | null;
+  scanInterval: ReturnType<typeof setInterval> | null;
+  historyOriginals: { pushState: History["pushState"] | null; replaceState: History["replaceState"] | null };
+  historyWrappers: { pushState: History["pushState"] | null; replaceState: History["replaceState"] | null };
   /** 侧边栏最近一次是否找到（避免每次 DOM 变化都重复打日志） */
   sidebarFound: boolean | null;
   tweakStore: TweakStoreRegistryView | null;
@@ -223,6 +226,9 @@ const state: InjectorState = {
   sidebarRestoreHandler: null,
   settingsSurfaceVisible: false,
   settingsSurfaceHideTimer: null,
+  scanInterval: null,
+  historyOriginals: { pushState: null, replaceState: null },
+  historyWrappers: { pushState: null, replaceState: null },
   sidebarFound: null,
   tweakStore: null,
   tweakStorePromise: null,
@@ -254,6 +260,25 @@ export function stopSettingsInjector(): void {
   injectorStopped = true;
   state.observer?.disconnect();
   state.observer = null;
+  if (state.scanInterval) {
+    clearInterval(state.scanInterval);
+    state.scanInterval = null;
+  }
+  window.removeEventListener("popstate", onNav);
+  window.removeEventListener("hashchange", onNav);
+  document.removeEventListener("click", onDocumentClick, true);
+  for (const m of ["pushState", "replaceState"] as const) {
+    window.removeEventListener(`codexpp-${m}`, onNav);
+    const wrapper = state.historyWrappers[m];
+    const original = state.historyOriginals[m];
+    if (wrapper && original && history[m] === wrapper) history[m] = original;
+    state.historyWrappers[m] = null;
+    state.historyOriginals[m] = null;
+  }
+  if (state.settingsSurfaceHideTimer) {
+    clearTimeout(state.settingsSurfaceHideTimer);
+    state.settingsSurfaceHideTimer = null;
+  }
 }
 
 export function startSettingsInjector(): void {
@@ -274,21 +299,27 @@ export function startSettingsInjector(): void {
   document.addEventListener("click", onDocumentClick, true);
   for (const m of ["pushState", "replaceState"] as const) {
     const orig = history[m];
-    history[m] = function (this: History, ...args: Parameters<typeof orig>) {
+    const wrapped = function (this: History, ...args: Parameters<typeof orig>) {
       const r = orig.apply(this, args);
       window.dispatchEvent(new Event(`codexpp-${m}`));
       return r;
     } as typeof orig;
+    state.historyOriginals[m] = orig;
+    state.historyWrappers[m] = wrapped;
+    history[m] = wrapped;
     window.addEventListener(`codexpp-${m}`, onNav);
   }
 
   tryInject();
   maybeDumpDom();
   let ticks = 0;
-  const interval = setInterval(() => {
+  state.scanInterval = setInterval(() => {
     ticks++;
     if (ticks > 60) {
-      clearInterval(interval);
+      if (state.scanInterval) {
+        clearInterval(state.scanInterval);
+        state.scanInterval = null;
+      }
       return;
     }
     if (document.hidden) return;

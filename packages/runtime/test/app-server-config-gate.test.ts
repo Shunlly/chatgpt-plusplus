@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   catalogFingerprint,
   catalogPathFromToml,
@@ -63,6 +64,12 @@ test("坏 JSON 不改写", () => {
   const out = enableCatalogImageInput(raw);
   assert.equal(out.changed, 0);
   assert.equal(out.json, raw);
+});
+
+test("app-server watcher 按 listener 精确解绑，避免多实例互相影响", () => {
+  const src = readFileSync(new URL("../src/app-server-config-gate.ts", import.meta.url), "utf8");
+  assert.match(src, /unwatchFile\(opts\.configPath, configListener\)/);
+  assert.match(src, /unwatchFile\(catalogFile, catalogListener\)/);
 });
 
 test("Windows catalog 更新不杀 app-server，避免 Owl 把后端退出当成整应用重启", () => {

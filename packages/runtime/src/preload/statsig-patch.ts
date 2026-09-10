@@ -90,7 +90,10 @@ export function startStatsigModelVisibilityMaintenance(opts: {
     if (result.changed > 0) opts.onChange?.(result.changed);
   };
 
-  const onStorage = () => reapply();
+  const onStorage = (event?: StorageEvent) => {
+    if (event?.key && !event.key.startsWith("statsig.cached.evaluations.")) return;
+    reapply();
+  };
   const onVisibility = () => {
     if (!document.hidden) reapply();
   };

@@ -164,27 +164,30 @@ export function installAppServerConfigGate(opts: {
       } catch {}
     };
 
-    watchFile(opts.configPath, { interval: 500, persistent: false }, () => {
+    const configListener = () => {
       patchCatalogFromConfig(opts.configPath, log);
       maybeRestart();
-    });
+    };
+    watchFile(opts.configPath, { interval: 500, persistent: false }, configListener);
     let catalogFile: string | null = null;
+    let catalogListener: (() => void) | null = null;
     try {
       catalogFile = catalogPathFromToml(readFileSync(opts.configPath, "utf8"), dirname(opts.configPath));
     } catch {}
     if (catalogFile && catalogFile !== opts.configPath) {
-      watchFile(catalogFile, { interval: 500, persistent: false }, () => {
+      catalogListener = () => {
         patchCatalogFromConfig(opts.configPath, log);
         maybeRestart();
-      });
+      };
+      watchFile(catalogFile, { interval: 500, persistent: false }, catalogListener);
     }
     child.once("exit", () => {
       try {
-        unwatchFile(opts.configPath);
+        unwatchFile(opts.configPath, configListener);
       } catch {}
-      if (catalogFile && catalogFile !== opts.configPath) {
+      if (catalogFile && catalogFile !== opts.configPath && catalogListener) {
         try {
-          unwatchFile(catalogFile);
+          unwatchFile(catalogFile, catalogListener);
         } catch {}
       }
     });

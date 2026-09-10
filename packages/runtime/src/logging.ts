@@ -14,8 +14,10 @@ export function appendCappedLog(path: string, line: string, maxBytes = MAX_LOG_B
       const size = statSync(path).size;
       const allowedExisting = maxBytes - incoming.byteLength;
       if (size > allowedExisting) {
+        // 留出半个文件的余量，避免日志达到上限后每一行都同步读写 10 MB。
+        const keepBytes = Math.min(allowedExisting, Math.floor(maxBytes / 2));
         const existing = readFileSync(path);
-        writeFileSync(path, existing.subarray(Math.max(0, existing.byteLength - allowedExisting)));
+        writeFileSync(path, existing.subarray(Math.max(0, existing.byteLength - keepBytes)));
       }
     }
   } catch {

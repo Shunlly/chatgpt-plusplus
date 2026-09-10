@@ -67,6 +67,13 @@ class PerformanceMonitor {
       this.listeners.set(event, []);
     }
     this.listeners.get(event).push(handler);
+    return () => {
+      const handlers = this.listeners.get(event);
+      if (!handlers) return;
+      const index = handlers.indexOf(handler);
+      if (index >= 0) handlers.splice(index, 1);
+      if (handlers.length === 0) this.listeners.delete(event);
+    };
   }
 
   emit(event, data) {
@@ -306,6 +313,7 @@ class VideoRenderer extends BaseRenderer {
   constructor(theme, performance) {
     super(theme, performance);
     this.video = null;
+    this.qualityChangeOff = null;
   }
 
   start() {
@@ -330,7 +338,7 @@ class VideoRenderer extends BaseRenderer {
     `;
 
     // 监听性能降级
-    this.performance.on("qualityChange", (data) => {
+    this.qualityChangeOff = this.performance.on("qualityChange", (data) => {
       if (data.to === "emergency") {
         // 紧急降级：暂停视频
         this.video.pause();
@@ -359,6 +367,10 @@ class VideoRenderer extends BaseRenderer {
   cleanup() {
     super.cleanup();
 
+    if (this.qualityChangeOff) {
+      this.qualityChangeOff();
+      this.qualityChangeOff = null;
+    }
     if (this.video) {
       this.video.pause();
       this.video.remove();
@@ -524,13 +536,14 @@ class DreamSkinEngine {
     this.paused = false;
 
     // 监听页面可见性变化
-    document.addEventListener("visibilitychange", () => {
+    this.visibilityHandler = () => {
       if (document.hidden) {
         this.pause();
       } else {
         this.resume();
       }
-    });
+    };
+    document.addEventListener("visibilitychange", this.visibilityHandler);
   }
 
   loadTheme(theme) {
@@ -608,6 +621,10 @@ class DreamSkinEngine {
 
   cleanup() {
     this.stopRenderLoop();
+    if (this.visibilityHandler) {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
 
     if (this.renderer) {
       this.renderer.cleanup();

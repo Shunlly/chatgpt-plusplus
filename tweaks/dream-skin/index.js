@@ -4,7 +4,7 @@
 // 选中项持久化在 api.storage，切换主题即热更新；tweak 被禁用或卸载时 stop() 清理现场。
 "use strict";
 
-const TWEAK_VERSION = "1.1.0";
+const TWEAK_VERSION = "1.1.1";
 
 // 随包预设：目录结构与 Codex-Dream-Skin 仓库的 macos/presets 一致。
 const PRESET_IDS = ["preset-midnight-aurora",
