@@ -7,6 +7,15 @@ This project uses semver for the installer, runtime, SDK, and published CLI pack
 > 历史注记：0.1.x 时期项目名与 CLI 为 codex-plusplus / codexplusplus，
 > 1.0.x 起统一为 chatgptplusplus，本文件历史条目中的命令名已随之更新。
 
+## 1.1.10
+
+重新安装后双击 ChatGPT++ 会立刻闪退：macOS Owl 和 Windows 一样，主进程拦截 `page-title-updated` 并 `preventDefault` 会 SIGTRAP。默认改为延迟改一次标题。macOS 安装包同步到官方 ChatGPT 26.908.40834。
+
+### Fixed
+
+- macOS 安装/重装后打不开：窗口品牌化不再在主进程拦截 `page-title-updated`（Owl SIGTRAP）。标题仍由 preload 改 `document.title`，主进程只延迟 setTitle 一次
+- macOS DMG 基于官方 ChatGPT 26.908.40834 重打，不再分发落后的 26.818 快照
+
 ## 1.1.9
 
 拖入最新 DMG 后主题和插件会全部消失：开箱即用包没有把 runtime 灌进用户目录。启动时从应用包同步 runtime、tweaks 和四套内置主题。Windows 宠物拖动和安装完成页也一并修好。

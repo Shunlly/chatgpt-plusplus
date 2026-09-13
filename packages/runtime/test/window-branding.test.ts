@@ -128,8 +128,40 @@ test("isCompactBrandingWindow 识别桌面宠物，空 URL 也不提前 setTitle
   assert.equal(isCompactBrandingWindow(fakeWin({ url: "" })), true);
 });
 
-test("Windows 品牌化不再对所有窗口周期 setTitle", () => {
+test("默认品牌化不挂钩 page-title-updated，避免 Owl 原生崩溃", () => {
+  const titles = ["ChatGPT"];
+  let hooked = false;
+  const win = {
+    isDestroyed: () => false,
+    getTitle: () => titles[0],
+    setTitle: (t: string) => { titles[0] = t; },
+    on: (event: string) => {
+      if (event === "page-title-updated") hooked = true;
+    },
+    webContents: { getURL: () => "app://-/index.html" },
+  };
+  const app = {
+    setAppUserModelId: (id: string) => { app.id = id; },
+    isReady: () => true,
+    whenReady: () => Promise.resolve(),
+    on: () => {},
+    id: "",
+  };
+  installWindowBranding({
+    app,
+    BrowserWindow: {
+      fromWebContents: () => win,
+      getAllWindows: () => [win],
+    },
+  });
+  assert.equal(app.id, "com.chatgpt-plusplus.app");
+  assert.equal(hooked, false);
+  assert.equal(titles[0], "ChatGPT");
+});
+
+test("Windows/macOS 品牌化不再对所有窗口周期 setTitle", () => {
   const src = readFileSync(resolve(process.cwd(), "packages/runtime/src/window-branding.ts"), "utf8");
   assert.match(src, /main title once/);
+  assert.match(src, /enableTitleHooks === true/);
   assert.doesNotMatch(src, /setInterval\(applyAll/);
 });

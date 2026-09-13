@@ -68,7 +68,10 @@ export function installWindowBranding(opts: {
     getAllWindows(): BrandableWindow[];
   };
   log?: (msg: string) => void;
-  /** 测试可强制打开。Windows Owl 上 setTitle/preventDefault 会原生崩溃，默认关掉。 */
+  /**
+   * 测试可强制打开。Owl 在 macOS/Windows 上对 page-title-updated 调 preventDefault
+   * 会 SIGTRAP，默认关掉，改走延迟 setTitle，标题仍由 preload 改 document.title。
+   */
   enableTitleHooks?: boolean;
 }): void {
   const log = opts.log ?? (() => {});
@@ -78,11 +81,10 @@ export function installWindowBranding(opts: {
     log(`setAppUserModelId skipped: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  const enableTitleHooks =
-    opts.enableTitleHooks ?? (typeof process === "undefined" || process.platform !== "win32");
+  const enableTitleHooks = opts.enableTitleHooks === true;
   if (!enableTitleHooks) {
-    // Windows Owl: page-title-updated + preventDefault 会原生崩溃。
-    // 只改一次标题，且跳过宠物窗；周期 setTitle 会打断 startDrag。
+    // Owl（macOS/Windows）：page-title-updated + preventDefault 会原生崩溃。
+    // 只改一次标题，且跳过宠物窗；周期 setTitle 会打断 Windows 拖动。
     const apply = (): void => {
       try { opts.app.setAppUserModelId?.(CHATGPT_PLUSPLUS_APP_USER_MODEL_ID); } catch {}
       try {
@@ -101,7 +103,7 @@ export function installWindowBranding(opts: {
     } catch {
       setTimeout(apply, 2500);
     }
-    log(`window branding installed title=${CHATGPT_PLUSPLUS_WINDOW_TITLE} (win32: main title once)`);
+    log(`window branding installed title=${CHATGPT_PLUSPLUS_WINDOW_TITLE} (safe: main title once)`);
     return;
   }
 
